@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { dbService } from '../services/db';
 import { Hotel, Accommodation, Booking, FilterState } from '../types';
+import { EVENTS } from '../constants';
 
 export const useAccommodations = () => {
   const [accommodations, setAccommodations] = useState<Accommodation[]>([]);
@@ -41,6 +42,14 @@ export const useAccommodations = () => {
 
   useEffect(() => {
     fetchData();
+
+    // Listen for data refresh events from anywhere in the app
+    const handleRefresh = () => {
+      fetchData(true);
+    };
+
+    window.addEventListener(EVENTS.DATA_REFRESH, handleRefresh);
+    return () => window.removeEventListener(EVENTS.DATA_REFRESH, handleRefresh);
   }, []);
 
   const filteredItems = useMemo(() => {

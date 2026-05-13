@@ -19,6 +19,7 @@ import { Sidebar } from './Sidebar';
 import { UsersList } from './UsersList';
 import { LoadingPlane } from '../ui/LoadingPlane';
 import { Modal, Input, SectionLabel } from './Shared';
+import { triggerDataRefresh } from '../../lib/events';
 
 type AdminTab = 'hotels' | 'rooms' | 'bookings' | 'past_bookings' | 'users';
 
@@ -143,7 +144,11 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
           <HotelForm 
             hotel={editingHotel} 
             onClose={() => setShowHotelForm(false)} 
-            onSuccess={() => { setShowHotelForm(false); fetchData(); }} 
+            onSuccess={() => { 
+                setShowHotelForm(false); 
+                fetchData(); 
+                triggerDataRefresh();
+            }} 
           />
         )}
         {showRoomForm && (
@@ -151,7 +156,11 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
             room={editingRoom} 
             hotels={hotels}
             onClose={() => setShowRoomForm(false)} 
-            onSuccess={() => { setShowRoomForm(false); fetchData(); }} 
+            onSuccess={() => { 
+                setShowRoomForm(false); 
+                fetchData(); 
+                triggerDataRefresh();
+            }} 
           />
         )}
         {deleteTarget && (
@@ -166,6 +175,7 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
               }
               setDeleteTarget(null);
               fetchData();
+              triggerDataRefresh();
             }}
           />
         )}
@@ -200,6 +210,7 @@ const AdminBookingsList = ({ bookings, rooms, hotels, onUpdate, type }: any) => 
       await dbService.updateBooking(id, updateData);
       // Removed manual room update as it's now handled by the server in the bookings patch route
       onUpdate();
+      triggerDataRefresh();
       setSelectedBooking(null);
       setShowCancelDialog(false);
       setCancelReason('');
@@ -302,6 +313,7 @@ const AdminRoomsList = ({ rooms, hotels, onEdit, onDelete, onUpdate }: any) => {
   const toggleAvailability = async (room: Accommodation) => {
     await dbService.updateRoom(room.id, { isAvailable: !room.isAvailable });
     onUpdate();
+    triggerDataRefresh();
   }
   return (
     <div className="bg-white rounded-[32px] overflow-hidden border border-natural-accent">
