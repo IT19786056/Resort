@@ -5,7 +5,9 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 import { queueBookingConfirmation, processEmailQueue } from './server/email';
 
-dotenv.config();
+if (!process.env.VERCEL) {
+  dotenv.config();
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,9 +22,7 @@ const dbUrl = process.env.DATABASE_URL;
 const isDbConfigured = Boolean(dbUrl && !dbUrl.includes('[YOUR-PASSWORD]'));
 
 if (!isDbConfigured) {
-  console.error('\n⚠️  DATABASE_URL is not configured correctly.');
-  console.error('Please set a valid DATABASE_URL in the Settings -> Secrets menu.');
-  console.error('Format: postgresql://postgres:[PASSWORD]@db.[PROJECT-ID].supabase.co:5432/postgres\n');
+  console.log('⚠️ DATABASE_URL not set. Running in mock mode.');
 }
 
 const pool = isDbConfigured 
@@ -30,7 +30,8 @@ const pool = isDbConfigured
       connectionString: dbUrl,
       ssl: {
         rejectUnauthorized: false
-      }
+      },
+      connectionTimeoutMillis: 10000,
     })
   : null;
 
@@ -129,6 +130,17 @@ const MOCK_BOOKINGS = [
 
 let isDbInitialized = false;
 
+// Health check route
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    dbConfigured: isDbConfigured,
+    dbInitialized: isDbInitialized,
+    vercel: !!process.env.VERCEL,
+    node: process.version
+  });
+});
+
 // Helper for queries to handle missing DB
 async function query(text: string, params?: any[]) {
   if (!pool) {
@@ -137,8 +149,12 @@ async function query(text: string, params?: any[]) {
     throw err;
   }
   
-  if (!isDbInitialized && process.env.VERCEL) {
-    await initDb();
+  if (!isDbInitialized) {
+    try {
+      await initDb();
+    } catch (e) {
+      console.error('Lazy initDb failed:', e);
+    }
   }
 
   try {
