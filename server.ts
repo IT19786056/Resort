@@ -11,7 +11,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
+export const app = express();
 const PORT = 3000;
 
 app.use(express.json());
@@ -128,18 +128,26 @@ const MOCK_BOOKINGS = [
   }
 ];
 
+let isDbInitialized = false;
+
 // Helper for queries to handle missing DB
 async function query(text: string, params?: any[]) {
   if (!pool) {
-    const err = new Error('Database not configured. Please set DATABASE_URL in Settings -> Secrets.');
+    const err = new Error('Database not configured. Please set DATABASE_URL (e.g. from Supabase) in Settings -> Secrets.');
     (err as any).isConfigError = true;
     throw err;
   }
+  
+  if (!isDbInitialized && process.env.VERCEL) {
+    await initDb();
+  }
+
   try {
     return await pool.query(text, params);
   } catch (dbErr: any) {
+    console.error('Query Error:', dbErr.message);
     if (dbErr.message?.includes('authentication failed')) {
-      const err = new Error('Database authentication failed. Please check your DB password in your DATABASE_URL secret.');
+      const err = new Error('Database authentication failed. Please check your DB password.');
       (err as any).isConfigError = true;
       throw err;
     }
@@ -149,6 +157,7 @@ async function query(text: string, params?: any[]) {
 
 // Initialize Database Tables
 async function initDb() {
+  if (isDbInitialized) return;
   if (!pool) {
     console.warn('⚠️  DATABASE_URL not set or invalid. App will run in Mock Mode for data endpoints.');
     return;
@@ -300,6 +309,7 @@ async function initDb() {
       );
       console.log('Seed data inserted');
     }
+    isDbInitialized = true;
   } catch (err: any) {
     console.error('\n❌ Database initialization error:');
     if (err.message?.includes('authentication failed')) {
@@ -549,6 +559,11 @@ app.get('/api/bookings', async (req, res) => {
 
 app.post('/api/bookings', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'Database unavailable' });
+  
+  if (!isDbInitialized && process.env.VERCEL) {
+    await initDb();
+  }
+  
   const client = await pool.connect();
   
   try {
@@ -679,4 +694,6 @@ async function startServer() {
   });
 }
 
-startServer();
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  startServer();
+}

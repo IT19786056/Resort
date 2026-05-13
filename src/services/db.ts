@@ -19,11 +19,11 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     let errorMessage = 'API Request failed';
+    const text = await response.text();
     try {
-      const error = await response.json();
+      const error = JSON.parse(text);
       errorMessage = error.error || errorMessage;
     } catch (e) {
-      const text = await response.text();
       console.error('Non-JSON error response:', text);
       errorMessage = `Server Error: ${response.status} ${response.statusText}`;
     }
