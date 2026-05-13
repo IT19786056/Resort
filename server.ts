@@ -11,7 +11,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export const app = express();
+const app = express();
 const PORT = 3000;
 
 app.use(express.json());
@@ -679,11 +679,4 @@ async function startServer() {
   });
 }
 
-if (process.env.NODE_ENV !== 'production') {
-  startServer();
-} else if (!process.env.VERCEL) {
-  startServer();
-} else {
-  // In Vercel production, we still need to init DB
-  initDb().catch(console.error);
-}
+startServer();
