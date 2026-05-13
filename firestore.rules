@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- GLOBAL HELPERS ---
+    function isSignedIn() { return request.auth != null; }
+    
+    function isAdmin() { 
+      return isSignedIn() && (
+        request.auth.token.email == "jasonlawrene23@gmail.com" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
+      ); 
+    }
+
+    function isStaff() {
+      return isSignedIn() && (
+        request.auth.token.email == "jasonlawrene23@gmail.com" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ["admin", "staff"])
+      );
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    
+    // --- DEFAULT DENY ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- USERS ---
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // --- HOTELS ---
+    function isValidHotel(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             data.location is string && data.location.size() > 0 && data.location.size() <= 200;
+    }
+
+    match /hotels/{hotelId} {
+      allow read: if true;
+      allow create: if isStaff() && isValidId(hotelId) && isValidHotel(incoming());
+      allow update: if isStaff() && isValidHotel(incoming());
+      allow delete: if isStaff();
+    }
+
+    // --- ROOMS ---
+    function isValidRoom(data) {
+      return data.hotelId is string && 
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             data.type in ['Villa', 'Suite', 'Room'] &&
+             data.price is number && data.price >= 0;
+    }
+
+    match /rooms/{roomId} {
+      allow read: if true;
+      allow create: if isStaff() && isValidId(roomId) && isValidRoom(incoming());
+      allow update: if isStaff() && isValidRoom(incoming());
+      allow delete: if isStaff();
+    }
+
+    // --- BOOKINGS ---
+    function isValidBooking(data) {
+      return data.roomId is string && 
+             data.hotelId is string && 
+             data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 200 &&
+             data.email is string && data.email.size() > 0 &&
+             data.status in ['pending', 'confirmed', 'cancelled'];
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isStaff() || (isSignedIn() && existing().email == request.auth.token.email);
+      allow create: if isValidId(bookingId) && isValidBooking(incoming()) && incoming().status == 'pending';
+      allow update: if isStaff() && isValidBooking(incoming());
+      allow delete: if isStaff();
+    }
+  }
+}

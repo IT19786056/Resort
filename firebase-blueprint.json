@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "Hotel": {
+      "title": "Hotel",
+      "description": "Information about a hotel or resort property",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "location": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" }
+      },
+      "required": ["name", "location"]
+    },
+    "Room": {
+      "title": "Room",
+      "description": "A specific accommodation unit within a hotel",
+      "type": "object",
+      "properties": {
+        "hotelId": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["Villa", "Suite", "Room"] },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "rating": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "amenities": { "type": "array", "items": { "type": "string" } },
+        "maxGuests": { "type": "number" },
+        "isAvailable": { "type": "boolean" }
+      },
+      "required": ["hotelId", "name", "type", "price"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "A reservation made by a guest",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string" },
+        "hotelId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "checkIn": { "type": "string", "format": "date-time" },
+        "checkOut": { "type": "string", "format": "date-time" },
+        "guests": { "type": "number" },
+        "specialRequests": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["roomId", "hotelId", "fullName", "email", "checkIn", "checkOut"]
+    }
+  },
+  "firestore": {
+    "hotels": {
+      "schema": "Hotel",
+      "description": "Collection of hotels"
+    },
+    "rooms": {
+      "schema": "Room",
+      "description": "Collection of rooms linked to hotels"
+    },
+    "bookings": {
+      "schema": "Booking",
+      "description": "Collection of guest bookings"
+    }
+  }
+}
