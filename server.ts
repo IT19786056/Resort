@@ -1,5 +1,4 @@
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
@@ -156,6 +155,7 @@ async function query(text: string, params?: any[]) {
 }
 
 // Initialize Database Tables
+let initPromise: Promise<void> | null = null;
 async function initDb() {
   if (isDbInitialized) return;
   if (!pool) {
@@ -163,11 +163,14 @@ async function initDb() {
     return;
   }
   
-  let client;
-  try {
-    client = await pool.connect();
-    console.log('✅ Connected to Database');
-    await client.query(`
+  if (initPromise) return initPromise;
+  
+  initPromise = (async () => {
+    let client;
+    try {
+      client = await pool.connect();
+      console.log('✅ Connected to Database');
+      await client.query(`
       CREATE TABLE IF NOT EXISTS hotels (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         name TEXT NOT NULL,
@@ -311,6 +314,7 @@ async function initDb() {
     }
     isDbInitialized = true;
   } catch (err: any) {
+    initPromise = null; // Allow retry on next request
     console.error('\n❌ Database initialization error:');
     if (err.message?.includes('authentication failed')) {
       console.error('Password authentication failed. Please check your DB password in the DATABASE_URL.');
@@ -321,9 +325,14 @@ async function initDb() {
   } finally {
     if (client) client.release();
   }
+  })();
+
+  return initPromise;
 }
 
 // API Routes
+app.get('/api/ping', (req, res) => res.send('pong'));
+
 // Database Status
 app.get('/api/db-status', (req, res) => {
   res.json({
@@ -676,6 +685,7 @@ async function startServer() {
   }
 
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
