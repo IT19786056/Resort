@@ -64,7 +64,7 @@ export const Navbar = ({ activeTab, onTabChange }: NavbarProps) => {
   return (
     <>
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isScrolled ? 'bg-white/80 backdrop-blur-md shadow-sm py-4' : 'bg-transparent py-8'}`}>
-        <div className="max-w-7xl mx-auto px-10 flex justify-between items-center">
+        <div className="max-w-7xl mx-auto px-6 md:px-10 flex justify-between items-center">
           <div className="flex items-center gap-3 cursor-pointer group" onClick={() => handleNavClick('home')}>
             <div className="w-10 h-10 bg-natural-primary rounded-full flex items-center justify-center transition-transform group-hover:scale-110">
               <Search className="w-5 h-5 text-white" />

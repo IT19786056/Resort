@@ -1,6 +1,6 @@
 import React, { useState, lazy, Suspense, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Star, MapPin, ChevronRight, ArrowLeft } from 'lucide-react';
+import { Star, MapPin, ChevronRight, ArrowLeft, Search } from 'lucide-react';
 
 // Hooks
 import { useAccommodations } from './hooks/useAccommodations';
@@ -16,6 +16,7 @@ import { AboutUs } from './components/AboutUs';
 import { ContactUs } from './components/ContactUs';
 import { WeddingsEvents } from './components/WeddingsEvents';
 import { LoadingPlane } from './components/ui/LoadingPlane';
+import { SkeletonCard } from './components/ui/SkeletonCard';
 
 // Lazy load Admin to minimize initial bundle size and make site feel lighter
 const Admin = lazy(() => import('./components/Admin').then(m => ({ default: m.Admin })));
@@ -40,6 +41,24 @@ export default function App() {
 
   // Database and Supabase status state for debugging
   const [dbStatus, setDbStatus] = useState<any>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [activeTab]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 800) {
+        setShowScrollTop(true);
+      } else {
+        setShowScrollTop(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     fetch('/api/db-status')
@@ -189,10 +208,10 @@ export default function App() {
                   initial="hidden"
                   whileInView="show"
                   viewport={{ once: true }}
-                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12"
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-12"
                 >
                   {loading ? (
-                    [1,2,3,4,5,6].map(i => <AccommodationSkeleton key={i} />)
+                    [1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)
                   ) : filteredItems.map((item, index) => (
                     <AccommodationCard 
                       key={item.id} 
@@ -324,31 +343,29 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {activeTab === 'home' && showScrollTop && (
+          <motion.button
+            initial={{ opacity: 0, y: 50, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.8 }}
+            onClick={() => {
+              const filterSec = document.getElementById('filter-section');
+              if (filterSec) filterSec.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[60] bg-natural-dark text-white px-6 py-4 rounded-full font-bold uppercase text-[9px] tracking-[0.3em] shadow-2xl flex items-center gap-3 hover:bg-natural-primary transition-all group"
+          >
+            <Search className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            Modify Search
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-import { Skeleton } from './components/ui/Skeleton';
-
 // --- Sub-components (Kept here as they are specific to App's view) ---
-
-const AccommodationSkeleton = () => (
-  <div className="bg-white rounded-[40px] overflow-hidden flex flex-col border border-natural-accent">
-    <Skeleton className="h-72 rounded-none" />
-    <div className="p-10 space-y-6">
-      <div className="flex justify-between">
-        <div className="space-y-4 w-full">
-          <Skeleton className="h-6 w-3/4" />
-          <Skeleton className="h-4 w-1/4" />
-        </div>
-      </div>
-      <div className="pt-6 border-t border-natural-accent flex justify-between items-center">
-        <Skeleton className="h-8 w-24" />
-        <Skeleton className="h-12 w-12 rounded-full" />
-      </div>
-    </div>
-  </div>
-);
 
 const AccommodationCard = ({ item, index, onClick, onBook, disabled }: any) => (
   <motion.div 
@@ -358,44 +375,45 @@ const AccommodationCard = ({ item, index, onClick, onBook, disabled }: any) => (
     viewport={{ once: true }}
     transition={{ duration: 0.6, delay: index * 0.1 }}
     onClick={disabled ? undefined : onClick}
-    className={`bg-white rounded-[40px] overflow-hidden flex flex-col shadow-sm border border-natural-accent group hover:shadow-2xl transition-all cursor-pointer ${disabled ? 'opacity-70 grayscale-[0.5]' : ''}`}
+    className={`bg-white rounded-[32px] md:rounded-[40px] overflow-hidden flex flex-col shadow-sm border border-natural-accent group hover:shadow-2xl transition-all cursor-pointer ${disabled ? 'opacity-70 grayscale-[0.5]' : ''}`}
   >
-    <div className="h-72 bg-natural-accent overflow-hidden relative">
+    <div className="h-56 md:h-72 bg-natural-accent overflow-hidden relative">
       <img 
         src={item.imageUrl} 
         alt={item.name} 
         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" 
+        referrerPolicy="no-referrer"
       />
-      <div className="absolute top-6 right-6 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] text-natural-primary border border-natural-accent">
+      <div className="absolute top-4 md:top-6 right-4 md:right-6 bg-white/90 backdrop-blur-md px-3 md:px-4 py-1 md:py-1.5 rounded-full text-[9px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-natural-primary border border-natural-accent">
         {item.type}
       </div>
       {disabled && (
         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-          <span className="bg-white text-natural-dark px-6 py-2 rounded-full font-bold uppercase text-[10px] tracking-widest shadow-xl">Already Booked</span>
+          <span className="bg-white text-natural-dark px-4 py-1.5 rounded-full font-bold uppercase text-[9px] tracking-widest shadow-xl">Already Booked</span>
         </div>
       )}
     </div>
-    <div className="p-10 flex flex-col flex-1">
-      <div className="flex justify-between items-start mb-6">
-        <h3 className="font-serif text-3xl text-natural-dark italic group-hover:text-natural-primary transition-colors">{item.name}</h3>
-        <span className="flex items-center text-xs font-bold text-natural-primary bg-natural-primary/5 px-3 py-1 rounded-full">
-          <Star className="w-3 h-3 mr-1.5 fill-current" /> {item.rating}
+    <div className="p-6 md:p-10 flex flex-col flex-1">
+      <div className="flex justify-between items-start mb-4 md:mb-6">
+        <h3 className="font-serif text-2xl md:text-3xl text-natural-dark italic group-hover:text-natural-primary transition-colors">{item.name}</h3>
+        <span className="flex items-center text-[10px] md:text-xs font-bold text-natural-primary bg-natural-primary/5 px-2 md:px-3 py-1 rounded-full">
+          <Star className="w-3 h-3 mr-1 md:mr-1.5 fill-current" /> {item.rating}
         </span>
       </div>
-      <p className="text-sm text-natural-muted leading-relaxed mb-8 flex-1 italic font-light">
+      <p className="text-xs md:text-sm text-natural-muted leading-relaxed mb-6 md:mb-8 flex-1 italic font-light">
         {item.description}
       </p>
-      <div className="mt-auto flex items-center justify-between pt-8 border-t border-natural-bg">
-        <div>
-          <span className="text-3xl font-bold text-natural-dark">${item.price}</span>
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-natural-muted ml-3">/ night</span>
+      <div className="mt-auto flex items-center justify-between pt-6 md:pt-8 border-t border-natural-bg">
+        <div className="flex items-baseline">
+          <span className="text-2xl md:text-3xl font-bold text-natural-dark">${item.price}</span>
+          <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-natural-muted ml-2 md:ml-3">/ night</span>
         </div>
         {!disabled && (
           <button 
             onClick={onBook}
-            className="bg-natural-primary text-white p-4 rounded-full hover:bg-natural-dark transition-all shadow-lg active:scale-95"
+            className="bg-natural-primary text-white p-3 md:p-4 rounded-full hover:bg-natural-dark transition-all shadow-lg active:scale-95"
           >
-            <ChevronRight className="w-5 h-5" />
+            <ChevronRight className="w-4 md:w-5 h-4 md:h-5" />
           </button>
         )}
       </div>
@@ -410,59 +428,60 @@ const HotelCard = ({ hotel, index, onClick }: any) => (
     viewport={{ once: true }}
     transition={{ delay: index * 0.1, duration: 0.8 }}
     onClick={onClick}
-    className="group cursor-pointer"
+    className="group cursor-pointer mb-12 lg:mb-0"
   >
-    <div className="h-[600px] rounded-[60px] overflow-hidden mb-10 relative bg-natural-accent shadow-2xl">
+    <div className="h-[400px] md:h-[600px] rounded-[32px] md:rounded-[60px] overflow-hidden mb-6 md:mb-10 relative bg-natural-accent shadow-2xl">
       <img 
         src={hotel.imageUrl} 
         className="w-full h-full object-cover group-hover:scale-110 transition-all duration-[2000ms]" 
         alt={hotel.name}
+        referrerPolicy="no-referrer"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-natural-dark/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700 flex items-end p-12">
-        <p className="text-white text-sm font-light italic max-w-sm">
+      <div className="absolute inset-0 bg-gradient-to-t from-natural-dark/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700 flex items-end p-8 md:p-12">
+        <p className="text-white text-xs md:text-sm font-light italic max-w-sm">
           {hotel.description}
         </p>
       </div>
     </div>
-    <div className="px-6">
-      <div className="flex items-center gap-3 mb-4">
-        <MapPin className="w-4 h-4 text-natural-primary" />
-        <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-muted">{hotel.location}</span>
+    <div className="px-4 md:px-6">
+      <div className="flex items-center gap-3 mb-2 md:mb-4">
+        <MapPin className="w-3 h-3 md:w-4 md:h-4 text-natural-primary" />
+        <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-[0.4em] text-natural-muted">{hotel.location}</span>
       </div>
-      <h3 className="font-serif text-5xl text-natural-dark group-hover:italic transition-all duration-500 tracking-tighter">{hotel.name}</h3>
+      <h3 className="font-serif text-3xl md:text-5xl text-natural-dark group-hover:italic transition-all duration-500 tracking-tighter">{hotel.name}</h3>
     </div>
   </motion.div>
 );
 
-const DetailDivider = () => <div className="h-[1px] w-full bg-natural-accent my-8" />;
+const DetailDivider = () => <div className="h-[1px] w-full bg-natural-accent my-6 md:my-8" />;
 
 const HotelDetailModal = ({ hotel, onClose, onViewStays }: any) => (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10">
+  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10">
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-natural-dark/70 backdrop-blur-lg" />
-    <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="relative z-10 w-full max-w-6xl bg-white rounded-[60px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.3)] flex flex-col lg:flex-row h-[90vh]">
-      <div className="lg:w-1/2 h-full relative overflow-hidden bg-natural-accent">
-        <img src={hotel.imageUrl} className="w-full h-full object-cover" />
-        <div className="absolute top-10 left-10 flex gap-4">
-          <button onClick={onClose} className="p-4 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all"><ArrowLeft className="w-6 h-6"/></button>
+    <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="relative z-10 w-full max-w-6xl bg-white rounded-[40px] md:rounded-[60px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.3)] flex flex-col lg:flex-row h-[90vh] md:h-[85vh]">
+      <div className="lg:w-1/2 h-64 lg:h-full relative overflow-hidden bg-natural-accent">
+        <img src={hotel.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+        <div className="absolute top-6 left-6 md:top-10 md:left-10 flex gap-4">
+          <button onClick={onClose} className="p-3 md:p-4 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all"><ArrowLeft className="w-5 h-5 md:w-6 md:h-6"/></button>
         </div>
       </div>
-      <div className="lg:w-1/2 p-16 md:p-24 overflow-y-auto flex flex-col selection:bg-natural-primary/20">
-        <div className="mb-10 flex items-center gap-3">
+      <div className="lg:w-1/2 p-8 md:p-16 lg:p-24 overflow-y-auto flex flex-col selection:bg-natural-primary/20">
+        <div className="mb-6 md:mb-10 flex items-center gap-3">
           <MapPin className="w-4 h-4 text-natural-primary" />
           <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-muted">{hotel.location}</span>
         </div>
-        <h2 className="font-serif text-6xl md:text-7xl text-natural-dark italic mb-12 tracking-tighter leading-none">{hotel.name}</h2>
-        <p className="text-xl text-natural-muted font-light italic leading-relaxed mb-16">{hotel.description}</p>
+        <h2 className="font-serif text-4xl md:text-6xl lg:text-7xl text-natural-dark italic mb-8 md:mb-12 tracking-tighter leading-tight md:leading-none">{hotel.name}</h2>
+        <p className="text-lg md:text-xl text-natural-muted font-light italic leading-relaxed mb-10 md:mb-16">{hotel.description}</p>
         <DetailDivider />
-        <div className="mb-16">
-          <h4 className="text-[10px] uppercase font-bold tracking-[0.3em] text-natural-dark mb-8">The Sanctuary Map</h4>
-          <div className="h-72 bg-natural-bg rounded-[40px] overflow-hidden border border-natural-accent relative">
+        <div className="mb-10 md:mb-16">
+          <h4 className="text-[10px] uppercase font-bold tracking-[0.3em] text-natural-dark mb-6 md:mb-8">The Sanctuary Map</h4>
+          <div className="h-56 md:h-72 bg-natural-bg rounded-[32px] md:rounded-[40px] overflow-hidden border border-natural-accent relative">
              <iframe title="map" width="100%" height="100%" frameBorder="0" src={`https://www.google.com/maps/embed/v1/place?key=REPLACEME&q=${encodeURIComponent(hotel.name + ' ' + hotel.location)}`} />
              <div className="absolute inset-0 bg-natural-primary/5 pointer-events-none" />
           </div>
         </div>
-        <button onClick={onViewStays} className="mt-auto w-full bg-natural-primary text-white py-6 rounded-full font-bold uppercase tracking-[0.3em] shadow-xl hover:bg-natural-dark hover:-translate-y-1 transition-all flex items-center justify-center gap-4">
-          Explore This Collection <ChevronRight className="w-5 h-5"/>
+        <button onClick={onViewStays} className="mt-auto w-full bg-natural-primary text-white py-5 md:py-6 rounded-full font-bold uppercase tracking-[0.3em] shadow-xl hover:bg-natural-dark hover:-translate-y-1 transition-all flex items-center justify-center gap-4 text-[10px] md:text-sm">
+          Explore Collection <ChevronRight className="w-5 h-5"/>
         </button>
       </div>
     </motion.div>
@@ -470,41 +489,42 @@ const HotelDetailModal = ({ hotel, onClose, onViewStays }: any) => (
 );
 
 const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, onStartBooking, onBookingSuccess, initialCheckIn, initialCheckOut }: any) => (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-10">
+  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10">
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-natural-dark/70 backdrop-blur-lg" />
-    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative z-10 w-full max-w-5xl bg-white rounded-[50px] overflow-hidden shadow-2xl min-h-[600px] flex">
+    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative z-10 w-full max-w-5xl bg-white rounded-[32px] md:rounded-[50px] overflow-hidden shadow-2xl h-[90vh] md:h-auto md:min-h-[600px] flex overflow-y-auto md:overflow-visible">
       {!isBooking ? (
-        <div className="flex flex-col md:flex-row w-full">
-          <div className="md:w-1/2 relative bg-natural-accent">
-            <img src={item.imageUrl} className="w-full h-full object-cover" />
+        <div className="flex flex-col lg:flex-row w-full">
+          <div className="lg:w-1/2 h-64 lg:h-auto relative bg-natural-accent">
+            <img src={item.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            <button onClick={onClose} className="absolute top-6 left-6 lg:hidden p-3 bg-white/20 backdrop-blur-md rounded-full text-white"><ArrowLeft className="w-5 h-5"/></button>
           </div>
-          <div className="md:w-1/2 p-16 flex flex-col selection:bg-natural-primary/20">
-            <button onClick={onClose} className="self-end p-2 hover:bg-natural-bg rounded-full mb-4"><ArrowLeft className="w-6 h-6 text-natural-muted"/></button>
-            <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-primary mb-6">{item.type} Portfolios</span>
-            <h2 className="font-serif text-5xl md:text-6xl text-natural-dark italic mb-8 tracking-tighter">{item.name}</h2>
-            <div className="flex items-center gap-6 mb-10 pb-8 border-b border-natural-accent">
-               <div className="flex items-center gap-2 text-sm font-bold"><Star className="w-4 h-4 text-natural-primary" /> {item.rating}</div>
-               <div className="flex items-center gap-2 text-sm font-bold"><MapPin className="w-4 h-4 text-natural-primary" /> {item.location}</div>
+          <div className="lg:w-1/2 p-8 md:p-16 flex flex-col selection:bg-natural-primary/20">
+            <button onClick={onClose} className="hidden lg:flex self-end p-2 hover:bg-natural-bg rounded-full mb-4"><ArrowLeft className="w-6 h-6 text-natural-muted"/></button>
+            <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-primary mb-4 md:mb-6">{item.type} Portfolio</span>
+            <h2 className="font-serif text-4xl md:text-5xl lg:text-6xl text-natural-dark italic mb-6 md:mb-8 tracking-tighter leading-tight">{item.name}</h2>
+            <div className="flex flex-wrap items-center gap-4 md:gap-6 mb-8 md:mb-10 pb-6 md:pb-8 border-b border-natural-accent">
+               <div className="flex items-center gap-2 text-xs md:text-sm font-bold"><Star className="w-4 h-4 text-natural-primary" /> {item.rating}</div>
+               <div className="flex items-center gap-2 text-xs md:text-sm font-bold"><MapPin className="w-4 h-4 text-natural-primary" /> {item.location}</div>
             </div>
-            <p className="text-lg text-natural-muted font-light italic leading-relaxed mb-12">{item.description}</p>
-            <div className="mt-auto flex items-center justify-between">
+            <p className="text-base md:text-lg text-natural-muted font-light italic leading-relaxed mb-10 md:mb-12">{item.description}</p>
+            <div className="mt-auto flex items-center justify-between gap-4">
               <div>
-                <span className="text-4xl font-bold font-serif italic text-natural-dark">${item.price}</span>
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-natural-muted ml-4">/ night</span>
+                <span className="text-3xl md:text-4xl font-bold font-serif italic text-natural-dark">${item.price}</span>
+                <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-natural-muted ml-2 md:ml-4">/ night</span>
               </div>
-              <button onClick={onStartBooking} className="bg-natural-primary text-white px-10 py-5 rounded-full font-bold uppercase tracking-[0.2em] shadow-xl hover:bg-natural-dark transition-all">Reserve</button>
+              <button onClick={onStartBooking} className="bg-natural-primary text-white px-8 md:px-10 py-4 md:py-5 rounded-full font-bold uppercase tracking-[0.2em] shadow-xl hover:bg-natural-dark transition-all text-xs">Reserve</button>
             </div>
           </div>
         </div>
       ) : bookingSuccess ? (
-        <div className="w-full p-24 flex flex-col items-center text-center justify-center">
-          <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-10"><Star className="w-10 h-10 text-green-600"/></div>
-          <h2 className="font-serif text-6xl italic text-natural-dark mb-6 tracking-tighter text-center">Sanctuary Requested.</h2>
-          <p className="text-xl text-natural-muted max-w-md font-light italic leading-relaxed mb-12 text-center">Our concierge will contact you within the hour to finalize your tropical escape.</p>
-          <button onClick={onClose} className="bg-natural-primary text-white px-12 py-5 rounded-full font-bold uppercase tracking-[0.2em] shadow-xl">Complete</button>
+        <div className="w-full p-12 md:p-24 flex flex-col items-center text-center justify-center">
+          <div className="w-16 h-16 md:w-20 md:h-20 bg-green-50 rounded-full flex items-center justify-center mb-10"><Star className="w-8 h-8 md:w-10 md:h-10 text-green-600"/></div>
+          <h2 className="font-serif text-4xl md:text-6xl italic text-natural-dark mb-6 tracking-tighter text-center leading-tight">Sanctuary Requested.</h2>
+          <p className="text-lg md:text-xl text-natural-muted max-w-md font-light italic leading-relaxed mb-12 text-center">Our concierge will contact you within the hour to finalize your tropical escape.</p>
+          <button onClick={onClose} className="bg-natural-primary text-white px-12 py-5 rounded-full font-bold uppercase tracking-[0.2em] shadow-xl text-sm">Complete</button>
         </div>
       ) : (
-        <div className="w-full flex items-center justify-center p-10 bg-natural-bg/50">
+        <div className="w-full flex items-center justify-center p-6 md:p-10 bg-natural-bg/50">
           <BookingForm 
             accommodation={item} 
             onCancel={onClose} 

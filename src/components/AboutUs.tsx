@@ -5,19 +5,19 @@ import { Award, Heart, Globe, Map } from 'lucide-react';
 export const AboutUs = () => {
   return (
     <div className="min-h-screen bg-natural-bg pt-32 pb-20">
-      <div className="max-w-7xl mx-auto px-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center mb-32">
+      <div className="max-w-7xl mx-auto px-6 md:px-10">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 md:gap-20 items-center mb-20 md:mb-32">
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
-            className="space-y-8"
+            className="space-y-6 md:space-y-8"
           >
             <div className="space-y-4">
               <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-primary">Our Legacy</span>
-              <h1 className="font-serif text-6xl italic text-natural-dark leading-tight">Crafting Memories Since 1992</h1>
+              <h1 className="font-serif text-4xl md:text-6xl italic text-natural-dark leading-tight">Crafting Memories Since 1992</h1>
             </div>
-            <p className="text-natural-muted leading-relaxed font-light text-lg">
+            <p className="text-natural-muted leading-relaxed font-light text-base md:text-lg">
               What started as a single boutique villa in Ahungalla has evolved into Sri Lanka's premiere luxury resort collection. At Ahsell Resorts, we don't just provide rooms; we curate experiences that linger in the soul.
             </p>
             <p className="text-natural-muted leading-relaxed font-light">

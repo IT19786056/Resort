@@ -26,63 +26,63 @@ export const ContactUs = () => {
   };
 
   return (
-    <div className="min-h-screen bg-natural-bg pt-32 pb-20">
-      <div className="max-w-7xl mx-auto px-10">
-        <div className="text-center mb-20 space-y-4">
+    <div className="min-h-screen bg-natural-bg pt-28 md:pt-32 pb-20">
+      <div className="max-w-7xl mx-auto px-6 md:px-10">
+        <div className="text-center mb-12 md:mb-20 space-y-4">
           <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-primary">Connect With Us</span>
-          <h1 className="font-serif text-5xl italic text-natural-dark">We're Here for You</h1>
+          <h1 className="font-serif text-3xl md:text-5xl italic text-natural-dark">We're Here for You</h1>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-20 mb-32">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 md:gap-20 mb-20 md:mb-32">
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="lg:col-span-5 space-y-12"
+            className="lg:col-span-5 space-y-8 md:space-y-12"
           >
-            <div className="space-y-8">
-              <div className="flex gap-6 items-start group">
-                <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-natural-primary transition-all">
-                  <Mail className="w-6 h-6 text-natural-primary group-hover:text-white" />
+            <div className="space-y-6 md:space-y-8">
+              <div className="flex gap-4 md:gap-6 items-start group">
+                <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-natural-primary transition-all flex-shrink-0">
+                  <Mail className="w-5 h-5 md:w-6 md:h-6 text-natural-primary group-hover:text-white" />
                 </div>
                 <div>
                   <SectionLabel label="Email Inquiries" />
-                  <p className="font-bold text-natural-dark mt-1">reservations@ahsellresorts.com</p>
-                  <p className="text-xs text-natural-muted mt-1">Response time: within 2 hours</p>
+                  <p className="font-bold text-natural-dark mt-1 text-sm md:text-base">reservations@ahsellresorts.com</p>
+                  <p className="text-[10px] md:text-xs text-natural-muted mt-1">Response time: within 2 hours</p>
                 </div>
               </div>
 
-              <div className="flex gap-6 items-start group">
-                <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-natural-primary transition-all">
-                  <Phone className="w-6 h-6 text-natural-primary group-hover:text-white" />
+              <div className="flex gap-4 md:gap-6 items-start group">
+                <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-natural-primary transition-all flex-shrink-0">
+                  <Phone className="w-5 h-5 md:w-6 md:h-6 text-natural-primary group-hover:text-white" />
                 </div>
                 <div>
                   <SectionLabel label="Phone Support" />
-                  <p className="font-bold text-natural-dark mt-1">+94 11 234 5678</p>
-                  <p className="text-xs text-natural-muted mt-1">Available 24/7</p>
+                  <p className="font-bold text-natural-dark mt-1 text-sm md:text-base">+94 11 234 5678</p>
+                  <p className="text-[10px] md:text-xs text-natural-muted mt-1">Available 24/7</p>
                 </div>
               </div>
 
-              <div className="flex gap-6 items-start group">
-                <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-natural-primary transition-all">
-                  <MapPin className="w-6 h-6 text-natural-primary group-hover:text-white" />
+              <div className="flex gap-4 md:gap-6 items-start group">
+                <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-natural-primary transition-all flex-shrink-0">
+                  <MapPin className="w-5 h-5 md:w-6 md:h-6 text-natural-primary group-hover:text-white" />
                 </div>
                 <div>
                   <SectionLabel label="Headquarters" />
-                  <p className="font-bold text-natural-dark mt-1">Heritage Ahungalla Resort</p>
-                  <p className="text-xs text-natural-muted mt-1">Galle Road, Ahungalla, Sri Lanka</p>
+                  <p className="font-bold text-natural-dark mt-1 text-sm md:text-base">Heritage Ahungalla Resort</p>
+                  <p className="text-[10px] md:text-xs text-natural-muted mt-1">Galle Road, Ahungalla, Sri Lanka</p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-natural-primary/5 p-10 rounded-[40px] border border-natural-primary/10">
+            <div className="bg-natural-primary/5 p-8 md:p-10 rounded-[32px] md:rounded-[40px] border border-natural-primary/10">
               <div className="flex items-center gap-3 mb-4">
                 <MessageSquare className="w-5 h-5 text-natural-primary" />
                 <h3 className="font-serif italic text-xl text-natural-dark">Chat with us</h3>
               </div>
-              <p className="text-sm text-natural-muted leading-relaxed mb-6">
+              <p className="text-xs md:text-sm text-natural-muted leading-relaxed mb-6">
                 Prefer instant messaging? Our concierge team is available via WhatsApp for immediate assistants with your holiday planning.
               </p>
-              <button className="bg-white text-natural-dark border border-natural-accent py-4 px-8 rounded-full font-bold uppercase text-[9px] tracking-widest hover:bg-natural-primary hover:text-white hover:border-natural-primary transition-all">
+              <button className="w-full md:w-auto bg-white text-natural-dark border border-natural-accent py-3 md:py-4 px-8 rounded-full font-bold uppercase text-[9px] tracking-widest hover:bg-natural-primary hover:text-white hover:border-natural-primary transition-all">
                 Launch WhatsApp
               </button>
             </div>
@@ -93,14 +93,14 @@ export const ContactUs = () => {
             animate={{ opacity: 1, x: 0 }}
             className="lg:col-span-7"
           >
-            <div className="bg-white p-12 rounded-[48px] shadow-xl border border-natural-accent">
+            <div className="bg-white p-8 md:p-12 rounded-[32px] md:rounded-[48px] shadow-xl border border-natural-accent">
               {submitted ? (
-                <div className="py-20 text-center space-y-6">
-                  <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto">
-                    <Send className="w-8 h-8 text-green-500" />
+                <div className="py-12 md:py-20 text-center space-y-6">
+                  <div className="w-16 h-16 md:w-20 md:h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto">
+                    <Send className="w-6 h-6 md:w-8 md:h-8 text-green-500" />
                   </div>
-                  <h3 className="font-serif text-3xl italic text-natural-dark">Message Dispatched</h3>
-                  <p className="text-natural-muted max-w-sm mx-auto">
+                  <h3 className="font-serif text-2xl md:text-3xl italic text-natural-dark">Message Dispatched</h3>
+                  <p className="text-sm md:text-base text-natural-muted max-w-sm mx-auto">
                     Thank you for reaching out. A dedicated member of our concierge team will be in touch with you shortly.
                   </p>
                   <button 
@@ -111,8 +111,8 @@ export const ContactUs = () => {
                   </button>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} className="space-y-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <form onSubmit={handleSubmit} className="space-y-6 md:space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                     <Input label="Your Name" value={formData.name} onChange={v => setFormData({...formData, name: v})} required />
                     <Input label="Email Address" type="email" value={formData.email} onChange={v => setFormData({...formData, email: v})} required />
                   </div>
@@ -120,7 +120,7 @@ export const ContactUs = () => {
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-natural-muted ml-4">How can we help?</label>
                     <textarea 
-                      className="w-full bg-natural-bg rounded-[32px] p-6 min-h-[160px] outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-sm"
+                      className="w-full bg-natural-bg rounded-[24px] md:rounded-[32px] p-6 min-h-[160px] outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-sm"
                       placeholder="Share your requirements or questions here..."
                       value={formData.message}
                       onChange={e => setFormData({...formData, message: e.target.value})}
@@ -129,7 +129,7 @@ export const ContactUs = () => {
                   </div>
                   <button 
                     type="submit"
-                    className="w-full bg-natural-primary text-white py-6 rounded-full font-bold uppercase tracking-widest hover:bg-natural-dark transition-all shadow-xl shadow-natural-primary/10 flex items-center justify-center gap-3"
+                    className="w-full bg-natural-primary text-white py-5 md:py-6 rounded-full font-bold uppercase tracking-widest hover:bg-natural-dark transition-all shadow-xl shadow-natural-primary/10 flex items-center justify-center gap-3 text-xs"
                   >
                     Submit Inquiry <Send className="w-4 h-4" />
                   </button>

@@ -10,36 +10,36 @@ interface WeddingsEventsProps {
 
 export const WeddingsEvents = ({ venues, onSelectVenue }: WeddingsEventsProps) => {
   return (
-    <div className="min-h-screen bg-natural-bg pt-32 pb-20">
-      <div className="max-w-7xl mx-auto px-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center mb-32">
+    <div className="min-h-screen bg-natural-bg pt-28 md:pt-32 pb-20">
+      <div className="max-w-7xl mx-auto px-6 md:px-10">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 md:gap-20 items-center mb-20 md:mb-32">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-8"
+            className="space-y-6 md:space-y-8"
           >
             <div className="space-y-4">
               <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-primary">Forever Starts Here</span>
-              <h1 className="font-serif text-6xl italic text-natural-dark leading-tight">Weddings & Exclusive Events</h1>
+              <h1 className="font-serif text-4xl md:text-6xl italic text-natural-dark leading-[1.1]">Weddings & Exclusive Events</h1>
             </div>
-            <p className="text-natural-muted leading-relaxed font-light text-lg">
+            <p className="text-natural-muted leading-relaxed font-light text-base md:text-lg">
               Experience the perfect union of tropical elegance and sophisticated celebration. Our collection of banquet halls provides the ultimate backdrop for your most cherished moments.
             </p>
-            <div className="flex gap-12">
+            <div className="flex gap-8 md:gap-12">
               <div className="flex items-center gap-3">
-                <Heart className="w-5 h-5 text-natural-primary" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-natural-dark">Bespoke Decor</span>
+                <Heart className="w-4 h-4 md:w-5 md:h-5 text-natural-primary" />
+                <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest text-natural-dark">Bespoke Decor</span>
               </div>
               <div className="flex items-center gap-3">
-                <Star className="w-5 h-5 text-natural-primary" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-natural-dark">Gourmet Catering</span>
+                <Star className="w-4 h-4 md:w-5 md:h-5 text-natural-primary" />
+                <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest text-natural-dark">Gourmet Catering</span>
               </div>
             </div>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="rounded-[60px] overflow-hidden aspect-video shadow-2xl"
+            className="rounded-[32px] md:rounded-[60px] overflow-hidden aspect-video shadow-2xl"
           >
             <img 
               src="https://images.unsplash.com/photo-1519225421980-715cb0215aed?q=80&w=2070&auto=format&fit=crop" 

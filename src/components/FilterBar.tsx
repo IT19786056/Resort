@@ -14,11 +14,11 @@ export const FilterBar = ({
   hotels 
 }: FilterBarProps) => {
   return (
-    <div className="py-8 bg-natural-bg sticky top-20 z-40">
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="bg-white rounded-full p-2 shadow-sm border border-natural-accent flex flex-col xl:flex-row items-center justify-between gap-4">
-          <div className="flex flex-col lg:flex-row flex-1 lg:divide-x divide-natural-accent w-full">
-            <div className="px-8 py-3 flex flex-col flex-1">
+    <div id="filter-section" className="py-4 md:py-8 bg-natural-bg relative md:sticky md:top-20 z-40">
+      <div className="max-w-6xl mx-auto px-4 md:px-6">
+        <div className="bg-white rounded-3xl md:rounded-full p-2 shadow-sm border border-natural-accent flex flex-col xl:flex-row items-center justify-between gap-2 md:gap-4">
+          <div className="flex flex-col md:grid md:grid-cols-2 lg:flex lg:flex-row flex-1 lg:divide-x divide-natural-accent w-full">
+            <div className="px-6 md:px-8 py-2 md:py-3 flex flex-col flex-1">
               <span className="text-[10px] uppercase font-bold text-natural-muted mb-1 flex items-center tracking-widest">
                 <MapPin className="w-3 h-3 mr-2 text-natural-primary" /> Destination
               </span>
