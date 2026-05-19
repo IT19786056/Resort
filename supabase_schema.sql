@@ -68,5 +68,15 @@ CREATE TABLE IF NOT EXISTS bookings (
     "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Media Table
+CREATE TABLE IF NOT EXISTS media (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "parentId" UUID NOT NULL, -- References hotels or rooms
+    "parentType" TEXT NOT NULL, -- 'hotel' or 'room'
+    "data" TEXT NOT NULL, -- Base64 data (compressed)
+    "order" INTEGER DEFAULT 0,
+    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Seed Data (Optional)
 -- INSERT INTO hotels (name, location, description, "imageUrl") VALUES ('Heritage Ahungalla', 'Ahungalla', 'Legendary 5-star resort.', '...');

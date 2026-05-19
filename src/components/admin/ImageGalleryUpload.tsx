@@ -108,14 +108,16 @@ export const ImageGalleryUpload = ({ parentId, parentType }: ImageGalleryUploadP
 
       <div className="grid grid-cols-4 md:grid-cols-6 gap-3">
         {media.map((item) => (
-          <div key={item.id} className="relative aspect-square rounded-xl overflow-hidden group border border-natural-accent">
-            <img src={item.data} className="w-full h-full object-cover" />
-            <button 
-              onClick={() => handleDelete(item.id)}
-              className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <X className="w-3 h-3" />
-            </button>
+          <div key={item.id} className="relative aspect-square rounded-2xl overflow-hidden group border border-natural-accent bg-natural-bg">
+            <img src={item.data} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <button 
+                onClick={() => handleDelete(item.id)}
+                className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg active:scale-90"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
           </div>
         ))}
         {loading && (

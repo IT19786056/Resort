@@ -412,8 +412,16 @@ const HotelForm = ({ hotel, onClose, onSuccess }: any) => {
           </div>
         )}
 
-        <textarea className="w-full bg-natural-bg rounded-2xl p-4 min-h-[120px]" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Description" />
-        <button type="submit" className="w-full bg-natural-primary text-white py-5 rounded-full font-bold uppercase tracking-widest shadow-xl">Save</button>
+        <div className="pt-6 border-t border-natural-accent space-y-4">
+          <SectionLabel label="Hotel Description" />
+          <textarea 
+            className="w-full bg-white border border-natural-accent rounded-2xl p-4 min-h-[120px] outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark placeholder:text-natural-muted/60" 
+            value={formData.description} 
+            onChange={e => setFormData({...formData, description: e.target.value})} 
+            placeholder="Tell us about this sanctuary..." 
+          />
+        </div>
+        <button type="submit" className="w-full bg-natural-primary text-white py-5 rounded-full font-bold uppercase tracking-[0.2em] text-[11px] shadow-xl hover:bg-natural-dark transition-all active:scale-[0.98]">Save Hotel Details</button>
       </form>
     </Modal>
   );
@@ -438,17 +446,47 @@ const RoomForm = ({ room, hotels, onClose, onSuccess }: any) => {
     onSuccess();
   };
   return (
-    <Modal onClose={onClose} title={room ? 'Edit Room' : 'Add Room'}>
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <select className="w-full bg-natural-bg rounded-2xl p-4" value={formData.hotelId} onChange={e => setFormData({...formData, hotelId: e.target.value})}>
-          {hotels.map((h: Hotel) => <option key={h.id} value={h.id}>{h.name}</option>)}
-        </select>
-        <Input label="Name" value={formData.name} onChange={(v:any) => setFormData({...formData, name: v})} required />
-        <div className="grid grid-cols-2 gap-4">
-          <Input label="Price" type="number" value={formData.price} onChange={(v:any) => setFormData({...formData, price: v})} required />
-          <Input label="Capacity" type="number" value={formData.maxGuests} onChange={(v:any) => setFormData({...formData, maxGuests: v})} required />
+    <Modal onClose={onClose} title={room ? 'Edit Room Portfolio' : 'Add New Room'}>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        <div className="space-y-2">
+          <SectionLabel label="Select Property" />
+          <select 
+            className="w-full bg-white border border-natural-accent rounded-2xl p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark" 
+            value={formData.hotelId} 
+            onChange={e => setFormData({...formData, hotelId: e.target.value})}
+          >
+            {hotels.map((h: Hotel) => <option key={h.id} value={h.id}>{h.name}</option>)}
+          </select>
         </div>
-        <Input label="Image URL" value={formData.imageUrl} onChange={(v:any) => setFormData({...formData, imageUrl: v})} />
+        
+        <Input label="Room Name / Title" value={formData.name} onChange={(v:any) => setFormData({...formData, name: v})} required placeholder="e.g. Presidential Water Villa" />
+        
+        <div className="grid grid-cols-2 gap-6">
+          <Input label="Price per Night (USD)" type="number" value={formData.price} onChange={(v:any) => setFormData({...formData, price: v})} required />
+          <Input label="Max Guests" type="number" value={formData.maxGuests} onChange={(v:any) => setFormData({...formData, maxGuests: v})} required />
+        </div>
+        
+        <Input label="Main Image URL" value={formData.imageUrl} onChange={(v:any) => setFormData({...formData, imageUrl: v})} placeholder="https://..." />
+        
+        <div className="space-y-4">
+          <SectionLabel label="Amenities (Comma separated)" />
+          <input 
+            className="w-full bg-white border border-natural-accent rounded-2xl p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark" 
+            value={formData.amenities} 
+            onChange={e => setFormData({...formData, amenities: e.target.value})}
+            placeholder="e.g. Private Pool, Wi-Fi, Ocean View"
+          />
+        </div>
+
+        <div className="space-y-4">
+          <SectionLabel label="Room Description" />
+          <textarea 
+            className="w-full bg-white border border-natural-accent rounded-2xl p-4 min-h-[120px] outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark" 
+            value={formData.description} 
+            onChange={e => setFormData({...formData, description: e.target.value})} 
+            placeholder="Describe the room experience..." 
+          />
+        </div>
         
         {room && (
           <div className="pt-6 border-t border-natural-accent">
@@ -456,7 +494,7 @@ const RoomForm = ({ room, hotels, onClose, onSuccess }: any) => {
           </div>
         )}
         
-        <button type="submit" className="w-full bg-natural-primary text-white py-5 rounded-full font-bold uppercase tracking-widest shadow-xl">Save</button>
+        <button type="submit" className="w-full bg-natural-primary text-white py-5 rounded-full font-bold uppercase tracking-[0.2em] text-[11px] shadow-xl hover:bg-natural-dark transition-all active:scale-[0.98]">Save Room Details</button>
       </form>
     </Modal>
   );

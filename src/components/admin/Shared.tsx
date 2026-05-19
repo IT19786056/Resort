@@ -7,11 +7,11 @@ export const SectionLabel = ({ label }: { label: string }) => (
 );
 
 export const Input = ({ label, type = "text", value, onChange, ...props }: any) => (
-  <div>
+  <div className="space-y-2">
     <SectionLabel label={label} />
     <input 
       type={type}
-      className="w-full bg-natural-bg rounded-2xl p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark"
+      className="w-full bg-white border border-natural-accent rounded-2xl p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark placeholder:text-natural-muted/60"
       value={value}
       onChange={e => onChange(e.target.value)}
       {...props}
