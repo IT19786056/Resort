@@ -612,6 +612,7 @@ app.post('/api/bookings', async (req, res) => {
   }
   
   const client = await pool.connect();
+  let isClientReleased = false;
   
   try {
     const { userId, roomId, hotelId, fullName, email, phone, checkIn, checkOut, guests, specialRequests, status } = req.body;
@@ -661,6 +662,8 @@ app.post('/api/bookings', async (req, res) => {
     });
 
     await client.query('COMMIT');
+    client.release();
+    isClientReleased = true;
     
     // --- NEW: Trigger email processing immediately for Vercel ---
     // We await this so Vercel stays awake long enough to send the email.

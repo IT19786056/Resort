@@ -7,12 +7,12 @@ export interface BookingDetails {
   hotelName: string;
   roomName: string;
   roomImageUrl?: string;
-  checkIn: string;
-  checkOut: string;
+  checkIn: string | Date;  // Update this line
+  checkOut: string | Date; // Update this line
   guests: number;
   id: string;
   specialRequests?: string;
-  placedAt?: string;
+  placedAt?: string | Date; // Update this line too just in case!
 }
 
 const createTransporter = () => {
@@ -52,8 +52,12 @@ const getEmailTemplate = (details: BookingDetails) => {
     return date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
   };
 
-  const formatTime = (dateStr: string, defaultTime: string) => {
-    // If it's just a date, use default check-in/out times
+  const formatTime = (dateVal: string | Date, defaultTime: string) => {
+    if (!dateVal) return defaultTime;
+    
+    // Safely convert to string if it's a Date object
+    const dateStr = dateVal instanceof Date ? dateVal.toISOString() : String(dateVal);
+
     if (dateStr.includes('T')) {
         const date = new Date(dateStr);
         return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
