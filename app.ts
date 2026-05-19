@@ -521,7 +521,10 @@ app.get('/api/rooms', async (req, res) => {
 
 app.post('/api/rooms', async (req, res) => {
   try {
-    const { hotelId, name, type, description, price, rating, imageUrl, amenities, maxGuests, isAvailable, location } = req.body;
+    const { 
+      hotelId, name, type, description, price, rating, imageUrl, amenities, maxGuests, 
+      isAvailable = true, location 
+    } = req.body;
     const result = await query(
       `INSERT INTO rooms ("hotelId", name, type, description, price, rating, "imageUrl", amenities, "maxGuests", "isAvailable", location) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,

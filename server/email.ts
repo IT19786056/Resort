@@ -9,10 +9,11 @@ export interface BookingDetails {
   checkOut: string;
   guests: number;
   id: string;
-  total?: string; // Added to support the new "Total: [Amount]" requirement
 }
 
 const createTransporter = () => {
+  // Try to use environment variables for SMTP
+  // If not provided, it will fail gracefully or log a warning
   const host = process.env.SMTP_HOST;
   const port = parseInt(process.env.SMTP_PORT || '587');
   const user = process.env.SMTP_USER;
@@ -27,149 +28,90 @@ const createTransporter = () => {
     host,
     port,
     secure: port === 465,
-    auth: { user, pass }
+    auth: { user, pass },
+    connectionTimeout: 10000, // 10s
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
 };
 
 const getEmailTemplate = (details: BookingDetails) => {
-  const primaryColor = '#C5A28E'; // Muted Gold
-  const bgColor = '#F9F7F2';      // Warm off-white
-  const textColor = '#2D2D2D';    // Charcoal
-  const accentColor = '#D9D2C6';  // Light Beige/Grey
-
-  // Formatting dates beautifully
-  const checkInDate = new Date(details.checkIn).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  const checkOutDate = new Date(details.checkOut).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const primaryColor = '#C5A28E';
+  const bgColor = '#F9F7F2';
+  const textColor = '#2D2D2D';
+  const accentColor = '#D9D2C6';
 
   return `
     <!DOCTYPE html>
     <html>
       <head>
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-          /* Reset and Base Styles */
-          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: ${bgColor}; color: ${textColor}; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
-          table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
-          a { text-decoration: none; color: ${primaryColor}; }
-          
-          /* Typography */
-          h1, h2, h3 { font-family: 'Georgia', 'Times New Roman', serif; font-weight: normal; margin: 0; }
-          p { line-height: 1.6; margin: 0 0 20px 0; color: #4A4A4A; }
-          
-          /* Layout */
-          .wrapper { width: 100%; table-layout: fixed; background-color: ${bgColor}; padding: 40px 20px; }
-          .main { background: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border: 1px solid ${accentColor}; }
-          
-          /* Sections */
-          .header { padding: 50px 40px; text-align: center; border-bottom: 1px solid ${accentColor}; }
-          .header h1 { font-size: 36px; color: ${textColor}; letter-spacing: 1px; }
-          .content { padding: 50px 40px; }
-          
-          /* Utilities */
-          .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: ${primaryColor}; font-weight: bold; margin-bottom: 25px; text-align: center; }
-          .divider { border-bottom: 1px solid ${accentColor}; margin: 40px 0; }
-          
-          /* Buttons */
-          .btn-container { text-align: center; margin-top: 40px; }
-          .btn { display: inline-block; background-color: ${textColor}; color: #ffffff; text-decoration: none; padding: 16px 40px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.15em; transition: background-color 0.3s; }
-          
-          /* Footer */
-          .footer { padding: 40px; background-color: ${bgColor}; text-align: center; border-top: 1px solid ${accentColor}; }
-          .footer p { font-size: 11px; color: #888888; text-transform: uppercase; letter-spacing: 0.1em; margin: 0; }
+          body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background-color: ${bgColor}; color: ${textColor}; margin: 0; padding: 40px; }
+          .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 40px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid ${accentColor}; }
+          .header { padding: 60px 40px; text-align: center; background-color: white; border-bottom: 1px solid ${accentColor}; }
+          .header h1 { font-family: serif; font-style: italic; font-size: 32px; margin: 0; color: ${textColor}; }
+          .content { padding: 40px; }
+          .section { margin-bottom: 30px; }
+          .label { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em; color: ${primaryColor}; margin-bottom: 8px; }
+          .value { font-size: 16px; font-weight: 500; }
+          .grid { display: grid; grid-template-cols: 1fr 1fr; gap: 20px; }
+          .details-box { background-color: ${bgColor}; padding: 24px; border-radius: 24px; margin-top: 20px; }
+          .footer { padding: 40px; text-align: center; border-top: 1px solid ${accentColor}; font-size: 12px; color: ${primaryColor}; }
+          .button { display: inline-block; padding: 16px 32px; background-color: ${primaryColor}; color: white; text-decoration: none; border-radius: 100px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em; font-size: 10px; margin-top: 20px; }
         </style>
       </head>
       <body>
-        <div class="wrapper">
-          <table class="main" align="center" width="100%" cellpadding="0" cellspacing="0">
-            <!-- Header -->
-            <tr>
-              <td class="header">
-                <h1>${details.hotelName}</h1>
-              </td>
-            </tr>
+        <div class="container">
+          <div class="header">
+            <h1>Ahsell Resorts</h1>
+            <p style="margin-top: 10px; color: ${primaryColor}; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.2em;">Booking Confirmation</p>
+          </div>
+          <div class="content">
+            <p>Dear ${details.fullName},</p>
+            <p>Your sanctuary is secured at Ahsell Resorts. We are delighted to confirm your upcoming stay.</p>
             
-            <!-- Body Content -->
-            <tr>
-              <td class="content">
-                <p style="font-family: 'Georgia', serif; font-size: 20px; color: ${textColor}; margin-bottom: 25px;">
-                  Dear ${details.fullName},
-                </p>
-                <p>
-                  Your reservation at ${details.hotelName} is confirmed, and we’re already getting everything ready for your stay.
-                </p>
-                
-                <div class="divider"></div>
-                
-                <!-- Your Stay Details -->
-                <div class="section-title">Your Stay</div>
-                
-                <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 20px;">
-                  <tr>
-                    <td style="padding: 15px 0; border-bottom: 1px solid #F0ECE4; font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.05em;" width="35%">Confirmation</td>
-                    <td style="padding: 15px 0; border-bottom: 1px solid #F0ECE4; font-size: 15px; color: ${textColor}; text-align: right;">${details.id}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 15px 0; border-bottom: 1px solid #F0ECE4; font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.05em;">Arrival</td>
-                    <td style="padding: 15px 0; border-bottom: 1px solid #F0ECE4; font-size: 15px; color: ${textColor}; text-align: right;">${checkInDate}<br><span style="font-size: 13px; color: #888;">from 3:00 PM</span></td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 15px 0; border-bottom: 1px solid #F0ECE4; font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.05em;">Departure</td>
-                    <td style="padding: 15px 0; border-bottom: 1px solid #F0ECE4; font-size: 15px; color: ${textColor}; text-align: right;">${checkOutDate}<br><span style="font-size: 13px; color: #888;">by 11:00 AM</span></td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 15px 0; border-bottom: 1px solid #F0ECE4; font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.05em;">Accommodation</td>
-                    <td style="padding: 15px 0; border-bottom: 1px solid #F0ECE4; font-size: 15px; color: ${textColor}; text-align: right;">${details.roomName}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 15px 0; ${details.total ? 'border-bottom: 1px solid #F0ECE4;' : ''} font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.05em;">Guests</td>
-                    <td style="padding: 15px 0; ${details.total ? 'border-bottom: 1px solid #F0ECE4;' : ''} font-size: 15px; color: ${textColor}; text-align: right;">${details.guests}</td>
-                  </tr>
-                  ${details.total ? `
-                  <tr>
-                    <td style="padding: 15px 0; font-size: 13px; color: ${primaryColor}; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em;">Total</td>
-                    <td style="padding: 15px 0; font-size: 16px; color: ${textColor}; font-weight: bold; text-align: right;">${details.total}</td>
-                  </tr>
-                  ` : ''}
-                </table>
-
-                <div class="divider"></div>
-
-                <!-- Elevate Your Experience -->
-                <div class="section-title">Elevate your experience</div>
-                <p style="text-align: center; margin-bottom: 30px;">
-                  Our concierge has curated these additions to make your stay even more memorable:
-                </p>
-
-                <table width="100%" cellpadding="0" cellspacing="0" style="margin: 0 auto; max-width: 450px;">
-                  <tr>
-                    <td width="30" valign="top" style="padding-bottom: 15px; color: ${primaryColor}; font-size: 14px;">✦</td>
-                    <td style="padding-bottom: 15px; font-size: 14px; color: #4A4A4A;">Private airport transfer in our luxury vehicle fleet</td>
-                  </tr>
-                  <tr>
-                    <td width="30" valign="top" style="padding-bottom: 15px; color: ${primaryColor}; font-size: 14px;">✦</td>
-                    <td style="padding-bottom: 15px; font-size: 14px; color: #4A4A4A;">In-room champagne and delicate canapés on arrival</td>
-                  </tr>
-                  <tr>
-                    <td width="30" valign="top" style="padding-bottom: 15px; color: ${primaryColor}; font-size: 14px;">✦</td>
-                    <td style="padding-bottom: 15px; font-size: 14px; color: #4A4A4A;">Couples spa treatment at our award-winning wellness center</td>
-                  </tr>
-                </table>
-                
-                <div class="btn-container">
-                  <a href="${process.env.VITE_APP_URL || '#'}" class="btn">Manage Your Stay</a>
+            <div class="details-box">
+              <div class="section">
+                <div class="label">Reservation ID</div>
+                <div class="value">${details.id}</div>
+              </div>
+              
+              <div style="display: flex; justify-content: space-between; gap: 20px;">
+                <div style="flex: 1;">
+                  <div class="label">Property</div>
+                  <div class="value">${details.hotelName}</div>
                 </div>
+                <div style="flex: 1;">
+                  <div class="label">Accommodation</div>
+                  <div class="value">${details.roomName}</div>
+                </div>
+              </div>
 
-              </td>
-            </tr>
-            
-            <!-- Footer -->
-            <tr>
-              <td class="footer">
-                <p>&copy; ${new Date().getFullYear()} ${details.hotelName}. Handcrafted Hospitality.</p>
-              </td>
-            </tr>
-          </table>
+              <div style="display: flex; justify-content: space-between; gap: 20px; margin-top: 20px;">
+                <div style="flex: 1;">
+                  <div class="label">Check In (2:00 PM)</div>
+                  <div class="value">${new Date(details.checkIn).toLocaleDateString()}</div>
+                </div>
+                <div style="flex: 1;">
+                  <div class="label">Check Out (11:00 AM)</div>
+                  <div class="value">${new Date(details.checkOut).toLocaleDateString()}</div>
+                </div>
+              </div>
+
+              <div class="section" style="margin-top: 20px; margin-bottom: 0;">
+                <div class="label">Guests</div>
+                <div class="value">${details.guests} People</div>
+              </div>
+            </div>
+
+            <div style="text-align: center;">
+              <a href="${process.env.VITE_APP_URL || '#'}" class="button">Manage Booking</a>
+            </div>
+          </div>
+          <div class="footer">
+            <p>&copy; ${new Date().getFullYear()} Ahsell Resorts. Handcrafted Hospitality.</p>
+          </div>
         </div>
       </body>
     </html>
@@ -179,8 +121,7 @@ const getEmailTemplate = (details: BookingDetails) => {
 export const queueBookingConfirmation = async (dbQuery: any, details: BookingDetails) => {
   try {
     const html = getEmailTemplate(details);
-    // Updated subject line per your requirements
-    const subject = `We're preparing for your arrival – ${details.hotelName} #${details.id}`;
+    const subject = `Your Sanctuary Awaits: Confirmation for ${details.hotelName}`;
     
     await dbQuery(
       'INSERT INTO email_queue (recipient, subject, body, status) VALUES ($1, $2, $3, $4)',
@@ -200,12 +141,13 @@ export const processEmailQueue = async (pool: any) => {
   try {
     client = await pool.connect();
     
+    // Pick up pending emails OR emails that have been 'processing' for more than 5 minutes (stuck)
     const result = await client.query(
       `UPDATE email_queue 
        SET status = 'processing', "processedAt" = CURRENT_TIMESTAMP
        WHERE id IN (
          SELECT id FROM email_queue 
-         WHERE status = 'pending' 
+         WHERE (status = 'pending' OR (status = 'processing' AND "processedAt" < CURRENT_TIMESTAMP - INTERVAL '5 minutes'))
          AND attempts < 3
          LIMIT 5 
          FOR UPDATE SKIP LOCKED

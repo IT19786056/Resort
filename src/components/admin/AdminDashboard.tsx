@@ -517,115 +517,117 @@ const BookingDetailsModal = ({ booking, hotels, rooms, onClose, showCancelDialog
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-natural-dark/40 backdrop-blur-sm" onClick={onClose} />
       {!showCancelDialog ? (
         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative z-10 w-full max-w-3xl bg-white rounded-[40px] overflow-hidden flex flex-col max-h-[90vh]">
-          <div className="p-12 overflow-y-auto">
-            <div className="flex justify-between items-center mb-8 border-b border-natural-accent pb-6">
-              <div>
-                <h3 className="font-serif text-3xl italic text-natural-dark">Reservation Details</h3>
-                <div className="flex gap-4 mt-1">
-                  <p className="text-[10px] text-natural-muted font-bold uppercase tracking-widest">ID: {booking.id}</p>
-                  <p className="text-[10px] text-natural-muted font-bold uppercase tracking-widest border-l border-natural-accent pl-4">Placed: {new Date(booking.createdAt).toLocaleString()}</p>
+          <div className="overflow-y-auto flex-1">
+            <div className="p-12">
+              <div className="flex justify-between items-center mb-8 border-b border-natural-accent pb-6">
+                <div>
+                  <h3 className="font-serif text-3xl italic text-natural-dark">Reservation Details</h3>
+                  <div className="flex gap-4 mt-1">
+                    <p className="text-[10px] text-natural-muted font-bold uppercase tracking-widest">ID: {booking.id}</p>
+                    <p className="text-[10px] text-natural-muted font-bold uppercase tracking-widest border-l border-natural-accent pl-4">Placed: {new Date(booking.createdAt).toLocaleString()}</p>
+                  </div>
+                </div>
+                <button onClick={onClose} className="p-2 hover:bg-natural-bg rounded-full transition-colors"><XCircle className="w-8 h-8 text-natural-muted" /></button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-10">
+                <div className="space-y-8">
+                  <div>
+                    <SectionLabel label="Guest Information" />
+                    <div className="bg-natural-bg p-6 rounded-3xl space-y-3 mt-4">
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-natural-muted tracking-widest">Full Name</p>
+                        <p className="font-bold text-natural-dark">{booking.fullName}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-natural-muted tracking-widest">Email Address</p>
+                        <p className="font-medium text-natural-dark">{booking.email}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-natural-muted tracking-widest">Phone Number</p>
+                        <p className="font-medium text-natural-dark">{booking.phone || 'Not provided'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <SectionLabel label="Stay Schedule" />
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      <div className="bg-natural-bg p-6 rounded-3xl">
+                        <p className="text-[10px] uppercase font-bold text-natural-muted tracking-widest mb-1">Check In</p>
+                        <p className="font-bold text-natural-dark">{new Date(booking.checkIn).toLocaleDateString()}</p>
+                        <p className="text-[10px] font-bold text-natural-primary mt-1">2:00 PM</p>
+                      </div>
+                      <div className="bg-natural-bg p-6 rounded-3xl">
+                        <p className="text-[10px] uppercase font-bold text-natural-muted tracking-widest mb-1">Check Out</p>
+                        <p className="font-bold text-natural-dark">{new Date(booking.checkOut).toLocaleDateString()}</p>
+                        <p className="text-[10px] font-bold text-natural-primary mt-1">11:00 AM</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-8">
+                  <div>
+                    <SectionLabel label="Property & Room" />
+                    <div className="bg-natural-bg p-6 rounded-3xl mt-4">
+                       <div className="flex items-center gap-4 mb-4">
+                         <div className="w-12 h-12 rounded-xl bg-white overflow-hidden shadow-sm">
+                           <img src={room?.imageUrl} className="w-full h-full object-cover" />
+                         </div>
+                         <div>
+                           <p className="font-bold text-natural-dark text-sm">{hotel?.name}</p>
+                           <p className="text-xs text-natural-muted">{room?.name}</p>
+                         </div>
+                       </div>
+                       <div className="flex justify-between items-center pt-4 border-t border-natural-accent/50">
+                         <span className="text-[10px] uppercase font-bold text-natural-muted tracking-widest">Guests</span>
+                         <span className="font-bold text-natural-dark">{booking.guests} People</span>
+                       </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <SectionLabel label="Special Requests" />
+                    <div className="bg-natural-accent/30 p-6 rounded-3xl mt-4 min-h-[100px]">
+                      <p className="text-xs text-natural-muted leading-relaxed italic">
+                        {booking.specialRequests || "No special requests were noted for this reservation."}
+                      </p>
+                    </div>
+                  </div>
+
+                  {booking.cancellationReason && (
+                    <div className="bg-red-50 p-6 rounded-3xl border border-red-100">
+                      <SectionLabel label="Cancellation Reason" />
+                      <p className="text-xs text-red-600 mt-2 italic">{booking.cancellationReason}</p>
+                    </div>
+                  )}
                 </div>
               </div>
-              <button onClick={onClose} className="p-2 hover:bg-natural-bg rounded-full transition-colors"><XCircle className="w-8 h-8 text-natural-muted" /></button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-10">
-              <div className="space-y-8">
-                <div>
-                  <SectionLabel label="Guest Information" />
-                  <div className="bg-natural-bg p-6 rounded-3xl space-y-3 mt-4">
-                    <div>
-                      <p className="text-[10px] uppercase font-bold text-natural-muted tracking-widest">Full Name</p>
-                      <p className="font-bold text-natural-dark">{booking.fullName}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase font-bold text-natural-muted tracking-widest">Email Address</p>
-                      <p className="font-medium text-natural-dark">{booking.email}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase font-bold text-natural-muted tracking-widest">Phone Number</p>
-                      <p className="font-medium text-natural-dark">{booking.phone || 'Not provided'}</p>
-                    </div>
-                  </div>
-                </div>
 
-                <div>
-                  <SectionLabel label="Stay Schedule" />
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div className="bg-natural-bg p-6 rounded-3xl">
-                      <p className="text-[10px] uppercase font-bold text-natural-muted tracking-widest mb-1">Check In</p>
-                      <p className="font-bold text-natural-dark">{new Date(booking.checkIn).toLocaleDateString()}</p>
-                      <p className="text-[10px] font-bold text-natural-primary mt-1">2:00 PM</p>
-                    </div>
-                    <div className="bg-natural-bg p-6 rounded-3xl">
-                      <p className="text-[10px] uppercase font-bold text-natural-muted tracking-widest mb-1">Check Out</p>
-                      <p className="font-bold text-natural-dark">{new Date(booking.checkOut).toLocaleDateString()}</p>
-                      <p className="text-[10px] font-bold text-natural-primary mt-1">11:00 AM</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-8">
-                <div>
-                  <SectionLabel label="Property & Room" />
-                  <div className="bg-natural-bg p-6 rounded-3xl mt-4">
-                     <div className="flex items-center gap-4 mb-4">
-                       <div className="w-12 h-12 rounded-xl bg-white overflow-hidden shadow-sm">
-                         <img src={room?.imageUrl} className="w-full h-full object-cover" />
-                       </div>
-                       <div>
-                         <p className="font-bold text-natural-dark text-sm">{hotel?.name}</p>
-                         <p className="text-xs text-natural-muted">{room?.name}</p>
-                       </div>
-                     </div>
-                     <div className="flex justify-between items-center pt-4 border-t border-natural-accent/50">
-                       <span className="text-[10px] uppercase font-bold text-natural-muted tracking-widest">Guests</span>
-                       <span className="font-bold text-natural-dark">{booking.guests} People</span>
-                     </div>
-                  </div>
-                </div>
-
-                <div>
-                  <SectionLabel label="Special Requests" />
-                  <div className="bg-natural-accent/30 p-6 rounded-3xl mt-4 min-h-[100px]">
-                    <p className="text-xs text-natural-muted leading-relaxed italic">
-                      {booking.specialRequests || "No special requests were noted for this reservation."}
-                    </p>
-                  </div>
-                </div>
-
-                {booking.cancellationReason && (
-                  <div className="bg-red-50 p-6 rounded-3xl border border-red-100">
-                    <SectionLabel label="Cancellation Reason" />
-                    <p className="text-xs text-red-600 mt-2 italic">{booking.cancellationReason}</p>
+              <div className="flex gap-4 pt-8 border-t border-natural-accent">
+                {booking.status === 'pending' && (
+                  <button 
+                    onClick={() => onStatusUpdate(booking.id, 'confirmed')} 
+                    className="flex-1 bg-green-600 text-white py-5 rounded-full font-bold uppercase text-[10px] tracking-widest hover:bg-green-700 transition-all shadow-lg"
+                  >
+                    Confirm Reservation
+                  </button>
+                )}
+                {booking.status !== 'cancelled' && (
+                  <button 
+                    onClick={() => setShowCancelDialog(true)} 
+                    className="flex-1 bg-white border border-red-200 text-red-600 py-5 rounded-full font-bold uppercase text-[10px] tracking-widest hover:bg-red-50 transition-all"
+                  >
+                    Cancel Booking
+                  </button>
+                )}
+                {booking.status === 'cancelled' && (
+                  <div className="w-full text-center py-4 bg-red-50 text-red-600 rounded-full font-bold uppercase text-[10px] tracking-widest">
+                    This Reservation is Cancelled
                   </div>
                 )}
               </div>
-            </div>
-
-            <div className="flex gap-4 pt-8 border-t border-natural-accent">
-              {booking.status === 'pending' && (
-                <button 
-                  onClick={() => onStatusUpdate(booking.id, 'confirmed')} 
-                  className="flex-1 bg-green-600 text-white py-5 rounded-full font-bold uppercase text-[10px] tracking-widest hover:bg-green-700 transition-all shadow-lg"
-                >
-                  Confirm Reservation
-                </button>
-              )}
-              {booking.status !== 'cancelled' && (
-                <button 
-                  onClick={() => setShowCancelDialog(true)} 
-                  className="flex-1 bg-white border border-red-200 text-red-600 py-5 rounded-full font-bold uppercase text-[10px] tracking-widest hover:bg-red-50 transition-all"
-                >
-                  Cancel Booking
-                </button>
-              )}
-              {booking.status === 'cancelled' && (
-                <div className="w-full text-center py-4 bg-red-50 text-red-600 rounded-full font-bold uppercase text-[10px] tracking-widest">
-                  This Reservation is Cancelled
-                </div>
-              )}
             </div>
           </div>
         </motion.div>
