@@ -176,12 +176,12 @@ const getEmailTemplate = (details: BookingDetails) => {
                         <td width="50%" valign="top">
                           <div class="field-label">Check In</div>
                           <div class="field-value" style="margin-bottom: 5px;">${formatDate(details.checkIn)}</div>
-                          <div style="font-size: 11px; font-weight: bold; color: ${textColor};">${formatTime(details.checkIn, '2:00 PM')}</div>
+                          <div style="font-size: 11px; font-weight: bold; color: ${textColor};">2:00 PM</div>
                         </td>
                         <td width="50%" valign="top">
                           <div class="field-label">Check Out</div>
                           <div class="field-value" style="margin-bottom: 5px;">${formatDate(details.checkOut)}</div>
-                          <div style="font-size: 11px; font-weight: bold; color: ${textColor};">${formatTime(details.checkOut, '11:00 AM')}</div>
+                          <div style="font-size: 11px; font-weight: bold; color: ${textColor};">11:00 AM</div>
                         </td>
                       </tr>
                     </table>
