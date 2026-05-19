@@ -641,7 +641,6 @@ app.post('/api/bookings', async (req, res) => {
     const booking = result.rows[0];
     const hotelResult = await client.query('SELECT name FROM hotels WHERE id = $1', [hotelId]);
 
-    // Queue email confirmation *inside* the same transaction for reliability
     await queueBookingConfirmation(client.query.bind(client), {
       id: booking.id,
       fullName: booking.fullName,
@@ -654,6 +653,15 @@ app.post('/api/bookings', async (req, res) => {
     });
 
     await client.query('COMMIT');
+    
+    // --- NEW: Trigger email processing immediately for Vercel ---
+    // We await this so Vercel stays awake long enough to send the email.
+    // The .catch ensures that if the email fails, the user still gets a successful booking response.
+    await processEmailQueue(pool).catch(err => {
+      console.error('Immediate email processing failed:', err);
+    });
+    // ------------------------------------------------------------
+
     res.json(booking);
   } catch (err: any) {
     await client.query('ROLLBACK');
@@ -752,18 +760,21 @@ app.delete('/api/media/:id', async (req, res) => {
 async function startServer() {
   await initDb();
 
-  // Background Email Worker
-  if (pool) {
+  // Background Email Worker (ONLY run locally, skip on Vercel)
+  if (pool && !process.env.VERCEL) {
     const runWorker = async () => {
       try {
         await processEmailQueue(pool);
       } catch (err) {
         console.error('Email worker error:', err);
       } finally {
-        setTimeout(runWorker, 15000); // Wait 15s AFTER completion before next run
+        setTimeout(runWorker, 15000); 
       }
     };
     runWorker();
+    console.log('Background email worker started (Local Mode)');
+  } else if (process.env.VERCEL) {
+    console.log('Running on Vercel: Background worker disabled. Emails will process synchronously.');
   }
 
   if (process.env.NODE_ENV !== 'production') {
