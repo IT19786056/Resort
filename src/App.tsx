@@ -113,206 +113,222 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-natural-bg selection:bg-natural-primary/20">
-      <AnimatePresence>
-        {loading && <LoadingPlane label="Ahsell Resorts" />}
-      </AnimatePresence>
-      
-      <Navbar 
-        activeTab={activeTab as any}
-        onTabChange={handleTabChange}
-      />
-      
       <AnimatePresence mode="wait">
-        {activeTab === 'home' ? (
-          <motion.div
-            key="home"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+        {loading ? (
+          <motion.div 
+            key="loader"
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.8, ease: "easeInOut" }}
           >
-            <Hero />
-            
-            {/* Refreshing Indicator */}
-            {refreshing && (
-              <motion.div 
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-natural-cream/80 backdrop-blur-md border border-natural-accent px-6 py-2 rounded-full shadow-lg flex items-center gap-3"
-              >
-                <div className="w-2 h-2 bg-natural-primary rounded-full animate-ping" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-natural-dark">Synchronizing...</span>
-              </motion.div>
-            )}
-
-            {/* Database Configuration Helper Banner */}
-            {dbStatus && (dbStatus.mode === 'mock' || error) && (
-              <div className="bg-natural-primary/5 border-b border-natural-primary/10 py-4 px-10">
-                <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-natural-dark">
-                      {dbStatus.mode === 'mock' ? 'Running in Studio Mock Mode' : 'Database Connection Issue'}
-                    </p>
-                  </div>
-                  <p className="text-[11px] text-natural-muted font-light italic">
-                    {dbStatus.mode === 'mock' 
-                      ? 'Configure DATABASE_URL in Settings -> Secrets to enable persistent storage.'
-                      : `Error: ${error}`}
-                  </p>
-                  {dbStatus.mode === 'mock' && (
-                    <button 
-                      onClick={() => window.alert('Please go to Settings -> Secrets and add your Supabase DATABASE_URL.')}
-                      className="text-[9px] font-bold uppercase tracking-widest text-natural-primary border-b border-natural-primary pb-1 hover:opacity-60"
-                    >
-                      Setup Guide
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <main id="stays" className="flex-1">
-              <FilterBar 
-                onFilterChange={(f) => setFilters(prev => ({...prev, ...f}))} 
-                currentFilter={filters} 
-                hotels={hotels} 
-              />
-
-              <section id="stays-list" className="max-w-7xl mx-auto px-6 py-24">
-                <div className="mb-20 text-center">
-                  <motion.h2 
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    className="font-serif text-5xl md:text-6xl mb-6 italic text-natural-dark tracking-tighter"
-                  >
-                    Our Curated Micro-Escapes.
-                  </motion.h2>
-                  <p className="text-natural-muted max-w-2xl mx-auto font-light text-lg italic">
-                    Explore our handpicked selection of stays, from overwater suites to hidden garden villas.
-                  </p>
-                </div>
-
-                <motion.div 
-                  variants={{
-                    hidden: { opacity: 0 },
-                    show: {
-                      opacity: 1,
-                      transition: {
-                        staggerChildren: 0.1
-                      }
-                    }
-                  }}
-                  initial="hidden"
-                  whileInView="show"
-                  viewport={{ once: true }}
-                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-12"
-                >
-                  {loading ? (
-                    [1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)
-                  ) : filteredItems.map((item, index) => (
-                    <AccommodationCard 
-                      key={item.id} 
-                      item={item} 
-                      index={index} 
-                      onClick={() => setSelectedItem(item)}
-                      onBook={(e) => handleStartBooking(e, item)}
-                      disabled={!item.isAvailable}
-                    />
-                  ))}
-                </motion.div>
-
-                {filteredItems.length === 0 && (
-                  <div className="py-40 text-center">
-                    <p className="text-natural-muted text-xl italic font-light">No stays match your current preferences.</p>
-                    <button 
-                      onClick={() => setFilters({ type: 'All', priceRange: [0, 5000], minRating: 0, location: 'All', checkIn: '', checkOut: '' })}
-                      className="mt-8 text-natural-primary font-bold uppercase text-[10px] tracking-[0.4em] border-b border-natural-primary pb-2 hover:opacity-70 transition-opacity"
-                    >
-                      Reset All Filters
-                    </button>
-                  </div>
-                )}
-              </section>
-            </main>
-          </motion.div>
-        ) : activeTab === 'accommodation' ? (
-          <motion.div
-            key="accommodation"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="pt-40 pb-32 px-10 min-h-screen"
-          >
-            <div className="max-w-7xl mx-auto">
-              <div className="mb-28 text-center">
-                <h1 className="font-serif text-6xl md:text-9xl italic text-natural-dark mb-10 tracking-tighter">The Portfolios.</h1>
-                <p className="text-natural-muted max-w-3xl mx-auto text-xl md:text-2xl font-light italic leading-relaxed">
-                  Our resorts are more than places to stay—they are portals to different worlds, harmonizing architecture with the raw beauty of nature.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-24">
-                {hotels.map((hotel, index) => (
-                  <HotelCard 
-                    key={hotel.id} 
-                    hotel={hotel} 
-                    index={index} 
-                    onClick={() => setSelectedHotel(hotel)} 
-                  />
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        ) : activeTab === 'weddings-events' ? (
-          <motion.div
-            key="weddings"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <WeddingsEvents 
-              venues={hotels.filter(h => h.hasBanquetHall)} 
-              onSelectVenue={(id) => {
-                const hotel = hotels.find(h => h.id === id);
-                if (hotel) setSelectedHotel(hotel);
-              }}
-            />
-          </motion.div>
-        ) : activeTab === 'about' ? (
-          <motion.div
-            key="about"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <AboutUs />
-          </motion.div>
-        ) : activeTab === 'contact' ? (
-          <motion.div
-            key="contact"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <ContactUs />
+            <LoadingPlane label="Ahsell Resorts" />
           </motion.div>
         ) : (
           <motion.div
-            key="my-bookings"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="pt-32 min-h-screen"
+            key="app-content"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1, ease: "easeOut" }}
+            className="flex-1 flex flex-col"
           >
-            <MyBookings />
+            <Navbar 
+              activeTab={activeTab as any}
+              onTabChange={handleTabChange}
+            />
+            
+            <AnimatePresence mode="wait">
+              {activeTab === 'home' ? (
+                <motion.div
+                  key="home"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.6 }}
+                >
+                  <Hero />
+                  
+                  {/* Refreshing Indicator */}
+                  {refreshing && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-natural-cream/80 backdrop-blur-md border border-natural-accent px-6 py-2 rounded-full shadow-lg flex items-center gap-3"
+                    >
+                      <div className="w-2 h-2 bg-natural-primary rounded-full animate-ping" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-natural-dark">Synchronizing...</span>
+                    </motion.div>
+                  )}
+
+                  {/* Database Configuration Helper Banner */}
+                  {dbStatus && (dbStatus.mode === 'mock' || error) && (
+                    <div className="bg-natural-primary/5 border-b border-natural-primary/10 py-4 px-10">
+                      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-natural-dark">
+                            {dbStatus.mode === 'mock' ? 'Running in Studio Mock Mode' : 'Database Connection Issue'}
+                          </p>
+                        </div>
+                        <p className="text-[11px] text-natural-muted font-light italic">
+                          {dbStatus.mode === 'mock' 
+                            ? 'Configure DATABASE_URL in Settings -> Secrets to enable persistent storage.'
+                            : `Error: ${error}`}
+                        </p>
+                        {dbStatus.mode === 'mock' && (
+                          <button 
+                            onClick={() => window.alert('Please go to Settings -> Secrets and add your Supabase DATABASE_URL.')}
+                            className="text-[9px] font-bold uppercase tracking-widest text-natural-primary border-b border-natural-primary pb-1 hover:opacity-60"
+                          >
+                            Setup Guide
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <main id="stays" className="flex-1">
+                    <FilterBar 
+                      onFilterChange={(f) => setFilters(prev => ({...prev, ...f}))} 
+                      currentFilter={filters} 
+                      hotels={hotels} 
+                    />
+
+                    <section id="stays-list" className="max-w-7xl mx-auto px-6 py-24">
+                      <div className="mb-20 text-center">
+                        <motion.h2 
+                          initial={{ opacity: 0, y: 20 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          viewport={{ once: true }}
+                          className="font-serif text-5xl md:text-6xl mb-6 italic text-natural-dark tracking-tighter"
+                        >
+                          Our Curated Micro-Escapes.
+                        </motion.h2>
+                        <p className="text-natural-muted max-w-2xl mx-auto font-light text-lg italic">
+                          Explore our handpicked selection of stays, from overwater suites to hidden garden villas.
+                        </p>
+                      </div>
+
+                      <motion.div 
+                        variants={{
+                          hidden: { opacity: 0 },
+                          show: {
+                            opacity: 1,
+                            transition: {
+                              staggerChildren: 0.1
+                            }
+                          }
+                        }}
+                        initial="hidden"
+                        whileInView="show"
+                        viewport={{ once: true }}
+                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-12"
+                      >
+                        {loading ? (
+                          [1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)
+                        ) : filteredItems.map((item, index) => (
+                          <AccommodationCard 
+                            key={item.id} 
+                            item={item} 
+                            index={index} 
+                            onClick={() => setSelectedItem(item)}
+                            onBook={(e) => handleStartBooking(e, item)}
+                            disabled={!item.isAvailable}
+                          />
+                        ))}
+                      </motion.div>
+
+                      {filteredItems.length === 0 && (
+                        <div className="py-40 text-center">
+                          <p className="text-natural-muted text-xl italic font-light">No stays match your current preferences.</p>
+                          <button 
+                            onClick={() => setFilters({ type: 'All', priceRange: [0, 5000], minRating: 0, location: 'All', checkIn: '', checkOut: '' })}
+                            className="mt-8 text-natural-primary font-bold uppercase text-[10px] tracking-[0.4em] border-b border-natural-primary pb-2 hover:opacity-70 transition-opacity"
+                          >
+                            Reset All Filters
+                          </button>
+                        </div>
+                      )}
+                    </section>
+                  </main>
+                </motion.div>
+              ) : activeTab === 'accommodation' ? (
+                <motion.div
+                  key="accommodation"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="pt-40 pb-32 px-10 min-h-screen"
+                >
+                  <div className="max-w-7xl mx-auto">
+                    <div className="mb-28 text-center">
+                      <h1 className="font-serif text-6xl md:text-9xl italic text-natural-dark mb-10 tracking-tighter">The Portfolios.</h1>
+                      <p className="text-natural-muted max-w-3xl mx-auto text-xl md:text-2xl font-light italic leading-relaxed">
+                        Our resorts are more than places to stay—they are portals to different worlds, harmonizing architecture with the raw beauty of nature.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-24">
+                      {hotels.map((hotel, index) => (
+                        <HotelCard 
+                          key={hotel.id} 
+                          hotel={hotel} 
+                          index={index} 
+                          onClick={() => setSelectedHotel(hotel)} 
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              ) : activeTab === 'weddings-events' ? (
+                <motion.div
+                  key="weddings"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <WeddingsEvents 
+                    venues={hotels.filter(h => h.hasBanquetHall)} 
+                    onSelectVenue={(id) => {
+                      const hotel = hotels.find(h => h.id === id);
+                      if (hotel) setSelectedHotel(hotel);
+                    }}
+                  />
+                </motion.div>
+              ) : activeTab === 'about' ? (
+                <motion.div
+                  key="about"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <AboutUs />
+                </motion.div>
+              ) : activeTab === 'contact' ? (
+                <motion.div
+                  key="contact"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <ContactUs />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="my-bookings"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="pt-32 min-h-screen"
+                >
+                  <MyBookings />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <Footer />
           </motion.div>
         )}
       </AnimatePresence>
-
-      <Footer />
 
       {/* Modals */}
       <AnimatePresence>
