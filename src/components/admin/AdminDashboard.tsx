@@ -12,7 +12,8 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  MapPin
+  MapPin,
+  LogOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar } from './Sidebar';
@@ -78,6 +79,12 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
         <header className="flex justify-between items-center mb-12">
           <h2 className="font-serif text-4xl italic text-natural-dark capitalize">{activeTab.replace('_', ' ')}</h2>
           <div className="flex gap-4">
+            <button 
+              onClick={handleLogout}
+              className="px-6 py-3 rounded-full flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest text-natural-muted hover:bg-red-50 hover:text-red-600 transition-all"
+            >
+              <LogOut className="w-4 h-4" /> Log Out
+            </button>
             {activeTab === 'hotels' && (
               <button 
                 onClick={() => { setEditingHotel(null); setShowHotelForm(true); }}
@@ -190,19 +197,23 @@ const AdminBookingsList = ({ bookings, rooms, hotels, onUpdate, type }: any) => 
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const filteredBookings = bookings.filter((b: Booking) => {
-    const isPastDate = new Date(b.checkOut) < today;
-    const isCancelled = b.status === 'cancelled';
-    return type === 'past' ? (isCancelled || isPastDate) : (!isCancelled && !isPastDate);
-  });
+  const filteredBookings = React.useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return bookings.filter((b: Booking) => {
+      const isPastDate = new Date(b.checkOut) < today;
+      const isCancelled = b.status === 'cancelled';
+      return type === 'past' ? (isCancelled || isPastDate) : (!isCancelled && !isPastDate);
+    });
+  }, [bookings, type]);
 
   const handleStatusUpdate = async (id: string, status: 'confirmed' | 'cancelled', reason?: string) => {
+    if (isUpdating) return;
     const booking = selectedBooking || bookings.find((b: any) => b.id === id);
     if (!booking) return;
+    setIsUpdating(true);
     try {
       const updateData: any = { status };
       if (reason) updateData.cancellationReason = reason;
@@ -216,6 +227,8 @@ const AdminBookingsList = ({ bookings, rooms, hotels, onUpdate, type }: any) => 
       setCancelReason('');
     } catch (error) {
       console.error(error);
+    } finally {
+      setIsUpdating(false);
     }
   };
 

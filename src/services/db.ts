@@ -128,8 +128,13 @@ export const dbService = {
   },
 
   // Bookings
-  async getBookings() {
-    return apiFetch<Booking[]>('/api/bookings');
+  async getBookings(limit?: number, offset?: number) {
+    let url = '/api/bookings';
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (offset) params.append('offset', offset.toString());
+    if (params.toString()) url += `?${params.toString()}`;
+    return apiFetch<Booking[]>(url);
   },
 
   async getUserBookings(userId: string) {

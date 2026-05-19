@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
 import dotenv from 'dotenv';
-import { queueBookingConfirmation, processEmailQueue } from './server/email.js';
+import { queueBookingConfirmation, processEmailQueue } from './server/email';
 
 if (!process.env.VERCEL) {
   dotenv.config();
@@ -563,14 +563,28 @@ app.delete('/api/rooms/:id', async (req, res) => {
 // Bookings
 app.get('/api/bookings', async (req, res) => {
   try {
-    const { userId } = req.query;
+    const { userId, limit, offset } = req.query;
     let queryText = 'SELECT * FROM bookings';
     const params = [];
+    let paramIndex = 1;
+    
     if (userId) {
-      queryText += ' WHERE "userId" = $1';
+      queryText += ` WHERE "userId" = $${paramIndex++}`;
       params.push(userId);
     }
+    
     queryText += ' ORDER BY "createdAt" DESC';
+    
+    if (limit) {
+      queryText += ` LIMIT $${paramIndex++}`;
+      params.push(parseInt(limit as string));
+    }
+    
+    if (offset) {
+      queryText += ` OFFSET $${paramIndex++}`;
+      params.push(parseInt(offset as string));
+    }
+    
     const result = await query(queryText, params);
     res.json(result.rows);
   } catch (err: any) {
@@ -647,38 +661,51 @@ app.post('/api/bookings', async (req, res) => {
 });
 
 app.patch('/api/bookings/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'Database unavailable' });
+  const client = await pool.connect();
   try {
     const { id } = req.params;
     const { status, ...updates } = req.body;
     
-    await query('BEGIN');
+    await client.query('BEGIN');
     
     // Get the current booking to know the roomId
-    const currentBooking = await query('SELECT "roomId" FROM bookings WHERE id = $1', [id]);
+    const currentBooking = await client.query('SELECT "roomId" FROM bookings WHERE id = $1 FOR UPDATE', [id]);
     const roomId = currentBooking.rows[0]?.roomId;
 
-    const keys = Object.keys({ status, ...updates });
-    const setClause = keys.map((key, i) => `"${key}" = $${i + 2}`).join(', ');
-    const values = keys.map(key => ({ status, ...updates }[key as any]));
-    
-    const result = await query(
-      `UPDATE bookings SET ${setClause} WHERE id = $1 RETURNING *`,
-      [id, ...values]
-    );
-
-    // If cancelled, make the room available again
-    if (status === 'cancelled' && roomId) {
-      await query('UPDATE rooms SET "isAvailable" = true WHERE id = $1', [roomId]);
-    } else if (status === 'confirmed' && roomId) {
-      // Re-confirming might happen, ensure it's unavailable
-      await query('UPDATE rooms SET "isAvailable" = false WHERE id = $1', [roomId]);
+    if (!currentBooking.rows[0]) {
+      throw new Error('Booking not found');
     }
 
-    await query('COMMIT');
-    res.json(result.rows[0]);
+    const keys = Object.keys({ status, ...updates });
+    if (keys.length > 0) {
+      const setClause = keys.map((key, i) => `"${key}" = $${i + 2}`).join(', ');
+      const values = keys.map(key => ({ status, ...updates }[key as any]));
+      
+      const result = await client.query(
+        `UPDATE bookings SET ${setClause} WHERE id = $1 RETURNING *`,
+        [id, ...values]
+      );
+
+      // If cancelled, make the room available again
+      if (status === 'cancelled' && roomId) {
+        await client.query('UPDATE rooms SET "isAvailable" = true WHERE id = $1', [roomId]);
+      } else if (status === 'confirmed' && roomId) {
+        // Re-confirming might happen, ensure it's unavailable
+        await client.query('UPDATE rooms SET "isAvailable" = false WHERE id = $1', [roomId]);
+      }
+
+      await client.query('COMMIT');
+      res.json(result.rows[0]);
+    } else {
+      await client.query('COMMIT');
+      res.sendStatus(200);
+    }
   } catch (err: any) {
-    await query('ROLLBACK');
+    await client.query('ROLLBACK');
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message || 'Failed to update booking' });
+  } finally {
+    client.release();
   }
 });
 

@@ -67,14 +67,6 @@ export const AdminLogin = () => {
           <p className="text-natural-muted text-sm leading-relaxed mb-6">
             {isLogin ? 'Access restricted to authorized personnel.' : 'Create your secure staff credentials.'}
           </p>
-          
-          <div className="bg-natural-bg/50 p-4 rounded-2xl border border-natural-accent text-left">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-natural-muted mb-2">Internal Staff Access</p>
-            <div className="space-y-1">
-              <p className="text-xs text-natural-dark"><span className="font-bold">Email:</span> jasonlawrene23@gmail.com</p>
-              <p className="text-xs text-natural-dark"><span className="font-bold">Password:</span> Jason@123</p>
-            </div>
-          </div>
         </div>
         
         {error && (
