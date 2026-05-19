@@ -33,6 +33,10 @@ const pool = isDbConfigured
         rejectUnauthorized: false
       },
       connectionTimeoutMillis: 10000,
+      // --- NEW: Drastically reduce pool size on Vercel ---
+      max: process.env.VERCEL ? 1 : 10,
+      idleTimeoutMillis: process.env.VERCEL ? 0 : 10000,
+      // --------------------------------------------------
     })
   : null;
 
