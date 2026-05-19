@@ -621,7 +621,7 @@ app.post('/api/bookings', async (req, res) => {
     // IMPORTANT: Row-level lock on the room to prevent race conditions
     // Using FOR UPDATE ensures that only one transaction can touch this room at a time
     const roomCheck = await client.query(
-      'SELECT "isAvailable", name FROM rooms WHERE id = $1 FOR UPDATE',
+      'SELECT "isAvailable", name, "imageUrl" FROM rooms WHERE id = $1 FOR UPDATE',
       [roomId]
     );
 
@@ -649,11 +649,15 @@ app.post('/api/bookings', async (req, res) => {
       id: booking.id,
       fullName: booking.fullName,
       email: booking.email,
+      phone: booking.phone,
       hotelName: hotelResult.rows[0]?.name || 'Ahsell Resort',
       roomName: roomCheck.rows[0].name,
+      roomImageUrl: roomCheck.rows[0].imageUrl,
       checkIn: booking.checkIn,
       checkOut: booking.checkOut,
-      guests: booking.guests
+      guests: booking.guests,
+      specialRequests: booking.specialRequests,
+      placedAt: booking.createdAt
     });
 
     await client.query('COMMIT');

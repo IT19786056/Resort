@@ -3,12 +3,16 @@ import nodemailer from 'nodemailer';
 export interface BookingDetails {
   fullName: string;
   email: string;
+  phone?: string;
   hotelName: string;
   roomName: string;
+  roomImageUrl?: string;
   checkIn: string;
   checkOut: string;
   guests: number;
   id: string;
+  specialRequests?: string;
+  placedAt?: string;
 }
 
 const createTransporter = () => {
@@ -36,81 +40,165 @@ const createTransporter = () => {
 };
 
 const getEmailTemplate = (details: BookingDetails) => {
-  const primaryColor = '#C5A28E';
-  const bgColor = '#F9F7F2';
+  const primaryColor = '#8D7B68';
+  const bgColor = '#FDFCFB';
   const textColor = '#2D2D2D';
-  const accentColor = '#D9D2C6';
+  const mutedColor = '#808080';
+  const accentColor = '#EEEEEE';
+  const lightBg = '#F8F5F2';
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+  };
+
+  const formatTime = (dateStr: string, defaultTime: string) => {
+    // If it's just a date, use default check-in/out times
+    if (dateStr.includes('T')) {
+        const date = new Date(dateStr);
+        return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    }
+    return defaultTime;
+  };
+
+  const placedAt = details.placedAt ? new Date(details.placedAt).toLocaleString('en-US', { 
+    month: 'numeric', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true 
+  }) : formatDate(new Date().toISOString());
 
   return `
     <!DOCTYPE html>
     <html>
       <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-          body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background-color: ${bgColor}; color: ${textColor}; margin: 0; padding: 40px; }
-          .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 40px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid ${accentColor}; }
-          .header { padding: 60px 40px; text-align: center; background-color: white; border-bottom: 1px solid ${accentColor}; }
-          .header h1 { font-family: serif; font-style: italic; font-size: 32px; margin: 0; color: ${textColor}; }
+          body { font-family: 'Inter', -apple-system, sans-serif; background-color: white; color: ${textColor}; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+          .wrapper { width: 100%; table-layout: fixed; background-color: #f6f6f6; padding: 20px 0; }
+          .container { width: 100%; max-width: 700px; margin: 0 auto; background-color: white; }
+          
+          .header { padding: 40px 40px 20px 40px; border-bottom: 1px solid ${accentColor}; }
+          .title { font-family: 'Playfair Display', 'Times New Roman', serif; font-style: italic; font-size: 32px; color: ${textColor}; margin: 0; }
+          .meta { font-size: 11px; color: ${mutedColor}; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 10px; }
+          
           .content { padding: 40px; }
-          .section { margin-bottom: 30px; }
-          .label { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em; color: ${primaryColor}; margin-bottom: 8px; }
-          .value { font-size: 16px; font-weight: 500; }
-          .grid { display: grid; grid-template-cols: 1fr 1fr; gap: 20px; }
-          .details-box { background-color: ${bgColor}; padding: 24px; border-radius: 24px; margin-top: 20px; }
-          .footer { padding: 40px; text-align: center; border-top: 1px solid ${accentColor}; font-size: 12px; color: ${primaryColor}; }
-          .button { display: inline-block; padding: 16px 32px; background-color: ${primaryColor}; color: white; text-decoration: none; border-radius: 100px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em; font-size: 10px; margin-top: 20px; }
+          .section-label { font-size: 11px; font-weight: bold; color: ${mutedColor}; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 25px; padding-bottom: 5px; }
+          
+          .field-label { font-size: 10px; font-weight: 600; color: ${mutedColor}; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+          .field-value { font-size: 18px; font-weight: 500; color: ${textColor}; margin-bottom: 20px; }
+          
+          .schedule-box { margin-bottom: 30px; }
+          .schedule-grid { width: 100%; }
+          .schedule-col { width: 50%; vertical-align: top; }
+          
+          .property-card { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; }
+          .property-thumb { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; background-color: ${lightBg}; }
+          .property-info { flex: 1; }
+          .property-name { font-size: 15px; font-weight: 600; color: ${textColor}; }
+          .room-name { font-size: 13px; color: ${mutedColor}; }
+          
+          .guests-row { font-size: 18px; font-weight: 500; text-align: right; }
+          
+          .request-box { background-color: ${lightBg}; padding: 25px; border-radius: 20px; color: ${mutedColor}; font-style: italic; font-size: 14px; margin-top: 10px; }
+          
+          .footer { padding: 30px 40px; border-top: 1px solid ${accentColor}; font-size: 12px; color: ${mutedColor}; text-align: center; }
+          
+          @media screen and (max-width: 600px) {
+            .content { padding: 25px; }
+            .schedule-col { width: 100%; display: block; margin-bottom: 20px; }
+            .header { padding: 30px 25px; }
+            .title { font-size: 26px; }
+            .field-value { font-size: 16px; }
+          }
         </style>
       </head>
       <body>
-        <div class="container">
-          <div class="header">
-            <h1>Ahsell Resorts</h1>
-            <p style="margin-top: 10px; color: ${primaryColor}; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.2em;">Booking Confirmation</p>
-          </div>
-          <div class="content">
-            <p>Dear ${details.fullName},</p>
-            <p>Your sanctuary is secured at Ahsell Resorts. We are delighted to confirm your upcoming stay.</p>
+        <div class="wrapper">
+          <div class="container">
+            <div class="header">
+              <h1 class="title">Reservation Details</h1>
+              <div class="meta">
+                ID: ${details.id} &nbsp; | &nbsp; PLACED: ${placedAt}
+              </div>
+            </div>
             
-            <div class="details-box">
-              <div class="section">
-                <div class="label">Reservation ID</div>
-                <div class="value">${details.id}</div>
-              </div>
+            <div class="content">
+              <!-- Guest Info and Property Info in two columns for desktop -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 40px;">
+                <tr>
+                  <td width="55%" valign="top" style="padding-right: 20px;" class="schedule-col">
+                    <div class="section-label">Guest Information</div>
+                    
+                    <div class="field-label">Full Name</div>
+                    <div class="field-value">${details.fullName}</div>
+                    
+                    <div class="field-label">Email Address</div>
+                    <div class="field-value" style="word-break: break-all;">${details.email}</div>
+                    
+                    <div class="field-label">Phone Number</div>
+                    <div class="field-value">${details.phone || 'Not provided'}</div>
+                  </td>
+                  <td width="45%" valign="top" class="schedule-col">
+                    <div class="section-label">Property & Room</div>
+                    
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
+                      <tr>
+                        <td width="60" valign="middle">
+                          <img src="${details.roomImageUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=100&h=100&fit=crop'}" class="property-thumb" width="48" height="48" alt="Property">
+                        </td>
+                        <td valign="middle">
+                          <div class="property-name">${details.hotelName}</div>
+                          <div class="room-name">${details.roomName}</div>
+                        </td>
+                      </tr>
+                    </table>
+                    
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top: 1px solid ${accentColor}; padding-top: 15px;">
+                      <tr>
+                        <td class="field-label" valign="middle">Guests</td>
+                        <td class="guests-row" valign="middle">${details.guests} People</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 40px;">
+                <tr>
+                  <td width="55%" valign="top" style="padding-right: 20px;" class="schedule-col">
+                    <div class="section-label">Stay Schedule</div>
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td width="50%" valign="top">
+                          <div class="field-label">Check In</div>
+                          <div class="field-value" style="margin-bottom: 5px;">${formatDate(details.checkIn)}</div>
+                          <div style="font-size: 11px; font-weight: bold; color: ${textColor};">${formatTime(details.checkIn, '2:00 PM')}</div>
+                        </td>
+                        <td width="50%" valign="top">
+                          <div class="field-label">Check Out</div>
+                          <div class="field-value" style="margin-bottom: 5px;">${formatDate(details.checkOut)}</div>
+                          <div style="font-size: 11px; font-weight: bold; color: ${textColor};">${formatTime(details.checkOut, '11:00 AM')}</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td width="45%" valign="top" class="schedule-col">
+                    <div class="section-label">Special Requests</div>
+                    <div class="request-box">
+                      ${details.specialRequests || 'No special requests were noted for this reservation.'}
+                    </div>
+                  </td>
+                </tr>
+              </table>
               
-              <div style="display: flex; justify-content: space-between; gap: 20px;">
-                <div style="flex: 1;">
-                  <div class="label">Property</div>
-                  <div class="value">${details.hotelName}</div>
-                </div>
-                <div style="flex: 1;">
-                  <div class="label">Accommodation</div>
-                  <div class="value">${details.roomName}</div>
-                </div>
-              </div>
-
-              <div style="display: flex; justify-content: space-between; gap: 20px; margin-top: 20px;">
-                <div style="flex: 1;">
-                  <div class="label">Check In (2:00 PM)</div>
-                  <div class="value">${new Date(details.checkIn).toLocaleDateString()}</div>
-                </div>
-                <div style="flex: 1;">
-                  <div class="label">Check Out (11:00 AM)</div>
-                  <div class="value">${new Date(details.checkOut).toLocaleDateString()}</div>
-                </div>
-              </div>
-
-              <div class="section" style="margin-top: 20px; margin-bottom: 0;">
-                <div class="label">Guests</div>
-                <div class="value">${details.guests} People</div>
+              <div style="text-align: center; margin-top: 20px;">
+                <p style="font-size: 14px; color: ${mutedColor}; line-height: 1.6;">Your reservation is confirmed. We look forward to welcoming you to Ahsell Resorts.</p>
               </div>
             </div>
-
-            <div style="text-align: center;">
-              <a href="${process.env.VITE_APP_URL || '#'}" class="button">Manage Booking</a>
+            
+            <div class="footer">
+              <p>&copy; ${new Date().getFullYear()} Ahsell Resorts. Handcrafted Hospitality in Sri Lanka.</p>
             </div>
-          </div>
-          <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} Ahsell Resorts. Handcrafted Hospitality.</p>
           </div>
         </div>
       </body>
