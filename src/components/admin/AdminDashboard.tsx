@@ -84,96 +84,106 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
         {...toast} 
         onClose={() => setToast(prev => ({ ...prev, isVisible: false }))} 
       />
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab}
-        bookingsCount={bookings.filter(b => b.status !== 'cancelled' && new Date(b.checkOut) >= new Date()).length}
-        pastBookingsCount={bookings.filter(b => b.status === 'cancelled' || new Date(b.checkOut) < new Date()).length}
-        handleLogout={handleLogout}
-        isAdmin={profile.role === 'admin'}
-      />
+      
+      {!isInitialLoad && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1.2, ease: "easeOut" }}
+          className="flex flex-1"
+        >
+          <Sidebar 
+            activeTab={activeTab} 
+            setActiveTab={setActiveTab}
+            bookingsCount={bookings.filter(b => b.status !== 'cancelled' && new Date(b.checkOut) >= new Date()).length}
+            pastBookingsCount={bookings.filter(b => b.status === 'cancelled' || new Date(b.checkOut) < new Date()).length}
+            handleLogout={handleLogout}
+            isAdmin={profile.role === 'admin'}
+          />
 
-      <main className="ml-72 flex-1 p-12 overflow-y-auto">
-        <header className="flex justify-between items-center mb-12">
-          <h2 className="font-serif text-4xl italic text-natural-dark capitalize">{activeTab.replace('_', ' ')}</h2>
-          <div className="flex gap-4">
-            <button 
-              onClick={handleLogout}
-              className="px-6 py-3 rounded-full flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest text-natural-muted hover:bg-red-50 hover:text-red-600 transition-all"
-            >
-              <LogOut className="w-4 h-4" /> Log Out
-            </button>
-            {activeTab === 'hotels' && (
-              <button 
-                onClick={() => { setEditingHotel(null); setShowHotelForm(true); }}
-                className="bg-natural-primary text-white px-6 py-3 rounded-full flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest hover:bg-natural-dark transition-all shadow-lg"
-              >
-                <Plus className="w-4 h-4" /> Add Hotel
-              </button>
-            )}
-            {activeTab === 'rooms' && (
-              <button 
-                onClick={() => { setEditingRoom(null); setShowRoomForm(true); }}
-                className="bg-natural-primary text-white px-6 py-3 rounded-full flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest hover:bg-natural-dark transition-all shadow-lg"
-              >
-                <Plus className="w-4 h-4" /> Add Room
-              </button>
-            )}
-          </div>
-        </header>
+          <main className="ml-72 flex-1 p-12 overflow-y-auto">
+            <header className="flex justify-between items-center mb-12">
+              <h2 className="font-serif text-4xl italic text-natural-dark capitalize">{activeTab.replace('_', ' ')}</h2>
+              <div className="flex gap-4">
+                <button 
+                  onClick={handleLogout}
+                  className="px-6 py-3 rounded-full flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest text-natural-muted hover:bg-red-50 hover:text-red-600 transition-all"
+                >
+                  <LogOut className="w-4 h-4" /> Log Out
+                </button>
+                {activeTab === 'hotels' && (
+                  <button 
+                    onClick={() => { setEditingHotel(null); setShowHotelForm(true); }}
+                    className="bg-natural-primary text-white px-6 py-3 rounded-full flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest hover:bg-natural-dark transition-all shadow-lg"
+                  >
+                    <Plus className="w-4 h-4" /> Add Hotel
+                  </button>
+                )}
+                {activeTab === 'rooms' && (
+                  <button 
+                    onClick={() => { setEditingRoom(null); setShowRoomForm(true); }}
+                    className="bg-natural-primary text-white px-6 py-3 rounded-full flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest hover:bg-natural-dark transition-all shadow-lg"
+                  >
+                    <Plus className="w-4 h-4" /> Add Room
+                  </button>
+                )}
+              </div>
+            </header>
 
-        <section>
-          {loading ? (
-            <div className="space-y-6">
-              {[1,2,3,4,5].map(i => (
-                <div key={i} className="h-24 bg-natural-accent/20 animate-pulse rounded-[32px]" />
-              ))}
-            </div>
-          ) : (
-            <>
-              {activeTab === 'bookings' || activeTab === 'past_bookings' ? (
-                <AdminBookingsList 
-                  bookings={bookings} 
-                  rooms={rooms} 
-                  hotels={hotels} 
-                  onUpdate={fetchData} 
-                  type={activeTab === 'bookings' ? 'active' : 'past'}
-                  onSuccess={(msg: string) => showToast(msg)}
-                  onError={(err: string) => showToast(err, 'error')}
-                  onProcessing={(msg: string) => showToast(msg, 'loading')}
-                />
-              ) : null}
-              {activeTab === 'hotels' && (
-                <AdminHotelsList 
-                  hotels={hotels} 
-                  onEdit={(h: Hotel) => { setEditingHotel(h); setShowHotelForm(true); }}  
-                  onDelete={(h: Hotel) => setDeleteTarget({ id: h.id, type: 'hotel', name: h.name })}
-                />
+            <section>
+              {loading ? (
+                <div className="space-y-6">
+                  {[1,2,3,4,5].map(i => (
+                    <div key={i} className="h-24 bg-natural-accent/20 animate-pulse rounded-[32px]" />
+                  ))}
+                </div>
+              ) : (
+                <>
+                  {activeTab === 'bookings' || activeTab === 'past_bookings' ? (
+                    <AdminBookingsList 
+                      bookings={bookings} 
+                      rooms={rooms} 
+                      hotels={hotels} 
+                      onUpdate={fetchData} 
+                      type={activeTab === 'bookings' ? 'active' : 'past'}
+                      onSuccess={(msg: string) => showToast(msg)}
+                      onError={(err: string) => showToast(err, 'error')}
+                      onProcessing={(msg: string) => showToast(msg, 'loading')}
+                    />
+                  ) : null}
+                  {activeTab === 'hotels' && (
+                    <AdminHotelsList 
+                      hotels={hotels} 
+                      onEdit={(h: Hotel) => { setEditingHotel(h); setShowHotelForm(true); }}  
+                      onDelete={(h: Hotel) => setDeleteTarget({ id: h.id, type: 'hotel', name: h.name })}
+                    />
+                  )}
+                  {activeTab === 'rooms' && (
+                    <AdminRoomsList 
+                      rooms={rooms} 
+                      hotels={hotels} 
+                      onEdit={(r: Accommodation) => { setEditingRoom(r); setShowRoomForm(true); }} 
+                      onDelete={(r: Accommodation) => setDeleteTarget({ id: r.id, type: 'room', name: r.name })}
+                      onUpdate={fetchData} 
+                      onSuccess={(msg: string) => showToast(msg)}
+                      onError={(err: string) => showToast(err, 'error')}
+                      onProcessing={(msg: string) => showToast(msg, 'loading')}
+                    />
+                  )}
+                  {activeTab === 'users' && profile.role === 'admin' && (
+                    <UsersList 
+                      onUpdate={() => fetchData(true)} 
+                      onSuccess={(msg) => showToast(msg)}
+                      onError={(err) => showToast(err, 'error')}
+                      onProcessing={(msg) => showToast(msg, 'loading')}
+                    />
+                  )}
+                </>
               )}
-              {activeTab === 'rooms' && (
-                <AdminRoomsList 
-                  rooms={rooms} 
-                  hotels={hotels} 
-                  onEdit={(r: Accommodation) => { setEditingRoom(r); setShowRoomForm(true); }} 
-                  onDelete={(r: Accommodation) => setDeleteTarget({ id: r.id, type: 'room', name: r.name })}
-                  onUpdate={fetchData} 
-                  onSuccess={(msg: string) => showToast(msg)}
-                  onError={(err: string) => showToast(err, 'error')}
-                  onProcessing={(msg: string) => showToast(msg, 'loading')}
-                />
-              )}
-              {activeTab === 'users' && profile.role === 'admin' && (
-                <UsersList 
-                  onUpdate={() => fetchData(true)} 
-                  onSuccess={(msg) => showToast(msg)}
-                  onError={(err) => showToast(err, 'error')}
-                  onProcessing={(msg) => showToast(msg, 'loading')}
-                />
-              )}
-            </>
-          )}
-        </section>
-      </main>
+            </section>
+          </main>
+        </motion.div>
+      )}
 
       <AnimatePresence>
         {showHotelForm && (
