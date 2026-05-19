@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
 import dotenv from 'dotenv';
-import { queueBookingConfirmation, processEmailQueue } from './server/email';
+import { queueBookingConfirmation, processEmailQueue } from './server/email.js';
 
 if (!process.env.VERCEL) {
   dotenv.config();
