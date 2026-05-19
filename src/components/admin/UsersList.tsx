@@ -8,9 +8,12 @@ import { User } from '@supabase/supabase-js';
 
 interface UsersListProps {
   onUpdate: () => void;
+  onSuccess?: (msg: string) => void;
+  onError?: (msg: string) => void;
+  onProcessing?: (msg: string) => void;
 }
 
-export const UsersList = ({ onUpdate }: UsersListProps) => {
+export const UsersList = ({ onUpdate, onSuccess, onError, onProcessing }: UsersListProps) => {
   const [users, setUsers] = useState<AdminProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -39,9 +42,15 @@ export const UsersList = ({ onUpdate }: UsersListProps) => {
       return;
     }
     if (confirm('Are you sure you want to delete this user? This will remove their admin access.')) {
-      await dbService.deleteAdmin(id);
-      fetchUsers();
-      onUpdate();
+      onProcessing?.('Deleting user...');
+      try {
+        await dbService.deleteAdmin(id);
+        onSuccess?.('User deleted successfully');
+        fetchUsers();
+        onUpdate();
+      } catch (e: any) {
+        onError?.(e.message || 'Failed to delete user');
+      }
     }
   };
 
@@ -108,7 +117,14 @@ export const UsersList = ({ onUpdate }: UsersListProps) => {
       {showAddForm && (
         <AddUserForm 
           onClose={() => { setShowAddForm(false); setError(''); }}
-          onSuccess={() => { setShowAddForm(false); fetchUsers(); onUpdate(); }}
+          onSuccess={(msg: string) => { 
+            onSuccess?.(msg || 'User added successfully');
+            setShowAddForm(false); 
+            fetchUsers(); 
+            onUpdate(); 
+          }}
+          onProcessing={onProcessing}
+          onError={onError}
           error={error}
           setError={setError}
         />
@@ -117,7 +133,7 @@ export const UsersList = ({ onUpdate }: UsersListProps) => {
   );
 };
 
-const AddUserForm = ({ onClose, onSuccess, error, setError }: any) => {
+const AddUserForm = ({ onClose, onSuccess, onProcessing, onError, error, setError }: any) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'admin' | 'staff'>('staff');
@@ -127,6 +143,7 @@ const AddUserForm = ({ onClose, onSuccess, error, setError }: any) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    onProcessing?.('Creating account...');
 
     try {
       // Create user in Supabase Auth
@@ -146,10 +163,12 @@ const AddUserForm = ({ onClose, onSuccess, error, setError }: any) => {
         createdAt: new Date().toISOString()
       });
 
-      onSuccess();
+      onSuccess('Admin account created');
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Failed to create user');
+      const msg = err.message || 'Failed to create user';
+      setError(msg);
+      onError?.(msg);
     } finally {
       setLoading(false);
     }

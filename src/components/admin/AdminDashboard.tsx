@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar } from './Sidebar';
 import { UsersList } from './UsersList';
 import { LoadingPlane } from '../ui/LoadingPlane';
+import { Toast } from '../ui/Toast';
 import { Modal, Input, SectionLabel } from './Shared';
 import { ImageGalleryUpload } from './ImageGalleryUpload';
 import { triggerDataRefresh } from '../../lib/events';
@@ -31,6 +32,10 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
   const [rooms, setRooms] = useState<Accommodation[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'loading' | 'info', isVisible: boolean }>({
+    message: '', type: 'success', isVisible: false
+  });
   
   const [showHotelForm, setShowHotelForm] = useState(false);
   const [showRoomForm, setShowRoomForm] = useState(false);
@@ -42,8 +47,8 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [h, r, b] = await Promise.all([
         dbService.getHotels(),
@@ -57,6 +62,14 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
       console.error(e);
     } finally {
       setLoading(false);
+      setIsInitialLoad(false);
+    }
+  };
+
+  const showToast = (message: string, type: 'success' | 'error' | 'loading' | 'info' = 'success', duration = 3000) => {
+    setToast({ message, type, isVisible: true });
+    if (type !== 'loading') {
+      setTimeout(() => setToast(prev => ({ ...prev, isVisible: false })), duration);
     }
   };
 
@@ -65,8 +78,12 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
   return (
     <div className="min-h-screen bg-natural-bg flex">
       <AnimatePresence>
-        {loading && <LoadingPlane label="Synchronizing Dashboard" />}
+        {isInitialLoad && <LoadingPlane label="Synchronizing Dashboard" />}
       </AnimatePresence>
+      <Toast 
+        {...toast} 
+        onClose={() => setToast(prev => ({ ...prev, isVisible: false }))} 
+      />
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab}
@@ -114,15 +131,18 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
             </div>
           ) : (
             <>
-              {(activeTab === 'bookings' || activeTab === 'past_bookings') && (
+              {activeTab === 'bookings' || activeTab === 'past_bookings' ? (
                 <AdminBookingsList 
                   bookings={bookings} 
                   rooms={rooms} 
                   hotels={hotels} 
                   onUpdate={fetchData} 
                   type={activeTab === 'bookings' ? 'active' : 'past'}
+                  onSuccess={(msg: string) => showToast(msg)}
+                  onError={(err: string) => showToast(err, 'error')}
+                  onProcessing={(msg: string) => showToast(msg, 'loading')}
                 />
-              )}
+              ) : null}
               {activeTab === 'hotels' && (
                 <AdminHotelsList 
                   hotels={hotels} 
@@ -137,10 +157,18 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
                   onEdit={(r: Accommodation) => { setEditingRoom(r); setShowRoomForm(true); }} 
                   onDelete={(r: Accommodation) => setDeleteTarget({ id: r.id, type: 'room', name: r.name })}
                   onUpdate={fetchData} 
+                  onSuccess={(msg: string) => showToast(msg)}
+                  onError={(err: string) => showToast(err, 'error')}
+                  onProcessing={(msg: string) => showToast(msg, 'loading')}
                 />
               )}
               {activeTab === 'users' && profile.role === 'admin' && (
-                <UsersList onUpdate={fetchData} />
+                <UsersList 
+                  onUpdate={() => fetchData(true)} 
+                  onSuccess={(msg) => showToast(msg)}
+                  onError={(err) => showToast(err, 'error')}
+                  onProcessing={(msg) => showToast(msg, 'loading')}
+                />
               )}
             </>
           )}
@@ -152,11 +180,14 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
           <HotelForm 
             hotel={editingHotel} 
             onClose={() => setShowHotelForm(false)} 
-            onSuccess={() => { 
+            onSuccess={(msg: string) => { 
+                showToast(msg || 'Hotel updated successfully');
                 setShowHotelForm(false); 
-                fetchData(); 
+                fetchData(true); 
                 triggerDataRefresh();
             }} 
+            onError={(err: string) => showToast(err, 'error')}
+            onProcessing={(msg: string) => showToast(msg, 'loading')}
           />
         )}
         {showRoomForm && (
@@ -164,11 +195,14 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
             room={editingRoom} 
             hotels={hotels}
             onClose={() => setShowRoomForm(false)} 
-            onSuccess={() => { 
+            onSuccess={(msg: string) => { 
+                showToast(msg || 'Room updated successfully');
                 setShowRoomForm(false); 
-                fetchData(); 
+                fetchData(true); 
                 triggerDataRefresh();
             }} 
+            onError={(err: string) => showToast(err, 'error')}
+            onProcessing={(msg: string) => showToast(msg, 'loading')}
           />
         )}
         {deleteTarget && (
@@ -176,14 +210,20 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
             target={deleteTarget}
             onClose={() => setDeleteTarget(null)}
             onConfirm={async () => {
-              if (deleteTarget.type === 'hotel') {
-                await dbService.deleteHotel(deleteTarget.id);
-              } else {
-                await dbService.deleteRoom(deleteTarget.id);
+              showToast(`Deleting ${deleteTarget.name}...`, 'loading');
+              try {
+                if (deleteTarget.type === 'hotel') {
+                  await dbService.deleteHotel(deleteTarget.id);
+                } else {
+                  await dbService.deleteRoom(deleteTarget.id);
+                }
+                showToast(`${deleteTarget.name} deleted successfully`);
+                setDeleteTarget(null);
+                fetchData(true);
+                triggerDataRefresh();
+              } catch (e: any) {
+                showToast(e.message || 'Deletion failed', 'error');
               }
-              setDeleteTarget(null);
-              fetchData();
-              triggerDataRefresh();
             }}
           />
         )}
@@ -194,7 +234,7 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
 
 // --- Embedded Components (Refactored from original Admin.tsx) ---
 
-const AdminBookingsList = ({ bookings, rooms, hotels, onUpdate, type }: any) => {
+const AdminBookingsList = ({ bookings, rooms, hotels, onUpdate, type, onSuccess, onError, onProcessing }: any) => {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -214,20 +254,23 @@ const AdminBookingsList = ({ bookings, rooms, hotels, onUpdate, type }: any) => 
     if (isUpdating) return;
     const booking = selectedBooking || bookings.find((b: any) => b.id === id);
     if (!booking) return;
+    
+    onProcessing?.(status === 'confirmed' ? 'Confirming reservation...' : 'Cancelling booking...');
     setIsUpdating(true);
     try {
       const updateData: any = { status };
       if (reason) updateData.cancellationReason = reason;
       
       await dbService.updateBooking(id, updateData);
-      // Removed manual room update as it's now handled by the server in the bookings patch route
-      onUpdate();
+      onUpdate(true); // Silent refresh
       triggerDataRefresh();
+      onSuccess?.(status === 'confirmed' ? 'Reservation confirmed' : 'Booking cancelled');
       setSelectedBooking(null);
       setShowCancelDialog(false);
       setCancelReason('');
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      onError?.(error.message || 'Operation failed');
     } finally {
       setIsUpdating(false);
     }
@@ -323,11 +366,17 @@ const AdminHotelsList = ({ hotels, onEdit, onDelete }: any) => (
   </div>
 );
 
-const AdminRoomsList = ({ rooms, hotels, onEdit, onDelete, onUpdate }: any) => {
+const AdminRoomsList = ({ rooms, hotels, onEdit, onDelete, onUpdate, onSuccess, onError, onProcessing }: any) => {
   const toggleAvailability = async (room: Accommodation) => {
-    await dbService.updateRoom(room.id, { isAvailable: !room.isAvailable });
-    onUpdate();
-    triggerDataRefresh();
+    onProcessing?.(room.isAvailable ? 'Marking as booked...' : 'Marking as available...');
+    try {
+      await dbService.updateRoom(room.id, { isAvailable: !room.isAvailable });
+      onUpdate(true); // Silent refresh
+      triggerDataRefresh();
+      onSuccess?.(`Room ${room.isAvailable ? 'booked' : 'available'}`);
+    } catch (e: any) {
+      onError?.(e.message || 'Failed to update availability');
+    }
   }
   return (
     <div className="bg-white rounded-[32px] overflow-hidden border border-natural-accent">
@@ -368,7 +417,7 @@ const AdminRoomsList = ({ rooms, hotels, onEdit, onDelete, onUpdate }: any) => {
   );
 };
 
-const HotelForm = ({ hotel, onClose, onSuccess }: any) => {
+const HotelForm = ({ hotel, onClose, onSuccess, onError, onProcessing }: any) => {
   const [formData, setFormData] = useState({
     name: hotel?.name || '',
     location: hotel?.location || '',
@@ -378,11 +427,21 @@ const HotelForm = ({ hotel, onClose, onSuccess }: any) => {
     email: hotel?.email || '',
     phone: hotel?.phone || ''
   });
+  const [isSaving, setIsSaving] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (hotel) await dbService.updateHotel(hotel.id, formData);
-    else await dbService.addHotel(formData);
-    onSuccess();
+    setIsSaving(true);
+    onProcessing?.(hotel ? 'Updating hotel...' : 'Adding hotel...');
+    try {
+      if (hotel) await dbService.updateHotel(hotel.id, formData);
+      else await dbService.addHotel(formData);
+      onSuccess(hotel ? 'Hotel details saved' : 'New hotel added');
+    } catch (err: any) {
+      onError?.(err.message || 'Failed to save hotel');
+    } finally {
+      setIsSaving(false);
+    }
   };
   return (
     <Modal onClose={onClose} title={hotel ? 'Edit Hotel' : 'Add Hotel'}>
@@ -427,7 +486,7 @@ const HotelForm = ({ hotel, onClose, onSuccess }: any) => {
   );
 };
 
-const RoomForm = ({ room, hotels, onClose, onSuccess }: any) => {
+const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: any) => {
   const [formData, setFormData] = useState({
     hotelId: room?.hotelId || hotels[0]?.id || '',
     name: room?.name || '',
@@ -438,18 +497,28 @@ const RoomForm = ({ room, hotels, onClose, onSuccess }: any) => {
     imageUrl: room?.imageUrl || '',
     amenities: room?.amenities?.join(', ') || ''
   });
+  const [isSaving, setIsSaving] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = { 
-      ...formData, 
-      price: Number(formData.price), 
-      maxGuests: Number(formData.maxGuests), 
-      amenities: formData.amenities.split(',').map(a => a.trim()).filter(Boolean),
-      isAvailable: room ? room.isAvailable : true
-    };
-    if (room) await dbService.updateRoom(room.id, payload);
-    else await dbService.addRoom(payload);
-    onSuccess();
+    setIsSaving(true);
+    onProcessing?.(room ? 'Updating room...' : 'Adding room...');
+    try {
+      const payload = { 
+        ...formData, 
+        price: Number(formData.price), 
+        maxGuests: Number(formData.maxGuests), 
+        amenities: formData.amenities.split(',').map(a => a.trim()).filter(Boolean),
+        isAvailable: room ? room.isAvailable : true
+      };
+      if (room) await dbService.updateRoom(room.id, payload);
+      else await dbService.addRoom(payload);
+      onSuccess(room ? 'Room details saved' : 'New room added');
+    } catch (err: any) {
+      onError?.(err.message || 'Failed to save room');
+    } finally {
+      setIsSaving(false);
+    }
   };
   return (
     <Modal onClose={onClose} title={room ? 'Edit Room Portfolio' : 'Add New Room'}>
