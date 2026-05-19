@@ -135,7 +135,22 @@ export const queueBookingConfirmation = async (dbQuery: any, details: BookingDet
 
 export const processEmailQueue = async (pool: any) => {
   const transporter = createTransporter();
-  if (!transporter) return;
+  if (!transporter) {
+    // Only log once to avoid spamming
+    if (!(global as any)._smtp_warn_logged) {
+      console.warn('Email worker: SMTP transporter not configured (missing env vars). Skipping queue processing.');
+      (global as any)._smtp_warn_logged = true;
+    }
+    return;
+  }
+
+  // Verify connection once at start of each run to catch credential issues early
+  try {
+    await transporter.verify();
+  } catch (verifyErr) {
+    console.error('SMTP Connection Verification Failed:', verifyErr);
+    return;
+  }
 
   let client;
   try {
@@ -155,8 +170,13 @@ export const processEmailQueue = async (pool: any) => {
        RETURNING *`
     );
 
+    if (result.rows.length > 0) {
+      console.log(`Email worker: Processing ${result.rows.length} emails...`);
+    }
+
     for (const email of result.rows) {
       try {
+        console.log(`Sending email to ${email.recipient} (Subject: ${email.subject})...`);
         await transporter.sendMail({
           from: `"Ahsell Resorts" <${process.env.SMTP_USER}>`,
           to: email.recipient,
@@ -168,7 +188,7 @@ export const processEmailQueue = async (pool: any) => {
           'UPDATE email_queue SET status = $1, "processedAt" = CURRENT_TIMESTAMP WHERE id = $2',
           ['sent', email.id]
         );
-        console.log(`Email sent from queue: ${email.recipient}`);
+        console.log(`Successfully sent email to ${email.recipient}`);
       } catch (err: any) {
         console.error(`Failed to send queued email to ${email.recipient}:`, err);
         const attempts = (email.attempts || 0) + 1;
