@@ -28,13 +28,15 @@ export const Modal = ({ children, onClose, title }: any) => (
     />
     <motion.div 
       initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
-      className="relative z-10 w-full max-w-2xl bg-white rounded-[40px] p-12 overflow-y-auto max-h-[90vh] modal-container"
+      className="relative z-10 w-full max-w-2xl bg-white rounded-[40px] overflow-hidden flex flex-col max-h-[90vh] modal-container"
     >
-      <div className="flex justify-between items-center mb-8">
-        <h3 className="font-serif text-3xl italic text-natural-dark">{title}</h3>
-        <button onClick={onClose}><XCircle className="w-8 h-8 text-natural-muted hover:text-natural-primary transition-colors" /></button>
+      <div className="p-12 overflow-y-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h3 className="font-serif text-3xl italic text-natural-dark">{title}</h3>
+          <button onClick={onClose}><XCircle className="w-8 h-8 text-natural-muted hover:text-natural-primary transition-colors" /></button>
+        </div>
+        {children}
       </div>
-      {children}
     </motion.div>
   </div>
 );
