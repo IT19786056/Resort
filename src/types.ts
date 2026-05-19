@@ -20,6 +20,7 @@ export interface Accommodation {
   price: number;
   rating: number;
   imageUrl: string;
+  images?: string[];
   amenities: string[];
   maxGuests: number;
   isAvailable?: boolean;

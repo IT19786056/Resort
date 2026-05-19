@@ -17,6 +17,7 @@ import { ContactUs } from './components/ContactUs';
 import { WeddingsEvents } from './components/WeddingsEvents';
 import { LoadingPlane } from './components/ui/LoadingPlane';
 import { SkeletonCard } from './components/ui/SkeletonCard';
+import { Gallery } from './components/ui/Gallery';
 
 // Lazy load Admin to minimize initial bundle size and make site feel lighter
 const Admin = lazy(() => import('./components/Admin').then(m => ({ default: m.Admin })));
@@ -476,7 +477,7 @@ const HotelDetailModal = ({ hotel, onClose, onViewStays }: any) => (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-natural-dark/70 backdrop-blur-lg" />
     <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="relative z-10 w-full max-w-6xl bg-natural-cream rounded-[40px] md:rounded-[60px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.3)] flex flex-col lg:flex-row h-[90vh] md:h-[85vh] modal-container">
       <div className="lg:w-1/2 h-64 lg:h-full relative overflow-hidden bg-natural-accent">
-        <img src={hotel.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+        <Gallery parentId={hotel.id} fallbackImage={hotel.imageUrl} className="w-full h-full" />
         <div className="absolute top-6 left-6 md:top-10 md:left-10 flex gap-4">
           <button onClick={onClose} className="p-3 md:p-4 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all"><ArrowLeft className="w-5 h-5 md:w-6 md:h-6"/></button>
         </div>
@@ -511,7 +512,7 @@ const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, on
       {!isBooking ? (
         <div className="flex flex-col lg:flex-row w-full">
           <div className="lg:w-1/2 h-64 lg:h-auto relative bg-natural-accent">
-            <img src={item.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            <Gallery parentId={item.id} fallbackImage={item.imageUrl} className="w-full h-full" />
             <button onClick={onClose} className="absolute top-6 left-6 lg:hidden p-3 bg-white/20 backdrop-blur-md rounded-full text-white"><ArrowLeft className="w-5 h-5"/></button>
           </div>
           <div className="lg:w-1/2 p-8 md:p-16 flex flex-col selection:bg-natural-primary/20">

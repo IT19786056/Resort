@@ -20,6 +20,7 @@ import { Sidebar } from './Sidebar';
 import { UsersList } from './UsersList';
 import { LoadingPlane } from '../ui/LoadingPlane';
 import { Modal, Input, SectionLabel } from './Shared';
+import { ImageGalleryUpload } from './ImageGalleryUpload';
 import { triggerDataRefresh } from '../../lib/events';
 
 type AdminTab = 'hotels' | 'rooms' | 'bookings' | 'past_bookings' | 'users';
@@ -405,6 +406,12 @@ const HotelForm = ({ hotel, onClose, onSuccess }: any) => {
           <label htmlFor="hasBanquetHall" className="text-sm font-medium text-natural-dark">Includes Banquet Hall (for Weddings & Events)</label>
         </div>
 
+        {hotel && (
+          <div className="pt-6 border-t border-natural-accent">
+            <ImageGalleryUpload parentId={hotel.id} parentType="hotel" />
+          </div>
+        )}
+
         <textarea className="w-full bg-natural-bg rounded-2xl p-4 min-h-[120px]" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Description" />
         <button type="submit" className="w-full bg-natural-primary text-white py-5 rounded-full font-bold uppercase tracking-widest shadow-xl">Save</button>
       </form>
@@ -442,6 +449,13 @@ const RoomForm = ({ room, hotels, onClose, onSuccess }: any) => {
           <Input label="Capacity" type="number" value={formData.maxGuests} onChange={(v:any) => setFormData({...formData, maxGuests: v})} required />
         </div>
         <Input label="Image URL" value={formData.imageUrl} onChange={(v:any) => setFormData({...formData, imageUrl: v})} />
+        
+        {room && (
+          <div className="pt-6 border-t border-natural-accent">
+            <ImageGalleryUpload parentId={room.id} parentType="room" />
+          </div>
+        )}
+        
         <button type="submit" className="w-full bg-natural-primary text-white py-5 rounded-full font-bold uppercase tracking-widest shadow-xl">Save</button>
       </form>
     </Modal>

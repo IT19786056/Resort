@@ -15,7 +15,8 @@ const __dirname = path.dirname(__filename);
 export const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Database configuration
 const dbUrl = process.env.DATABASE_URL;
@@ -706,6 +707,41 @@ app.patch('/api/bookings/:id', async (req, res) => {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message || 'Failed to update booking' });
   } finally {
     client.release();
+  }
+});
+
+// Media
+app.get('/api/media/:parentId', async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT * FROM media WHERE "parentId" = $1 ORDER BY "order" ASC',
+      [req.params.parentId]
+    );
+    res.json(result.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/media', async (req, res) => {
+  try {
+    const { parentId, parentType, data, order = 0 } = req.body;
+    const result = await query(
+      'INSERT INTO media ("parentId", "parentType", "data", "order") VALUES ($1, $2, $3, $4) RETURNING *',
+      [parentId, parentType, data, order]
+    );
+    res.json(result.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/media/:id', async (req, res) => {
+  try {
+    await query('DELETE FROM media WHERE id = $1', [req.params.id]);
+    res.sendStatus(204);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

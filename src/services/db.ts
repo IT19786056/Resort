@@ -156,6 +156,22 @@ export const dbService = {
     });
   },
 
+  // Media
+  async getMedia(parentId: string) {
+    return apiFetch<any[]>(`/api/media/${parentId}`);
+  },
+
+  async addMedia(media: { parentId: string; parentType: string; data: string; order?: number }) {
+    return apiFetch<any>('/api/media', {
+      method: 'POST',
+      body: JSON.stringify(media),
+    });
+  },
+
+  async deleteMedia(id: string) {
+    return apiFetch<void>(`/api/media/${id}`, { method: 'DELETE' });
+  },
+
   // Seed data is now handled by the backend
   async seedData() {
     console.log('Seed data is now handled by the backend server initialization.');
