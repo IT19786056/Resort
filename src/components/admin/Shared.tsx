@@ -28,7 +28,7 @@ export const Modal = ({ children, onClose, title }: any) => (
     />
     <motion.div 
       initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
-      className="relative z-10 w-full max-w-2xl bg-white rounded-[40px] p-12 overflow-y-auto max-h-[90vh]"
+      className="relative z-10 w-full max-w-2xl bg-white rounded-[40px] p-12 overflow-y-auto max-h-[90vh] modal-container"
     >
       <div className="flex justify-between items-center mb-8">
         <h3 className="font-serif text-3xl italic text-natural-dark">{title}</h3>

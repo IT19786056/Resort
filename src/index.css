@@ -2,7 +2,8 @@
 @import "tailwindcss";
 
 @theme {
-  --color-natural-bg: #F5F2ED;
+  --color-natural-bg: #FFFFFF;
+  --color-natural-cream: #F5F2ED;
   --color-natural-text: #2D2D2D;
   --color-natural-primary: #5A5A40;
   --color-natural-accent: #E5DCCF;
@@ -16,5 +17,38 @@
 @layer base {
   body {
     @apply font-sans antialiased bg-natural-bg text-natural-text;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--color-natural-bg);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-natural-accent);
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-natural-muted);
+  }
+
+  /* Modal scroll containment */
+  [data-radix-portal] > div,
+  .modal-container {
+    overscroll-behavior: contain;
+  }
+
+  @keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .animate-spin-slow {
+    animation: spin-slow 12s linear infinite;
   }
 }

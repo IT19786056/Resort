@@ -48,7 +48,7 @@ export const AboutUs = () => {
                 alt="Our Founder"
               />
             </div>
-            <div className="absolute -bottom-10 -right-10 bg-white p-10 rounded-[40px] shadow-xl max-w-[280px]">
+            <div className="absolute -bottom-10 -right-10 bg-natural-cream p-10 rounded-[40px] shadow-xl max-w-[280px]">
               <p className="font-serif italic text-xl text-natural-dark mb-2">"True luxury is found in the moments of silence and service."</p>
               <p className="text-[10px] font-bold uppercase tracking-widest text-natural-primary">— Founder</p>
             </div>
@@ -68,7 +68,7 @@ export const AboutUs = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              className="bg-white p-10 rounded-[40px] border border-natural-accent hover:shadow-xl transition-all"
+              className="bg-natural-cream p-10 rounded-[40px] border border-natural-accent hover:shadow-xl transition-all"
             >
               <div className="w-12 h-12 bg-natural-primary/10 rounded-2xl flex items-center justify-center mb-6">
                 <item.icon className="w-6 h-6 text-natural-primary" />

@@ -3,58 +3,62 @@ import { motion } from 'motion/react';
 
 export const Hero = () => {
   return (
-    <section className="relative px-4 md:px-10 pt-28 md:pt-40 pb-12">
-      <div className="max-w-7xl mx-auto">
-        <div className="relative h-auto min-h-[500px] md:h-[600px] flex flex-col lg:flex-row bg-white rounded-[32px] md:rounded-[60px] overflow-hidden shadow-2xl border border-natural-accent">
-          {/* Image Part */}
-          <div className="relative w-full lg:w-1/2 h-[300px] md:h-[400px] lg:h-full overflow-hidden">
-            <motion.img 
-              initial={{ scale: 1.1 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 1.5 }}
-              src="https://images.unsplash.com/photo-1544644181-1484b3fdfc62?q=80&w=2070&auto=format&fit=crop" 
-              alt="Luxury Sanctuary" 
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
-            />
-            <div className="absolute inset-0 bg-natural-dark/10" />
-            
-            <div className="absolute bottom-6 left-6 md:bottom-10 md:left-10 flex items-center gap-4 text-white text-[9px] md:text-[10px] uppercase font-bold tracking-[0.4em]">
-              <span className="w-8 md:w-12 h-[1px] bg-white/40"></span>
-              Tropical Paradise
-            </div>
-          </div>
+    <section className="relative h-[100vh] min-h-[600px] w-full overflow-hidden">
+      {/* Background Image Wrapper */}
+      <div className="absolute inset-0 z-0">
+        <motion.img 
+          initial={{ scale: 1.1, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 2 }}
+          src="https://images.unsplash.com/photo-1544644181-1484b3fdfc62?q=80&w=2070&auto=format&fit=crop" 
+          alt="Luxury Sanctuary" 
+          className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
+        />
+        <div className="absolute inset-0 bg-natural-dark/40 backdrop-blur-[2px]" />
+      </div>
 
-          {/* Content Part */}
-          <div className="w-full lg:w-1/2 bg-natural-accent flex flex-col justify-center p-8 md:p-16 lg:p-20 relative">
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 1, delay: 0.2 }}
-              className="relative z-10"
-            >
-              <span className="text-[10px] font-bold uppercase tracking-[0.5em] text-natural-primary block mb-6 md:mb-10">Welcome to Ahsell</span>
-              <h1 className="font-serif text-5xl md:text-7xl lg:text-8xl italic text-natural-dark leading-[0.9] tracking-tighter mb-8">
-                Sanctuary <br className="hidden md:block" /> of Soul.
-              </h1>
-              <div className="w-20 h-[1px] bg-natural-primary/30 mb-8 md:mb-10" />
-              <p className="text-natural-muted font-light text-lg md:text-xl lg:text-2xl leading-relaxed italic max-w-lg">
-                Experience curated luxury where architecture meets nature's raw beauty. Every moment is a crafted escape.
-              </p>
-              
-              <div className="mt-12 md:mt-16 flex items-center gap-6">
-                <button 
-                  onClick={() => document.getElementById('stays')?.scrollIntoView({ behavior: 'smooth' })}
-                  className="bg-natural-dark text-white px-8 md:px-10 py-4 md:py-5 rounded-full font-bold uppercase text-[10px] tracking-[0.2em] shadow-xl hover:bg-natural-primary transition-all active:scale-95 whitespace-nowrap"
-                >
-                  Explore Stays
-                </button>
-              </div>
-            </motion.div>
+      <div className="relative z-10 h-full max-w-7xl mx-auto px-6 md:px-10 flex items-center">
+        <div className="max-w-3xl">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1, delay: 0.5 }}
+          >
+            <div className="flex items-center gap-4 text-white/70 text-[10px] md:text-[11px] uppercase font-bold tracking-[0.6em] mb-12">
+              <span className="w-12 h-[1px] bg-white/40"></span>
+              Welcome to Ahsell Reserves
+            </div>
+
+            <h1 className="font-serif text-6xl md:text-8xl lg:text-[10rem] italic text-white leading-[0.8] tracking-tighter mb-12 drop-shadow-2xl">
+              Sanctuary <br /> of Soul.
+            </h1>
             
-            {/* Decorative element */}
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/30 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl pointer-events-none" />
-          </div>
+            <p className="text-white/90 font-light text-xl md:text-2xl lg:text-3xl leading-relaxed italic max-w-xl mb-16 drop-shadow-lg">
+              Experience curated luxury where architecture meets nature's raw beauty. Every moment is a crafted escape into the extraordinary.
+            </p>
+            
+            <div className="flex flex-col md:flex-row items-center gap-8">
+              <button 
+                onClick={() => document.getElementById('stays')?.scrollIntoView({ behavior: 'smooth' })}
+                className="w-full md:w-auto bg-white text-natural-dark px-12 py-6 rounded-full font-bold uppercase text-[11px] tracking-[0.3em] shadow-2xl hover:bg-natural-primary hover:text-white transition-all active:scale-95 whitespace-nowrap"
+              >
+                Explore Stays
+              </button>
+              
+              <div className="flex items-center gap-4 text-white/60 text-[10px] uppercase font-bold tracking-widest hidden md:flex">
+                <span className="w-8 h-[1px] bg-white/20"></span>
+                Tropical Paradise & Wellness
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Decorative element */}
+      <div className="absolute bottom-12 right-12 hidden lg:block">
+        <div className="w-32 h-32 border border-white/20 rounded-full flex items-center justify-center p-4">
+          <div className="w-full h-full border border-white/40 rounded-full animate-spin-slow"></div>
         </div>
       </div>
     </section>

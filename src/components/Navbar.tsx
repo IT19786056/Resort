@@ -63,7 +63,7 @@ export const Navbar = ({ activeTab, onTabChange }: NavbarProps) => {
 
   return (
     <>
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isScrolled ? 'bg-white/80 backdrop-blur-md shadow-sm py-4' : 'bg-transparent py-8'}`}>
+      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isScrolled ? 'bg-natural-cream/80 backdrop-blur-md shadow-sm py-4' : 'bg-transparent py-8'}`}>
         <div className="max-w-7xl mx-auto px-6 md:px-10 flex justify-between items-center">
           <div className="flex items-center gap-3 cursor-pointer group" onClick={() => handleNavClick('home')}>
             <div className="w-10 h-10 bg-natural-primary rounded-full flex items-center justify-center transition-transform group-hover:scale-110">
@@ -106,7 +106,7 @@ export const Navbar = ({ activeTab, onTabChange }: NavbarProps) => {
                   {isProfileOpen && (
                     <motion.div 
                       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-                      className="absolute right-0 mt-4 w-56 bg-white rounded-2xl shadow-xl border border-natural-accent p-2 overflow-hidden"
+                      className="absolute right-0 mt-4 w-56 bg-natural-cream rounded-2xl shadow-xl border border-natural-accent p-2 overflow-hidden"
                     >
                       <button 
                         onClick={() => { handleNavClick('my-bookings'); setIsProfileOpen(false); }}
@@ -160,7 +160,7 @@ export const Navbar = ({ activeTab, onTabChange }: NavbarProps) => {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="md:hidden bg-white w-full overflow-hidden absolute top-full left-0 border-t border-natural-accent shadow-2xl"
+              className="md:hidden bg-natural-cream w-full overflow-hidden absolute top-full left-0 border-t border-natural-accent shadow-2xl"
             >
               <div className="flex flex-col p-10 space-y-8 text-xs font-bold uppercase tracking-[0.2em] text-natural-dark">
                 {navLinks.map(link => (

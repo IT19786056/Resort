@@ -106,7 +106,7 @@ export const BookingForm = ({
 
   if (!user && !showAuth) {
     return (
-      <div className="bg-white p-12 rounded-[40px] text-center max-w-lg w-full shadow-2xl">
+      <div className="bg-natural-cream p-12 rounded-[40px] text-center max-w-lg w-full shadow-2xl">
         <h2 className="font-serif text-4xl italic text-natural-dark mb-6">Access Required.</h2>
         <p className="text-natural-muted mb-10 leading-relaxed italic">
           To provide a personalized sanctuary experience and secure your reservation, please sign in or create an account.
@@ -126,7 +126,7 @@ export const BookingForm = ({
   }
 
   return (
-    <div className="bg-white p-8 rounded-[32px] max-w-xl w-full selection:bg-natural-primary/20">
+    <div className="bg-natural-cream p-8 rounded-[32px] max-w-xl w-full selection:bg-natural-primary/20">
       <div className="flex justify-between items-center mb-8">
         <h3 className="font-serif text-3xl italic text-natural-dark">Book Now</h3>
         <button onClick={onCancel} className="p-2 hover:bg-natural-bg rounded-full transition-colors">

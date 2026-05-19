@@ -139,7 +139,7 @@ export default function App() {
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-white/80 backdrop-blur-md border border-natural-accent px-6 py-2 rounded-full shadow-lg flex items-center gap-3"
+                className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-natural-cream/80 backdrop-blur-md border border-natural-accent px-6 py-2 rounded-full shadow-lg flex items-center gap-3"
               >
                 <div className="w-2 h-2 bg-natural-primary rounded-full animate-ping" />
                 <span className="text-[10px] font-bold uppercase tracking-widest text-natural-dark">Synchronizing...</span>
@@ -375,7 +375,7 @@ const AccommodationCard = ({ item, index, onClick, onBook, disabled }: any) => (
     viewport={{ once: true }}
     transition={{ duration: 0.6, delay: index * 0.1 }}
     onClick={disabled ? undefined : onClick}
-    className={`bg-white rounded-[32px] md:rounded-[40px] overflow-hidden flex flex-col shadow-sm border border-natural-accent group hover:shadow-2xl transition-all cursor-pointer ${disabled ? 'opacity-70 grayscale-[0.5]' : ''}`}
+    className={`bg-natural-cream rounded-[32px] md:rounded-[40px] overflow-hidden flex flex-col shadow-sm border border-natural-accent group hover:shadow-2xl transition-all cursor-pointer ${disabled ? 'opacity-70 grayscale-[0.5]' : ''}`}
   >
     <div className="h-56 md:h-72 bg-natural-accent overflow-hidden relative">
       <img 
@@ -458,7 +458,7 @@ const DetailDivider = () => <div className="h-[1px] w-full bg-natural-accent my-
 const HotelDetailModal = ({ hotel, onClose, onViewStays }: any) => (
   <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10">
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-natural-dark/70 backdrop-blur-lg" />
-    <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="relative z-10 w-full max-w-6xl bg-white rounded-[40px] md:rounded-[60px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.3)] flex flex-col lg:flex-row h-[90vh] md:h-[85vh]">
+    <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="relative z-10 w-full max-w-6xl bg-natural-cream rounded-[40px] md:rounded-[60px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.3)] flex flex-col lg:flex-row h-[90vh] md:h-[85vh] modal-container">
       <div className="lg:w-1/2 h-64 lg:h-full relative overflow-hidden bg-natural-accent">
         <img src={hotel.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
         <div className="absolute top-6 left-6 md:top-10 md:left-10 flex gap-4">
@@ -491,7 +491,7 @@ const HotelDetailModal = ({ hotel, onClose, onViewStays }: any) => (
 const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, onStartBooking, onBookingSuccess, initialCheckIn, initialCheckOut }: any) => (
   <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10">
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-natural-dark/70 backdrop-blur-lg" />
-    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative z-10 w-full max-w-5xl bg-white rounded-[32px] md:rounded-[50px] overflow-hidden shadow-2xl h-[90vh] md:h-auto md:min-h-[600px] flex overflow-y-auto md:overflow-visible">
+    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative z-10 w-full max-w-5xl bg-natural-cream rounded-[32px] md:rounded-[50px] overflow-hidden shadow-2xl h-[90vh] md:h-auto md:min-h-[600px] flex overflow-y-auto md:overflow-visible modal-container">
       {!isBooking ? (
         <div className="flex flex-col lg:flex-row w-full">
           <div className="lg:w-1/2 h-64 lg:h-auto relative bg-natural-accent">

@@ -74,7 +74,7 @@ export const MyBookings = () => {
       </div>
 
       {bookings.length === 0 ? (
-        <div className="bg-white rounded-[32px] p-12 text-center shadow-sm border border-natural-bg">
+        <div className="bg-natural-cream rounded-[32px] p-12 text-center shadow-sm border border-natural-bg">
           <Calendar className="w-16 h-16 text-natural-primary/20 mx-auto mb-6" />
           <h2 className="text-2xl font-serif font-bold text-natural-dark italic mb-2">No Bookings Yet</h2>
           <p className="text-natural-muted mb-8">Your next adventure is just a few clicks away.</p>
@@ -93,7 +93,7 @@ export const MyBookings = () => {
               layout
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-[32px] overflow-hidden shadow-sm border border-natural-bg hover:shadow-md transition-all p-8"
+              className="bg-natural-cream rounded-[32px] overflow-hidden shadow-sm border border-natural-bg hover:shadow-md transition-all p-8"
             >
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="space-y-4 flex-1">
@@ -170,7 +170,7 @@ export const MyBookings = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-md bg-white rounded-[40px] p-10 overflow-hidden"
+              className="relative w-full max-w-md bg-natural-cream rounded-[40px] p-10 overflow-hidden modal-container"
               onClick={e => e.stopPropagation()}
             >
               <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-8">

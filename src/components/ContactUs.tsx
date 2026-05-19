@@ -41,7 +41,7 @@ export const ContactUs = () => {
           >
             <div className="space-y-6 md:space-y-8">
               <div className="flex gap-4 md:gap-6 items-start group">
-                <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-natural-primary transition-all flex-shrink-0">
+                <div className="w-12 h-12 md:w-14 md:h-14 bg-natural-cream rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-natural-primary transition-all flex-shrink-0">
                   <Mail className="w-5 h-5 md:w-6 md:h-6 text-natural-primary group-hover:text-white" />
                 </div>
                 <div>
@@ -52,7 +52,7 @@ export const ContactUs = () => {
               </div>
 
               <div className="flex gap-4 md:gap-6 items-start group">
-                <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-natural-primary transition-all flex-shrink-0">
+                <div className="w-12 h-12 md:w-14 md:h-14 bg-natural-cream rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-natural-primary transition-all flex-shrink-0">
                   <Phone className="w-5 h-5 md:w-6 md:h-6 text-natural-primary group-hover:text-white" />
                 </div>
                 <div>
@@ -63,7 +63,7 @@ export const ContactUs = () => {
               </div>
 
               <div className="flex gap-4 md:gap-6 items-start group">
-                <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-natural-primary transition-all flex-shrink-0">
+                <div className="w-12 h-12 md:w-14 md:h-14 bg-natural-cream rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-natural-primary transition-all flex-shrink-0">
                   <MapPin className="w-5 h-5 md:w-6 md:h-6 text-natural-primary group-hover:text-white" />
                 </div>
                 <div>
@@ -93,7 +93,7 @@ export const ContactUs = () => {
             animate={{ opacity: 1, x: 0 }}
             className="lg:col-span-7"
           >
-            <div className="bg-white p-8 md:p-12 rounded-[32px] md:rounded-[48px] shadow-xl border border-natural-accent">
+            <div className="bg-natural-cream p-8 md:p-12 rounded-[32px] md:rounded-[48px] shadow-xl border border-natural-accent">
               {submitted ? (
                 <div className="py-12 md:py-20 text-center space-y-6">
                   <div className="w-16 h-16 md:w-20 md:h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto">
@@ -153,7 +153,7 @@ export const ContactUs = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {hotels.map((hotel) => (
-                <div key={hotel.id} className="bg-white p-8 rounded-[32px] border border-natural-accent hover:border-natural-primary transition-all">
+                <div key={hotel.id} className="bg-natural-cream p-8 rounded-[32px] border border-natural-accent hover:border-natural-primary transition-all">
                   <div className="flex items-center gap-3 mb-4">
                     <Building2 className="w-4 h-4 text-natural-primary" />
                     <h3 className="font-serif text-xl italic text-natural-dark">{hotel.name}</h3>

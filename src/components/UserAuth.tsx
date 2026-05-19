@@ -76,7 +76,7 @@ export const UserAuth = ({ onClose, onSuccess, onStaffLogin }: UserAuthProps) =>
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-md bg-white rounded-[32px] shadow-2xl overflow-hidden"
+        className="relative w-full max-w-md bg-natural-cream rounded-[32px] shadow-2xl overflow-hidden modal-container"
         onClick={e => e.stopPropagation()}
       >
         <button 
