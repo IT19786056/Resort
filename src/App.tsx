@@ -505,43 +505,21 @@ const HotelDetailModal = ({ hotel, onClose, onViewStays }: any) => (
   </div>
 );
 
-const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, onStartBooking, onBookingSuccess, initialCheckIn, initialCheckOut }: any) => (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10">
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-natural-dark/70 backdrop-blur-lg" />
-    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative z-10 w-full max-w-5xl bg-natural-cream rounded-[32px] md:rounded-[50px] overflow-hidden shadow-2xl h-[90vh] md:h-auto md:min-h-[600px] flex overflow-y-auto md:overflow-visible modal-container">
-      {!isBooking ? (
-        <div className="flex flex-col lg:flex-row w-full">
-          <div className="lg:w-1/2 h-64 lg:h-auto relative bg-natural-accent">
-            <Gallery parentId={item.id} fallbackImage={item.imageUrl} className="w-full h-full" />
-            <button onClick={onClose} className="absolute top-6 left-6 lg:hidden p-3 bg-white/20 backdrop-blur-md rounded-full text-white"><ArrowLeft className="w-5 h-5"/></button>
-          </div>
-          <div className="lg:w-1/2 p-8 md:p-16 flex flex-col selection:bg-natural-primary/20">
-            <button onClick={onClose} className="hidden lg:flex self-end p-2 hover:bg-natural-bg rounded-full mb-4"><ArrowLeft className="w-6 h-6 text-natural-muted"/></button>
-            <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-primary mb-4 md:mb-6">{item.type} Portfolio</span>
-            <h2 className="font-serif text-4xl md:text-5xl lg:text-6xl text-natural-dark italic mb-6 md:mb-8 tracking-tighter leading-tight">{item.name}</h2>
-            <div className="flex flex-wrap items-center gap-4 md:gap-6 mb-8 md:mb-10 pb-6 md:pb-8 border-b border-natural-accent">
-               <div className="flex items-center gap-2 text-xs md:text-sm font-bold"><Star className="w-4 h-4 text-natural-primary" /> {item.rating}</div>
-               <div className="flex items-center gap-2 text-xs md:text-sm font-bold"><MapPin className="w-4 h-4 text-natural-primary" /> {item.location}</div>
-            </div>
-            <p className="text-base md:text-lg text-natural-muted font-light italic leading-relaxed mb-10 md:mb-12">{item.description}</p>
-            <div className="mt-auto flex items-center justify-between gap-4">
-              <div>
-                <span className="text-3xl md:text-4xl font-bold font-serif italic text-natural-dark">${item.price}</span>
-                <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-natural-muted ml-2 md:ml-4">/ night</span>
-              </div>
-              <button onClick={onStartBooking} className="bg-natural-primary text-white px-8 md:px-10 py-4 md:py-5 rounded-full font-bold uppercase tracking-[0.2em] shadow-xl hover:bg-natural-dark transition-all text-xs">Reserve</button>
-            </div>
-          </div>
-        </div>
-      ) : bookingSuccess ? (
-        <div className="w-full p-12 md:p-24 flex flex-col items-center text-center justify-center">
-          <div className="w-16 h-16 md:w-20 md:h-20 bg-green-50 rounded-full flex items-center justify-center mb-10"><Star className="w-8 h-8 md:w-10 md:h-10 text-green-600"/></div>
-          <h2 className="font-serif text-4xl md:text-6xl italic text-natural-dark mb-6 tracking-tighter text-center leading-tight">Sanctuary Requested.</h2>
-          <p className="text-lg md:text-xl text-natural-muted max-w-md font-light italic leading-relaxed mb-12 text-center">Our concierge will contact you within the hour to finalize your tropical escape.</p>
-          <button onClick={onClose} className="bg-natural-primary text-white px-12 py-5 rounded-full font-bold uppercase tracking-[0.2em] shadow-xl text-sm">Complete</button>
-        </div>
-      ) : (
-        <div className="w-full flex items-center justify-center p-6 md:p-10 bg-natural-bg/50">
+const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, onStartBooking, onBookingSuccess, initialCheckIn, initialCheckOut }: any) => {
+  const isFormState = isBooking && !bookingSuccess;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-natural-dark/70 backdrop-blur-lg" />
+      
+      {isFormState ? (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }} 
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          className="relative z-10 w-full max-w-xl mx-auto flex justify-center items-center overflow-visible"
+          onClick={e => e.stopPropagation()}
+        >
           <BookingForm 
             accommodation={item} 
             onCancel={onClose} 
@@ -549,8 +527,48 @@ const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, on
             initialCheckIn={initialCheckIn}
             initialCheckOut={initialCheckOut}
           />
-        </div>
+        </motion.div>
+      ) : (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }} 
+          animate={{ opacity: 1, scale: 1 }} 
+          className="relative z-10 w-full max-w-5xl bg-natural-cream rounded-[32px] md:rounded-[50px] overflow-hidden shadow-2xl h-[90vh] md:h-auto md:min-h-[600px] flex overflow-y-auto md:overflow-visible modal-container"
+          onClick={e => e.stopPropagation()}
+        >
+          {!isBooking ? (
+            <div className="flex flex-col lg:flex-row w-full">
+              <div className="lg:w-1/2 h-64 lg:h-auto relative bg-natural-accent">
+                <Gallery parentId={item.id} fallbackImage={item.imageUrl} className="w-full h-full" />
+                <button onClick={onClose} className="absolute top-6 left-6 lg:hidden p-3 bg-white/20 backdrop-blur-md rounded-full text-white"><ArrowLeft className="w-5 h-5"/></button>
+              </div>
+              <div className="lg:w-1/2 p-8 md:p-16 flex flex-col selection:bg-natural-primary/20">
+                <button onClick={onClose} className="hidden lg:flex self-end p-2 hover:bg-natural-bg rounded-full mb-4"><ArrowLeft className="w-6 h-6 text-natural-muted"/></button>
+                <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-primary mb-4 md:mb-6">{item.type} Portfolio</span>
+                <h2 className="font-serif text-4xl md:text-5xl lg:text-6xl text-natural-dark italic mb-6 md:mb-8 tracking-tighter leading-tight">{item.name}</h2>
+                <div className="flex flex-wrap items-center gap-4 md:gap-6 mb-8 md:mb-10 pb-6 md:pb-8 border-b border-natural-accent">
+                   <div className="flex items-center gap-2 text-xs md:text-sm font-bold"><Star className="w-4 h-4 text-natural-primary" /> {item.rating}</div>
+                   <div className="flex items-center gap-2 text-xs md:text-sm font-bold"><MapPin className="w-4 h-4 text-natural-primary" /> {item.location}</div>
+                </div>
+                <p className="text-base md:text-lg text-natural-muted font-light italic leading-relaxed mb-10 md:mb-12">{item.description}</p>
+                <div className="mt-auto flex items-center justify-between gap-4">
+                  <div>
+                    <span className="text-3xl md:text-4xl font-bold font-serif italic text-natural-dark">${item.price}</span>
+                    <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-natural-muted ml-2 md:ml-4">/ night</span>
+                  </div>
+                  <button onClick={onStartBooking} className="bg-natural-primary text-white px-8 md:px-10 py-4 md:py-5 rounded-full font-bold uppercase tracking-[0.2em] shadow-xl hover:bg-natural-dark transition-all text-xs">Reserve</button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="w-full p-12 md:p-24 flex flex-col items-center text-center justify-center">
+              <div className="w-16 h-16 md:w-20 md:h-20 bg-green-50 rounded-full flex items-center justify-center mb-10"><Star className="w-8 h-8 md:w-10 md:h-10 text-green-600"/></div>
+              <h2 className="font-serif text-4xl md:text-6xl italic text-natural-dark mb-6 tracking-tighter text-center leading-tight">Sanctuary Requested.</h2>
+              <p className="text-lg md:text-xl text-natural-muted max-w-md font-light italic leading-relaxed mb-12 text-center">Our concierge will contact you within the hour to finalize your tropical escape.</p>
+              <button onClick={onClose} className="bg-natural-primary text-white px-12 py-5 rounded-full font-bold uppercase tracking-[0.2em] shadow-xl text-sm">Complete</button>
+            </div>
+          )}
+        </motion.div>
       )}
-    </motion.div>
-  </div>
-);
+    </div>
+  );
+};
