@@ -13,6 +13,33 @@ export const FilterBar = ({
   currentFilter,
   hotels 
 }: FilterBarProps) => {
+  const getMinCheckInDate = () => {
+    const now = new Date();
+    const tenAM = new Date();
+    tenAM.setHours(10, 0, 0, 0);
+    
+    const minDate = new Date();
+    if (now.getTime() >= tenAM.getTime()) {
+      minDate.setDate(now.getDate() + 1);
+    }
+    
+    const year = minDate.getFullYear();
+    const month = String(minDate.getMonth() + 1).padStart(2, '0');
+    const day = String(minDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getMinCheckOutDate = (checkInStr: string) => {
+    const checkInDate = checkInStr ? new Date(checkInStr) : new Date(getMinCheckInDate());
+    checkInDate.setDate(checkInDate.getDate() + 1);
+    const year = checkInDate.getFullYear();
+    const month = String(checkInDate.getMonth() + 1).padStart(2, '0');
+    const day = String(checkInDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const minCheckIn = getMinCheckInDate();
+
   return (
     <div id="filter-section" className="py-4 md:py-8 bg-transparent relative md:sticky md:top-20 z-40">
       <div className="max-w-6xl mx-auto px-4 md:px-6">
@@ -40,9 +67,18 @@ export const FilterBar = ({
               </span>
               <input 
                 type="date" 
+                min={minCheckIn}
                 className="bg-transparent outline-none text-sm font-bold w-full focus:text-natural-primary"
                 value={currentFilter.checkIn.split('T')[0]}
-                onChange={(e) => onFilterChange({ checkIn: e.target.value })}
+                onChange={(e) => {
+                  const newCheckIn = e.target.value;
+                  const nextMinCheckOut = getMinCheckOutDate(newCheckIn);
+                  const updates: Partial<FilterState> = { checkIn: newCheckIn };
+                  if (currentFilter.checkOut <= newCheckIn) {
+                    updates.checkOut = nextMinCheckOut;
+                  }
+                  onFilterChange(updates);
+                }}
               />
             </div>
 
@@ -52,6 +88,7 @@ export const FilterBar = ({
               </span>
               <input 
                 type="date" 
+                min={getMinCheckOutDate(currentFilter.checkIn)}
                 className="bg-transparent outline-none text-sm font-bold w-full focus:text-natural-primary"
                 value={currentFilter.checkOut.split('T')[0]}
                 onChange={(e) => onFilterChange({ checkOut: e.target.value })}

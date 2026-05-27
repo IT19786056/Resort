@@ -21,14 +21,47 @@ export const BookingForm = ({
   initialCheckIn = '',
   initialCheckOut = ''
 }: BookingFormProps) => {
+  const getMinCheckInDate = () => {
+    const now = new Date();
+    const tenAM = new Date();
+    tenAM.setHours(10, 0, 0, 0);
+    
+    const minDate = new Date();
+    if (now.getTime() >= tenAM.getTime()) {
+      minDate.setDate(now.getDate() + 1);
+    }
+    
+    const year = minDate.getFullYear();
+    const month = String(minDate.getMonth() + 1).padStart(2, '0');
+    const day = String(minDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getMinCheckOutDate = (checkInStr: string) => {
+    const checkInDate = checkInStr ? new Date(checkInStr) : new Date(getMinCheckInDate());
+    checkInDate.setDate(checkInDate.getDate() + 1);
+    const year = checkInDate.getFullYear();
+    const month = String(checkInDate.getMonth() + 1).padStart(2, '0');
+    const day = String(checkInDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const minCheckIn = getMinCheckInDate();
+  const rawInitialCheckIn = initialCheckIn ? initialCheckIn.split('T')[0] : '';
+  const finalInitialCheckIn = !rawInitialCheckIn || rawInitialCheckIn < minCheckIn ? minCheckIn : rawInitialCheckIn;
+  
+  const minCheckOut = getMinCheckOutDate(finalInitialCheckIn);
+  const rawInitialCheckOut = initialCheckOut ? initialCheckOut.split('T')[0] : '';
+  const finalInitialCheckOut = !rawInitialCheckOut || rawInitialCheckOut <= finalInitialCheckIn ? minCheckOut : rawInitialCheckOut;
+
   const [user, setUser] = useState<User | null>(null);
   const [showAuth, setShowAuth] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     phone: '',
-    checkIn: initialCheckIn,
-    checkOut: initialCheckOut,
+    checkIn: finalInitialCheckIn,
+    checkOut: finalInitialCheckOut,
     guests: 1,
     specialRequests: ''
   });
@@ -181,9 +214,18 @@ export const BookingForm = ({
             <input 
               required
               type="date" 
+              min={minCheckIn}
               className="w-full bg-natural-bg border-none rounded-full px-6 py-4 outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium"
               value={formData.checkIn.split('T')[0]}
-              onChange={e => setFormData({...formData, checkIn: e.target.value})}
+              onChange={e => {
+                const newCheckIn = e.target.value;
+                const nextMinCheckOut = getMinCheckOutDate(newCheckIn);
+                setFormData(prev => ({
+                  ...prev,
+                  checkIn: newCheckIn,
+                  checkOut: prev.checkOut <= newCheckIn ? nextMinCheckOut : prev.checkOut
+                }));
+              }}
             />
           </div>
           <div>
@@ -191,6 +233,7 @@ export const BookingForm = ({
             <input 
               required
               type="date" 
+              min={getMinCheckOutDate(formData.checkIn)}
               className="w-full bg-natural-bg border-none rounded-full px-6 py-4 outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium"
               value={formData.checkOut.split('T')[0]}
               onChange={e => setFormData({...formData, checkOut: e.target.value})}
