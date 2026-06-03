@@ -20,7 +20,7 @@ export const Input = ({ label, type = "text", value, onChange, ...props }: any) 
 );
 
 export const Modal = ({ children, onClose, title }: any) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
     <motion.div 
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       onClick={onClose}
@@ -28,12 +28,12 @@ export const Modal = ({ children, onClose, title }: any) => (
     />
     <motion.div 
       initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
-      className="relative z-10 w-full max-w-2xl bg-white rounded-[40px] overflow-hidden flex flex-col max-h-[90vh] modal-container"
+      className="relative z-10 w-full max-w-2xl bg-white rounded-[32px] sm:rounded-[40px] overflow-hidden flex flex-col max-h-[90vh] modal-container"
     >
       <div className="overflow-y-auto flex-1">
-        <div className="p-12">
-          <div className="flex justify-between items-center mb-8">
-            <h3 className="font-serif text-3xl italic text-natural-dark">{title}</h3>
+        <div className="p-6 sm:p-12">
+          <div className="flex justify-between items-center mb-6 sm:mb-8">
+            <h3 className="font-serif text-2xl sm:text-3xl italic text-natural-dark">{title}</h3>
             <button onClick={onClose}><XCircle className="w-8 h-8 text-natural-muted hover:text-natural-primary transition-colors" /></button>
           </div>
           {children}

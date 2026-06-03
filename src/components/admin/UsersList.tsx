@@ -70,47 +70,49 @@ export const UsersList = ({ onUpdate, onSuccess, onError, onProcessing }: UsersL
         <div className="p-20 text-center italic text-natural-muted">Loading users...</div>
       ) : (
         <div className="bg-white rounded-[32px] overflow-hidden border border-natural-accent">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-natural-accent bg-natural-bg/50">
-                <th className="px-8 py-6 text-[10px] uppercase tracking-widest text-natural-muted font-bold">User</th>
-                <th className="px-8 py-6 text-[10px] uppercase tracking-widest text-natural-muted font-bold">Role</th>
-                <th className="px-8 py-6 text-[10px] uppercase tracking-widest text-natural-muted font-bold">Joined</th>
-                <th className="px-8 py-6 text-[10px] uppercase tracking-widest text-natural-muted font-bold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-natural-accent">
-              {users.map((user) => (
-                <tr key={user.id} className="group hover:bg-natural-bg/30 transition-colors">
-                  <td className="px-8 py-6">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-natural-accent flex items-center justify-center">
-                        <UserIcon className="w-5 h-5 text-natural-muted" />
-                      </div>
-                      <p className="font-bold text-natural-dark">{user.email}</p>
-                    </div>
-                  </td>
-                  <td className="px-8 py-6">
-                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 w-fit ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                      <Shield className="w-3 h-3" /> {user.role}
-                    </span>
-                  </td>
-                  <td className="px-8 py-6 text-sm text-natural-muted">
-                    {new Date(user.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-8 py-6 text-right">
-                    <button 
-                      onClick={() => handleDelete(user.id)}
-                      disabled={user.id === currentUser?.id}
-                      className="p-2 text-natural-muted hover:text-red-500 transition-colors disabled:opacity-30"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px] text-left">
+              <thead>
+                <tr className="border-b border-natural-accent bg-natural-bg/50">
+                  <th className="px-8 py-6 text-[10px] uppercase tracking-widest text-natural-muted font-bold">User</th>
+                  <th className="px-8 py-6 text-[10px] uppercase tracking-widest text-natural-muted font-bold">Role</th>
+                  <th className="px-8 py-6 text-[10px] uppercase tracking-widest text-natural-muted font-bold">Joined</th>
+                  <th className="px-8 py-6 text-[10px] uppercase tracking-widest text-natural-muted font-bold text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-natural-accent">
+                {users.map((user) => (
+                  <tr key={user.id} className="group hover:bg-natural-bg/30 transition-colors">
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-natural-accent flex items-center justify-center">
+                          <UserIcon className="w-5 h-5 text-natural-muted" />
+                        </div>
+                        <p className="font-bold text-natural-dark">{user.email}</p>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 w-fit ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                        <Shield className="w-3 h-3" /> {user.role}
+                      </span>
+                    </td>
+                    <td className="px-8 py-6 text-sm text-natural-muted">
+                      {new Date(user.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-8 py-6 text-right">
+                      <button 
+                        onClick={() => handleDelete(user.id)}
+                        disabled={user.id === currentUser?.id}
+                        className="p-2 text-natural-muted hover:text-red-500 transition-colors disabled:opacity-30"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

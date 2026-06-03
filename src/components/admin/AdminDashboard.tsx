@@ -13,7 +13,8 @@ import {
   CheckCircle,
   XCircle,
   MapPin,
-  LogOut
+  LogOut,
+  Menu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar } from './Sidebar';
@@ -28,6 +29,7 @@ type AdminTab = 'hotels' | 'rooms' | 'bookings' | 'past_bookings' | 'users';
 
 export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>(profile.role === 'admin' ? 'bookings' : 'bookings');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [rooms, setRooms] = useState<Accommodation[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -90,8 +92,21 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 1.2, ease: "easeOut" }}
-          className="flex flex-1"
+          className="flex flex-1 min-h-screen relative overflow-x-hidden"
         >
+          {/* Mobile Sidebar Overlay Backdrop */}
+          <AnimatePresence>
+            {isSidebarOpen && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsSidebarOpen(false)}
+                className="fixed inset-0 bg-natural-dark/40 backdrop-blur-sm z-40 md:hidden"
+              />
+            )}
+          </AnimatePresence>
+
           <Sidebar 
             activeTab={activeTab} 
             setActiveTab={setActiveTab}
@@ -99,12 +114,27 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
             pastBookingsCount={bookings.filter(b => b.status === 'cancelled' || new Date(b.checkOut) < new Date()).length}
             handleLogout={handleLogout}
             isAdmin={profile.role === 'admin'}
+            isOpen={isSidebarOpen}
+            onClose={() => setIsSidebarOpen(false)}
           />
 
-          <main className="ml-72 flex-1 p-12 overflow-y-auto">
-            <header className="flex justify-between items-center mb-12">
-              <h2 className="font-serif text-4xl italic text-natural-dark capitalize">{activeTab.replace('_', ' ')}</h2>
-              <div className="flex gap-4">
+          <main className="md:ml-72 flex-1 p-6 md:p-12 overflow-y-auto w-full">
+            {/* Mobile Header Bar Toggle */}
+            <div className="flex md:hidden items-center justify-between mb-8 pb-4 border-b border-natural-accent">
+              <button 
+                onClick={() => setIsSidebarOpen(true)}
+                className="p-3 bg-white border border-natural-accent rounded-2xl text-natural-dark hover:bg-natural-bg transition-all shadow-sm"
+                aria-label="Open sidebar menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              <span className="font-serif text-lg font-bold italic text-natural-dark">Resorts Admin</span>
+              <div className="w-11" /> {/* Perfect horizontal symmetry spacer */}
+            </div>
+
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 md:mb-12">
+              <h2 className="font-serif text-2xl md:text-4xl italic text-natural-dark capitalize">{activeTab.replace('_', ' ')}</h2>
+              <div className="flex flex-wrap items-center gap-3">
                 <button 
                   onClick={handleLogout}
                   className="px-6 py-3 rounded-full flex items-center gap-2 font-bold uppercase text-[10px] tracking-widest text-natural-muted hover:bg-red-50 hover:text-red-600 transition-all"
@@ -289,8 +319,8 @@ const AdminBookingsList = ({ bookings, rooms, hotels, onUpdate, type, onSuccess,
   return (
     <div className="space-y-4">
       {filteredBookings.length === 0 && (
-        <div className="bg-white p-20 rounded-[40px] text-center border-2 border-dashed border-natural-accent">
-          <p className="font-serif italic text-2xl text-natural-muted">No {type} reservations found.</p>
+        <div className="bg-white p-12 md:p-20 rounded-[32px] md:rounded-[40px] text-center border-2 border-dashed border-natural-accent">
+          <p className="font-serif italic text-xl md:text-2xl text-natural-muted">No {type} reservations found.</p>
         </div>
       )}
       <div className="grid grid-cols-1 gap-6">
@@ -301,29 +331,29 @@ const AdminBookingsList = ({ bookings, rooms, hotels, onUpdate, type, onSuccess,
             <motion.div 
               key={booking.id}
               onClick={() => setSelectedBooking(booking)}
-              className="bg-white p-8 rounded-[32px] border border-natural-accent flex items-center justify-between group cursor-pointer hover:shadow-lg transition-all"
+              className="bg-white p-6 md:p-8 rounded-[24px] md:rounded-[32px] border border-natural-accent flex flex-col md:flex-row md:items-center justify-between gap-6 group cursor-pointer hover:shadow-lg transition-all"
             >
-              <div className="flex items-center gap-8">
-                <div className="w-16 h-16 rounded-2xl bg-natural-accent overflow-hidden">
+              <div className="flex items-center gap-4 md:gap-8">
+                <div className="w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl bg-natural-accent overflow-hidden shrink-0">
                   <img src={room?.imageUrl || undefined} className="w-full h-full object-cover" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-natural-dark">{booking.fullName}</h3>
+                  <h3 className="font-bold text-natural-dark text-base md:text-lg">{booking.fullName}</h3>
                   <p className="text-xs text-natural-muted font-medium mt-1">{hotel?.name} — {room?.name}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-12">
-                <div className="text-right">
+              <div className="flex flex-wrap md:flex-nowrap items-center justify-between md:justify-end gap-4 md:gap-12 w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0 border-natural-accent/50">
+                <div className="text-left md:text-right">
                   <p className="text-[10px] uppercase font-bold text-natural-muted tracking-widest mb-1">Check In</p>
-                  <p className="text-sm font-bold">{new Date(booking.checkIn).toLocaleDateString()}</p>
+                  <p className="text-sm font-bold text-natural-dark">{new Date(booking.checkIn).toLocaleDateString()}</p>
                 </div>
-                <div className="text-right min-w-[100px]">
+                <div className="text-right sm:min-w-[100px]">
                   <p className="text-[10px] uppercase font-bold text-natural-muted tracking-widest mb-1">Status</p>
-                  <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : booking.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                  <span className={`inline-block text-center px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : booking.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
                     {booking.status}
                   </span>
                 </div>
-                <ChevronRight className="w-6 h-6 text-natural-accent group-hover:text-natural-primary transition-colors" />
+                <ChevronRight className="hidden md:block w-6 h-6 text-natural-accent group-hover:text-natural-primary transition-colors" />
               </div>
             </motion.div>
           );
@@ -390,39 +420,41 @@ const AdminRoomsList = ({ rooms, hotels, onEdit, onDelete, onUpdate, onSuccess, 
   }
   return (
     <div className="bg-white rounded-[32px] overflow-hidden border border-natural-accent">
-      <table className="w-full text-left">
-        <thead>
-          <tr className="border-b border-natural-accent">
-            <th className="px-8 py-6 text-[10px] uppercase font-bold text-natural-muted tracking-[0.2em]">Room Detail</th>
-            <th className="px-8 py-6 text-[10px] uppercase font-bold text-natural-muted tracking-[0.2em]">Status</th>
-            <th className="px-8 py-6 text-[10px] uppercase font-bold text-natural-muted tracking-[0.2em] text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-natural-accent">
-          {rooms.map((room: Accommodation) => (
-            <tr key={room.id} className="hover:bg-natural-bg/30">
-              <td className="px-8 py-6">
-                <div className="flex items-center gap-4">
-                  <img src={room.imageUrl} className="w-12 h-12 rounded-xl object-cover" />
-                  <div>
-                    <p className="font-bold text-natural-dark">{room.name}</p>
-                    <p className="text-[10px] text-natural-muted uppercase font-bold">{hotels.find((h: any) => h.id === room.hotelId)?.name}</p>
-                  </div>
-                </div>
-              </td>
-              <td className="px-8 py-6">
-                <button onClick={() => toggleAvailability(room)} className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all ${room.isAvailable ? 'bg-green-50 text-green-600 border-green-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
-                  {room.isAvailable ? 'Available' : 'Booked'}
-                </button>
-              </td>
-              <td className="px-8 py-6 text-right space-x-2">
-                <button onClick={() => onEdit(room)} className="p-2 text-natural-muted hover:text-natural-primary transition-colors"><Edit className="w-4 h-4" /></button>
-                <button onClick={() => onDelete(room)} className="p-2 text-natural-muted hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[650px] text-left">
+          <thead>
+            <tr className="border-b border-natural-accent">
+              <th className="px-8 py-6 text-[10px] uppercase font-bold text-natural-muted tracking-[0.2em]">Room Detail</th>
+              <th className="px-8 py-6 text-[10px] uppercase font-bold text-natural-muted tracking-[0.2em]">Status</th>
+              <th className="px-8 py-6 text-[10px] uppercase font-bold text-natural-muted tracking-[0.2em] text-right">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-natural-accent">
+            {rooms.map((room: Accommodation) => (
+              <tr key={room.id} className="hover:bg-natural-bg/30">
+                <td className="px-8 py-6">
+                  <div className="flex items-center gap-4">
+                    <img src={room.imageUrl} className="w-12 h-12 rounded-xl object-cover" />
+                    <div>
+                      <p className="font-bold text-natural-dark">{room.name}</p>
+                      <p className="text-[10px] text-natural-muted uppercase font-bold">{hotels.find((h: any) => h.id === room.hotelId)?.name}</p>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-8 py-6">
+                  <button onClick={() => toggleAvailability(room)} className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all ${room.isAvailable ? 'bg-green-50 text-green-600 border-green-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
+                    {room.isAvailable ? 'Available' : 'Booked'}
+                  </button>
+                </td>
+                <td className="px-8 py-6 text-right space-x-2">
+                  <button onClick={() => onEdit(room)} className="p-2 text-natural-muted hover:text-natural-primary transition-colors"><Edit className="w-4 h-4" /></button>
+                  <button onClick={() => onDelete(room)} className="p-2 text-natural-muted hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
