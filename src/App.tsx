@@ -1,6 +1,7 @@
 import React, { useState, lazy, Suspense, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Star, MapPin, ChevronRight, ArrowLeft, Search } from 'lucide-react';
+import { supabase } from './lib/supabase';
 
 // Hooks
 import { useAccommodations } from './hooks/useAccommodations';
@@ -66,6 +67,66 @@ export default function App() {
       .then(res => res.json())
       .then(data => setDbStatus(data))
       .catch(() => {});
+  }, []);
+
+  // Enforce session timeout of 1 hour (3,600,000 milliseconds) from the moment of logging in
+  useEffect(() => {
+    const handleSignOutAndReload = async () => {
+      localStorage.removeItem('ahsell_session_start');
+      await supabase.auth.signOut();
+      window.location.reload();
+    };
+
+    const checkSessionExpiration = async () => {
+      const loginTime = localStorage.getItem('ahsell_session_start');
+      if (loginTime) {
+        const age = Date.now() - Number(loginTime);
+        if (age > 3600000) {
+          await handleSignOutAndReload();
+        }
+      }
+    };
+
+    // Check expiration on mount/render
+    checkSessionExpiration();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        if (event === 'SIGNED_IN') {
+          // New login, record the initial timestamp
+          localStorage.setItem('ahsell_session_start', String(Date.now()));
+        } else {
+          // Token refreshed, etc. Verify if existing timestamp has expired
+          const loginTime = localStorage.getItem('ahsell_session_start');
+          if (!loginTime) {
+            localStorage.setItem('ahsell_session_start', String(Date.now()));
+          } else {
+            const age = Date.now() - Number(loginTime);
+            if (age > 3600000) {
+              await handleSignOutAndReload();
+            }
+          }
+        }
+      } else {
+        localStorage.removeItem('ahsell_session_start');
+      }
+    });
+
+    // Periodically check age of session every 15 seconds while user is on the site
+    const interval = setInterval(async () => {
+      const loginTime = localStorage.getItem('ahsell_session_start');
+      if (loginTime) {
+        const age = Date.now() - Number(loginTime);
+        if (age > 3600000) {
+          await handleSignOutAndReload();
+        }
+      }
+    }, 15000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearInterval(interval);
+    };
   }, []);
 
   // Ensure data is fresh when switching back to home
