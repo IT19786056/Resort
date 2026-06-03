@@ -248,7 +248,7 @@ export default function App() {
                     </div>
                   )}
 
-                  <main id="stays" className="flex-1">
+                  <main id="stays" className="flex-1 scroll-mt-28 md:scroll-mt-32">
                     <FilterBar 
                       onFilterChange={(f) => setFilters(prev => ({...prev, ...f}))} 
                       currentFilter={filters} 
@@ -429,8 +429,8 @@ export default function App() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.8 }}
             onClick={() => {
-              const filterSec = document.getElementById('filter-section');
-              if (filterSec) filterSec.scrollIntoView({ behavior: 'smooth' });
+              const staysSec = document.getElementById('stays');
+              if (staysSec) staysSec.scrollIntoView({ behavior: 'smooth' });
             }}
             className="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[60] bg-natural-dark text-white px-6 py-4 rounded-full font-bold uppercase text-[9px] tracking-[0.3em] shadow-2xl flex items-center gap-3 hover:bg-natural-primary transition-all group"
           >
