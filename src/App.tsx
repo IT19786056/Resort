@@ -166,12 +166,7 @@ export default function App() {
     };
   }, []);
 
-  // Ensure data is fresh when switching back to home
-  useEffect(() => {
-    if (activeTab === 'home') {
-      refresh();
-    }
-  }, [activeTab]);
+
 
   const handleCloseModal = () => {
     setSelectedItem(null);

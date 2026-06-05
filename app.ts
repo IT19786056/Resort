@@ -33,11 +33,9 @@ const pool = isDbConfigured
         rejectUnauthorized: false
       },
       connectionTimeoutMillis: 10000,
-      // --- NEW: Keep connection count conservative and handle idle reap ---
-      max: process.env.VERCEL ? 1 : 3,
-      idleTimeoutMillis: 1000, // Close idle connections after 1 second
-      allowExitOnIdle: true,   // Allow process to exit normally
-      // ------------------------------------------------------------------
+      max: 10,
+      idleTimeoutMillis: 30000, // Keep database connections warm for up to 30 seconds of inactivity to support fast loading
+      allowExitOnIdle: true,
     })
   : null;
 
@@ -491,8 +489,20 @@ app.delete('/api/admins/:id', async (req, res) => {
   }
 });
 
+// In-Memory Cache for public data to enable sub-millisecond tab switching and page load
+let cachedHotels: any[] | null = null;
+let cachedRooms: any[] | null = null;
+
+const clearCache = () => {
+  cachedHotels = null;
+  cachedRooms = null;
+};
+
 // Hotels
 app.get('/api/hotels', async (req, res) => {
+  if (cachedHotels) {
+    return res.json(cachedHotels);
+  }
   try {
     const result = await query('SELECT * FROM hotels ORDER BY "createdAt" DESC');
     const hotels = result.rows;
@@ -516,6 +526,7 @@ app.get('/api/hotels', async (req, res) => {
         }
       }
     }
+    cachedHotels = hotels;
     res.json(hotels);
   } catch (err: any) {
     if (err.isConfigError || err.message?.includes('does not exist')) {
@@ -533,6 +544,7 @@ app.post('/api/hotels', async (req, res) => {
       'INSERT INTO hotels (name, location, description, "imageUrl", "hasBanquetHall", email, phone) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
       [name, location, description, imageUrl, hasBanquetHall || false, email, phone]
     );
+    clearCache();
     res.json(result.rows[0]);
   } catch (err: any) {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message });
@@ -551,6 +563,7 @@ app.patch('/api/hotels/:id', async (req, res) => {
       `UPDATE hotels SET ${setClause} WHERE id = $1 RETURNING *`,
       [id, ...values]
     );
+    clearCache();
     res.json(result.rows[0]);
   } catch (err: any) {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message });
@@ -560,6 +573,7 @@ app.patch('/api/hotels/:id', async (req, res) => {
 app.delete('/api/hotels/:id', async (req, res) => {
   try {
     await query('DELETE FROM hotels WHERE id = $1', [req.params.id]);
+    clearCache();
     res.sendStatus(204);
   } catch (err: any) {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message });
@@ -568,16 +582,16 @@ app.delete('/api/hotels/:id', async (req, res) => {
 
 // Rooms
 app.get('/api/rooms', async (req, res) => {
-  try {
-    const { hotelId } = req.query;
-    let queryText = 'SELECT * FROM rooms';
-    const params = [];
+  const { hotelId } = req.query;
+  if (cachedRooms) {
     if (hotelId) {
-      queryText += ' WHERE "hotelId" = $1';
-      params.push(hotelId);
+      return res.json(cachedRooms.filter((r: any) => r.hotelId === hotelId));
     }
-    queryText += ' ORDER BY "createdAt" DESC';
-    const result = await query(queryText, params);
+    return res.json(cachedRooms);
+  }
+  try {
+    let queryText = 'SELECT * FROM rooms ORDER BY "createdAt" DESC';
+    const result = await query(queryText);
     // Convert string ratings/prices back to numbers if needed
     const rooms = result.rows.map(r => ({
        ...r,
@@ -604,6 +618,10 @@ app.get('/api/rooms', async (req, res) => {
         }
       }
     }
+    cachedRooms = rooms;
+    if (hotelId) {
+      return res.json(rooms.filter((r: any) => r.hotelId === hotelId));
+    }
     res.json(rooms);
   } catch (err: any) {
     if (err.isConfigError || err.message?.includes('does not exist')) {
@@ -625,6 +643,7 @@ app.post('/api/rooms', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
       [hotelId, name, type, description, price, rating, imageUrl, amenities, maxGuests, isAvailable, location]
     );
+    clearCache();
     res.json(result.rows[0]);
   } catch (err: any) {
     console.error(err);
@@ -644,6 +663,7 @@ app.patch('/api/rooms/:id', async (req, res) => {
       `UPDATE rooms SET ${setClause} WHERE id = $1 RETURNING *`,
       [id, ...values]
     );
+    clearCache();
     res.json(result.rows[0]);
   } catch (err: any) {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message || 'Failed to update room' });
@@ -653,6 +673,7 @@ app.patch('/api/rooms/:id', async (req, res) => {
 app.delete('/api/rooms/:id', async (req, res) => {
   try {
     await query('DELETE FROM rooms WHERE id = $1', [req.params.id]);
+    clearCache();
     res.sendStatus(204);
   } catch (err: any) {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message || 'Failed to delete room' });
@@ -884,6 +905,7 @@ app.post('/api/media', async (req, res) => {
       'INSERT INTO media ("parentId", "parentType", "data", "order") VALUES ($1, $2, $3, $4) RETURNING *',
       [parentId, parentType, data, order]
     );
+    clearCache();
     res.json(result.rows[0]);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -900,6 +922,7 @@ app.post('/api/media/reparent', async (req, res) => {
       'UPDATE media SET "parentId" = $1 WHERE "parentId" = $2',
       [newParentId, oldParentId]
     );
+    clearCache();
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -913,6 +936,7 @@ app.delete('/api/media/parent/:parentId', async (req, res) => {
       return res.sendStatus(204);
     }
     await query('DELETE FROM media WHERE "parentId" = $1', [parentId]);
+    clearCache();
     res.sendStatus(204);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -922,6 +946,7 @@ app.delete('/api/media/parent/:parentId', async (req, res) => {
 app.delete('/api/media/:id', async (req, res) => {
   try {
     await query('DELETE FROM media WHERE id = $1', [req.params.id]);
+    clearCache();
     res.sendStatus(204);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
