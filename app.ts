@@ -772,11 +772,20 @@ app.patch('/api/bookings/:id', async (req, res) => {
 });
 
 // Media
+const isValidUUID = (id: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(id);
+};
+
 app.get('/api/media/:parentId', async (req, res) => {
   try {
+    const { parentId } = req.params;
+    if (!isValidUUID(parentId)) {
+      return res.json([]);
+    }
     const result = await query(
       'SELECT * FROM media WHERE "parentId" = $1 ORDER BY "order" ASC',
-      [req.params.parentId]
+      [parentId]
     );
     res.json(result.rows);
   } catch (err: any) {
@@ -787,6 +796,9 @@ app.get('/api/media/:parentId', async (req, res) => {
 app.post('/api/media', async (req, res) => {
   try {
     const { parentId, parentType, data, order = 0 } = req.body;
+    if (!isValidUUID(parentId)) {
+      return res.status(400).json({ error: 'Invalid parentId format. Must be a valid UUID.' });
+    }
     const result = await query(
       'INSERT INTO media ("parentId", "parentType", "data", "order") VALUES ($1, $2, $3, $4) RETURNING *',
       [parentId, parentType, data, order]
@@ -800,6 +812,9 @@ app.post('/api/media', async (req, res) => {
 app.post('/api/media/reparent', async (req, res) => {
   try {
     const { oldParentId, newParentId } = req.body;
+    if (!isValidUUID(oldParentId) || !isValidUUID(newParentId)) {
+      return res.json({ success: true, message: 'Invalid UUID format, skipped reparenting.' });
+    }
     await query(
       'UPDATE media SET "parentId" = $1 WHERE "parentId" = $2',
       [newParentId, oldParentId]
@@ -812,7 +827,11 @@ app.post('/api/media/reparent', async (req, res) => {
 
 app.delete('/api/media/parent/:parentId', async (req, res) => {
   try {
-    await query('DELETE FROM media WHERE "parentId" = $1', [req.params.parentId]);
+    const { parentId } = req.params;
+    if (!isValidUUID(parentId)) {
+      return res.sendStatus(204);
+    }
+    await query('DELETE FROM media WHERE "parentId" = $1', [parentId]);
     res.sendStatus(204);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
