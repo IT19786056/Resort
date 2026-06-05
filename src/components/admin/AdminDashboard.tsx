@@ -522,7 +522,6 @@ const HotelForm = ({ hotel, onClose, onSuccess, onError, onProcessing }: any) =>
           <Input label="Contact Email" type="email" value={formData.email} onChange={(v:any) => setFormData({...formData, email: v})} />
           <Input label="Contact Phone" value={formData.phone} onChange={(v:any) => setFormData({...formData, phone: v})} />
         </div>
-        <Input label="Image URL" value={formData.imageUrl} onChange={(v:any) => setFormData({...formData, imageUrl: v})} />
         
         <div className="flex items-center gap-3 p-4 bg-natural-bg rounded-2xl">
           <input 
@@ -625,8 +624,6 @@ const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: a
           <Input label="Price per Night (USD)" type="number" value={formData.price} onChange={(v:any) => setFormData({...formData, price: v})} required />
           <Input label="Max Guests" type="number" value={formData.maxGuests} onChange={(v:any) => setFormData({...formData, maxGuests: v})} required />
         </div>
-        
-        <Input label="Main Image URL" value={formData.imageUrl} onChange={(v:any) => setFormData({...formData, imageUrl: v})} placeholder="https://..." />
         
         <div className="space-y-4">
           <SectionLabel label="Amenities (Comma separated)" />

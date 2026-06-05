@@ -485,7 +485,16 @@ app.delete('/api/admins/:id', async (req, res) => {
 app.get('/api/hotels', async (req, res) => {
   try {
     const result = await query('SELECT * FROM hotels ORDER BY "createdAt" DESC');
-    res.json(result.rows);
+    const hotels = result.rows;
+    for (let h of hotels) {
+      if (!h.imageUrl || h.imageUrl.startsWith('https://images.unsplash.com') || h.imageUrl === '') {
+        const mediaResult = await query('SELECT data FROM media WHERE "parentId" = $1 ORDER BY "order" ASC, id ASC LIMIT 1', [h.id]);
+        if (mediaResult.rows.length > 0) {
+          h.imageUrl = mediaResult.rows[0].data;
+        }
+      }
+    }
+    res.json(hotels);
   } catch (err: any) {
     if (err.isConfigError || err.message?.includes('does not exist')) {
       console.warn('Using Mock Hotels (DB fallback)');
@@ -553,6 +562,14 @@ app.get('/api/rooms', async (req, res) => {
        price: parseFloat(r.price),
        rating: r.rating ? parseFloat(r.rating) : null
     }));
+    for (let r of rooms) {
+      if (!r.imageUrl || r.imageUrl.startsWith('https://images.unsplash.com') || r.imageUrl === '') {
+        const mediaResult = await query('SELECT data FROM media WHERE "parentId" = $1 ORDER BY "order" ASC, id ASC LIMIT 1', [r.id]);
+        if (mediaResult.rows.length > 0) {
+          r.imageUrl = mediaResult.rows[0].data;
+        }
+      }
+    }
     res.json(rooms);
   } catch (err: any) {
     if (err.isConfigError || err.message?.includes('does not exist')) {
