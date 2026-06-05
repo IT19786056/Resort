@@ -33,10 +33,11 @@ const pool = isDbConfigured
         rejectUnauthorized: false
       },
       connectionTimeoutMillis: 10000,
-      // --- NEW: Drastically reduce pool size on Vercel ---
-      max: process.env.VERCEL ? 1 : 10,
-      idleTimeoutMillis: process.env.VERCEL ? 0 : 10000,
-      // --------------------------------------------------
+      // --- NEW: Keep connection count conservative and handle idle reap ---
+      max: process.env.VERCEL ? 1 : 3,
+      idleTimeoutMillis: 1000, // Close idle connections after 1 second
+      allowExitOnIdle: true,   // Allow process to exit normally
+      // ------------------------------------------------------------------
     })
   : null;
 
@@ -662,7 +663,6 @@ app.post('/api/bookings', async (req, res) => {
     });
 
     await client.query('COMMIT');
-    client.release();
     isClientReleased = true;
     
     // --- NEW: Trigger email processing immediately for Vercel ---
