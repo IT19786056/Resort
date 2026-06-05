@@ -41,6 +41,45 @@ const pool = isDbConfigured
     })
   : null;
 
+if (pool && process.env.VERCEL) {
+  // Override pool.connect to return a direct, transient client rather than a pooled connection
+  pool.connect = async function() {
+    console.log('🔌 [Serverless] Opening direct database connection...');
+    const client = new pg.Client({
+      connectionString: dbUrl,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    await client.connect();
+    
+    // Override release to close connection immediately
+    (client as any).release = function() {
+      console.log('🔌 [Serverless] Closing direct database connection...');
+      client.end().catch((err: any) => console.error('Error closing database client:', err));
+    };
+    
+    return client as any;
+  };
+
+  // Override pool.query to use a transient connection that is closed of guaranteed immediately
+  pool.query = async function(...args: any[]) {
+    console.log('🔌 [Serverless] Executing direct query...');
+    const client = new pg.Client({
+      connectionString: dbUrl,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    await client.connect();
+    try {
+      return await (client as any).query(...args);
+    } finally {
+      await client.end().catch(() => {});
+    }
+  } as any;
+}
+
 // Mock Data for Fallback
 const MOCK_HOTELS = [
   {
