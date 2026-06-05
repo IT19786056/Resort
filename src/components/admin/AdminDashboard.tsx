@@ -23,6 +23,17 @@ import { LoadingPlane } from '../ui/LoadingPlane';
 import { Toast } from '../ui/Toast';
 import { Modal, Input, SectionLabel } from './Shared';
 import { ImageGalleryUpload } from './ImageGalleryUpload';
+
+const generateUUID = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
 import { triggerDataRefresh } from '../../lib/events';
 
 type AdminTab = 'hotels' | 'rooms' | 'bookings' | 'past_bookings' | 'users';
@@ -460,7 +471,7 @@ const AdminRoomsList = ({ rooms, hotels, onEdit, onDelete, onUpdate, onSuccess, 
 };
 
 const HotelForm = ({ hotel, onClose, onSuccess, onError, onProcessing }: any) => {
-  const [tempId] = useState(() => 'temp_hotel_' + Math.random().toString(36).substr(2, 9));
+  const [tempId] = useState(() => generateUUID());
   const isSavedRef = useRef(false);
 
   const [formData, setFormData] = useState({
@@ -544,7 +555,7 @@ const HotelForm = ({ hotel, onClose, onSuccess, onError, onProcessing }: any) =>
 };
 
 const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: any) => {
-  const [tempId] = useState(() => 'temp_room_' + Math.random().toString(36).substr(2, 9));
+  const [tempId] = useState(() => generateUUID());
   const isSavedRef = useRef(false);
 
   const [formData, setFormData] = useState({
