@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { dbService } from '../../services/db';
 import { supabase } from '../../lib/supabase';
 import { Hotel, Accommodation, Booking, AdminProfile } from '../../types';
@@ -460,6 +460,9 @@ const AdminRoomsList = ({ rooms, hotels, onEdit, onDelete, onUpdate, onSuccess, 
 };
 
 const HotelForm = ({ hotel, onClose, onSuccess, onError, onProcessing }: any) => {
+  const [tempId] = useState(() => 'temp_hotel_' + Math.random().toString(36).substr(2, 9));
+  const isSavedRef = useRef(false);
+
   const [formData, setFormData] = useState({
     name: hotel?.name || '',
     location: hotel?.location || '',
@@ -471,13 +474,27 @@ const HotelForm = ({ hotel, onClose, onSuccess, onError, onProcessing }: any) =>
   });
   const [isSaving, setIsSaving] = useState(false);
 
+  useEffect(() => {
+    return () => {
+      // Clean up uploaded temp media if we exit without saving the new hotel
+      if (!hotel && !isSavedRef.current) {
+        dbService.deleteMediaByParent(tempId).catch(console.error);
+      }
+    };
+  }, [tempId, hotel]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     onProcessing?.(hotel ? 'Updating hotel...' : 'Adding hotel...');
     try {
-      if (hotel) await dbService.updateHotel(hotel.id, formData);
-      else await dbService.addHotel(formData);
+      if (hotel) {
+        await dbService.updateHotel(hotel.id, formData);
+      } else {
+        const newId = await dbService.addHotel(formData);
+        isSavedRef.current = true;
+        await dbService.reparentMedia(tempId, newId);
+      }
       onSuccess(hotel ? 'Hotel details saved' : 'New hotel added');
     } catch (err: any) {
       onError?.(err.message || 'Failed to save hotel');
@@ -507,11 +524,9 @@ const HotelForm = ({ hotel, onClose, onSuccess, onError, onProcessing }: any) =>
           <label htmlFor="hasBanquetHall" className="text-sm font-medium text-natural-dark">Includes Banquet Hall (for Weddings & Events)</label>
         </div>
 
-        {hotel && (
-          <div className="pt-6 border-t border-natural-accent">
-            <ImageGalleryUpload parentId={hotel.id} parentType="hotel" />
-          </div>
-        )}
+        <div className="pt-6 border-t border-natural-accent">
+          <ImageGalleryUpload parentId={hotel ? hotel.id : tempId} parentType="hotel" />
+        </div>
 
         <div className="pt-6 border-t border-natural-accent space-y-4">
           <SectionLabel label="Hotel Description" />
@@ -529,6 +544,9 @@ const HotelForm = ({ hotel, onClose, onSuccess, onError, onProcessing }: any) =>
 };
 
 const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: any) => {
+  const [tempId] = useState(() => 'temp_room_' + Math.random().toString(36).substr(2, 9));
+  const isSavedRef = useRef(false);
+
   const [formData, setFormData] = useState({
     hotelId: room?.hotelId || hotels[0]?.id || '',
     name: room?.name || '',
@@ -540,6 +558,15 @@ const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: a
     amenities: room?.amenities?.join(', ') || ''
   });
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      // Clean up uploaded temp media if we exit without saving the new room
+      if (!room && !isSavedRef.current) {
+        dbService.deleteMediaByParent(tempId).catch(console.error);
+      }
+    };
+  }, [tempId, room]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -553,8 +580,13 @@ const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: a
         amenities: formData.amenities.split(',').map(a => a.trim()).filter(Boolean),
         isAvailable: room ? room.isAvailable : true
       };
-      if (room) await dbService.updateRoom(room.id, payload);
-      else await dbService.addRoom(payload);
+      if (room) {
+        await dbService.updateRoom(room.id, payload);
+      } else {
+        const newId = await dbService.addRoom(payload);
+        isSavedRef.current = true;
+        await dbService.reparentMedia(tempId, newId);
+      }
       onSuccess(room ? 'Room details saved' : 'New room added');
     } catch (err: any) {
       onError?.(err.message || 'Failed to save room');
@@ -605,11 +637,9 @@ const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: a
           />
         </div>
         
-        {room && (
-          <div className="pt-6 border-t border-natural-accent">
-            <ImageGalleryUpload parentId={room.id} parentType="room" />
-          </div>
-        )}
+        <div className="pt-6 border-t border-natural-accent">
+          <ImageGalleryUpload parentId={room ? room.id : tempId} parentType="room" />
+        </div>
         
         <button type="submit" className="w-full bg-natural-primary text-white py-5 rounded-full font-bold uppercase tracking-[0.2em] text-[11px] shadow-xl hover:bg-natural-dark transition-all active:scale-[0.98]">Save Room Details</button>
       </form>

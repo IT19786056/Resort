@@ -168,6 +168,17 @@ export const dbService = {
     });
   },
 
+  async reparentMedia(oldParentId: string, newParentId: string) {
+    return apiFetch<any>('/api/media/reparent', {
+      method: 'POST',
+      body: JSON.stringify({ oldParentId, newParentId }),
+    });
+  },
+
+  async deleteMediaByParent(parentId: string) {
+    return apiFetch<void>(`/api/media/parent/${parentId}`, { method: 'DELETE' });
+  },
+
   async deleteMedia(id: string) {
     return apiFetch<void>(`/api/media/${id}`, { method: 'DELETE' });
   },

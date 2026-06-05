@@ -20,7 +20,7 @@ export const ImageGalleryUpload = ({ parentId, parentType }: ImageGalleryUploadP
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    if (parentId && parentId !== 'temp') {
+    if (parentId) {
       fetchMedia();
     }
   }, [parentId]);
@@ -80,10 +80,10 @@ export const ImageGalleryUpload = ({ parentId, parentType }: ImageGalleryUploadP
     }
   };
 
-  if (!parentId || parentId === 'temp') {
+  if (!parentId) {
     return (
       <div className="bg-natural-bg/50 p-6 rounded-3xl border border-dashed border-natural-accent text-center">
-        <p className="text-xs text-natural-muted italic">Save the basic details first to enable image gallery upload.</p>
+        <p className="text-xs text-natural-muted italic">Please initialize a property context to enable gallery uploads.</p>
       </div>
     );
   }

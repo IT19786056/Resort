@@ -797,6 +797,28 @@ app.post('/api/media', async (req, res) => {
   }
 });
 
+app.post('/api/media/reparent', async (req, res) => {
+  try {
+    const { oldParentId, newParentId } = req.body;
+    await query(
+      'UPDATE media SET "parentId" = $1 WHERE "parentId" = $2',
+      [newParentId, oldParentId]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/media/parent/:parentId', async (req, res) => {
+  try {
+    await query('DELETE FROM media WHERE "parentId" = $1', [req.params.parentId]);
+    res.sendStatus(204);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.delete('/api/media/:id', async (req, res) => {
   try {
     await query('DELETE FROM media WHERE id = $1', [req.params.id]);
