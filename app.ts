@@ -662,7 +662,26 @@ app.get('/api/bookings', async (req, res) => {
 });
 
 app.post('/api/bookings', async (req, res) => {
-  if (!pool) return res.status(503).json({ error: 'Database unavailable' });
+  if (!pool) {
+    const { userId, roomId, hotelId, fullName, email, phone, checkIn, checkOut, guests, specialRequests, status } = req.body;
+    const newBooking = {
+      id: 'b_' + Math.random().toString(36).substring(2, 11),
+      userId: userId || 'mock-user-rand',
+      roomId,
+      hotelId,
+      fullName,
+      email,
+      phone,
+      checkIn,
+      checkOut,
+      guests: guests || 2,
+      specialRequests,
+      status: status || 'pending',
+      createdAt: new Date().toISOString()
+    };
+    MOCK_BOOKINGS.push(newBooking);
+    return res.json(newBooking);
+  }
   
   if (!isDbInitialized && process.env.VERCEL) {
     await initDb();
@@ -740,7 +759,18 @@ app.post('/api/bookings', async (req, res) => {
 });
 
 app.patch('/api/bookings/:id', async (req, res) => {
-  if (!pool) return res.status(503).json({ error: 'Database unavailable' });
+  if (!pool) {
+    const { id } = req.params;
+    const { status, ...updates } = req.body;
+    const booking = MOCK_BOOKINGS.find(b => b.id === id);
+    if (booking) {
+      if (status !== undefined) booking.status = status;
+      Object.assign(booking, updates);
+      return res.json(booking);
+    }
+    return res.status(404).json({ error: 'Mock booking not found' });
+  }
+  
   const client = await pool.connect();
   try {
     const { id } = req.params;

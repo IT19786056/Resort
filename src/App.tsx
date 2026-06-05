@@ -24,11 +24,48 @@ import { Gallery } from './components/ui/Gallery';
 const Admin = lazy(() => import('./components/Admin').then(m => ({ default: m.Admin })));
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'home' | 'accommodation' | 'weddings-events' | 'about' | 'contact' | 'my-bookings' | 'staff'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'accommodation' | 'weddings-events' | 'about' | 'contact' | 'my-bookings' | 'staff'>(() => {
+    const path = window.location.pathname;
+    if (path === '/admin' || path.startsWith('/admin/')) {
+      return 'staff';
+    }
+    return 'home';
+  });
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [selectedHotel, setSelectedHotel] = useState<any>(null);
   const [isBooking, setIsBooking] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
+
+  // Sync activeTab with window URL history
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (activeTab === 'staff') {
+      if (path !== '/admin') {
+        window.history.pushState(null, '', '/admin');
+      }
+    } else {
+      if (path === '/admin') {
+        window.history.pushState(null, '', '/');
+      }
+    }
+  }, [activeTab]);
+
+  // Handle back and forward button navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      if (path === '/admin' || path.startsWith('/admin/')) {
+        setActiveTab('staff');
+      } else {
+        if (activeTab === 'staff') {
+          setActiveTab('home');
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [activeTab]);
 
   const { 
     hotels, 
@@ -597,12 +634,12 @@ const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, on
           onClick={e => e.stopPropagation()}
         >
           {!isBooking ? (
-            <div className="flex flex-col lg:flex-row w-full">
+            <div className="flex flex-col lg:flex-row w-full bg-natural-cream rounded-[32px] md:rounded-[50px] overflow-hidden">
               <div className="lg:w-1/2 h-64 lg:h-auto relative bg-natural-accent">
                 <Gallery parentId={item.id} fallbackImage={item.imageUrl} className="w-full h-full" />
                 <button onClick={onClose} className="absolute top-6 left-6 lg:hidden p-3 bg-white/20 backdrop-blur-md rounded-full text-white"><ArrowLeft className="w-5 h-5"/></button>
               </div>
-              <div className="lg:w-1/2 p-8 md:p-16 flex flex-col selection:bg-natural-primary/20">
+              <div className="lg:w-1/2 p-8 md:p-16 flex flex-col selection:bg-natural-primary/20 bg-natural-cream">
                 <button onClick={onClose} className="hidden lg:flex self-end p-2 hover:bg-natural-bg rounded-full mb-4"><ArrowLeft className="w-6 h-6 text-natural-muted"/></button>
                 <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-primary mb-4 md:mb-6">{item.type} Portfolio</span>
                 <h2 className="font-serif text-4xl md:text-5xl lg:text-6xl text-natural-dark italic mb-6 md:mb-8 tracking-tighter leading-tight">{item.name}</h2>
@@ -621,7 +658,7 @@ const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, on
               </div>
             </div>
           ) : (
-            <div className="w-full p-12 md:p-24 flex flex-col items-center text-center justify-center">
+            <div className="w-full p-12 md:p-24 flex flex-col items-center text-center justify-center bg-natural-cream rounded-[32px] md:rounded-[50px] overflow-hidden">
               <div className="w-16 h-16 md:w-20 md:h-20 bg-green-50 rounded-full flex items-center justify-center mb-10"><Star className="w-8 h-8 md:w-10 md:h-10 text-green-600"/></div>
               <h2 className="font-serif text-4xl md:text-6xl italic text-natural-dark mb-6 tracking-tighter text-center leading-tight">Sanctuary Requested.</h2>
               <p className="text-lg md:text-xl text-natural-muted max-w-md font-light italic leading-relaxed mb-12 text-center">Our concierge will contact you within the hour to finalize your tropical escape.</p>

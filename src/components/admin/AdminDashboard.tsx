@@ -88,6 +88,11 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
 
   const handleLogout = () => supabase.auth.signOut();
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const activeBookingsCount = bookings.filter(b => b.status !== 'cancelled' && new Date(b.checkOut) >= today).length;
+  const pastBookingsCount = bookings.filter(b => b.status === 'cancelled' || new Date(b.checkOut) < today).length;
+
   return (
     <div className="min-h-screen bg-natural-bg flex">
       <AnimatePresence>
@@ -121,8 +126,8 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
           <Sidebar 
             activeTab={activeTab} 
             setActiveTab={setActiveTab}
-            bookingsCount={bookings.filter(b => b.status !== 'cancelled' && new Date(b.checkOut) >= new Date()).length}
-            pastBookingsCount={bookings.filter(b => b.status === 'cancelled' || new Date(b.checkOut) < new Date()).length}
+            bookingsCount={activeBookingsCount}
+            pastBookingsCount={pastBookingsCount}
             handleLogout={handleLogout}
             isAdmin={profile.role === 'admin'}
             isOpen={isSidebarOpen}
