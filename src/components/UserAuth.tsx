@@ -94,7 +94,7 @@ export const UserAuth = ({ onClose, onSuccess, onStaffLogin }: UserAuthProps) =>
             <p className="text-natural-muted text-sm px-4">
               {isLogin 
                 ? 'Sign in to access your bookings and exclusive resort offers.' 
-                : 'Join Ahsell Resorts for a seamless holiday planning experience.'}
+                : 'Join Amadiya Leisure for a seamless holiday planning experience.'}
             </p>
           </div>
 

@@ -182,7 +182,7 @@ export default function App() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.8, ease: "easeInOut" }}
           >
-            <LoadingPlane label="Ahsell Resorts" />
+            <LoadingPlane label="Amadiya Leisure" />
           </motion.div>
         ) : (
           <motion.div

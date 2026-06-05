@@ -651,7 +651,7 @@ app.post('/api/bookings', async (req, res) => {
       fullName: booking.fullName,
       email: booking.email,
       phone: booking.phone,
-      hotelName: hotelResult.rows[0]?.name || 'Ahsell Resort',
+      hotelName: hotelResult.rows[0]?.name || 'Amadiya Leisure',
       roomName: roomCheck.rows[0].name,
       roomImageUrl: roomCheck.rows[0].imageUrl,
       checkIn: booking.checkIn,

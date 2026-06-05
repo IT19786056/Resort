@@ -47,7 +47,7 @@ const getEmailTemplate = (details: BookingDetails) => {
   const accentColor = '#EEEEEE';
   const lightBg = '#F8F5F2';
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr: string | Date) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
   };
@@ -196,12 +196,12 @@ const getEmailTemplate = (details: BookingDetails) => {
               </table>
               
               <div style="text-align: center; margin-top: 20px;">
-                <p style="font-size: 14px; color: ${mutedColor}; line-height: 1.6;">Your reservation is confirmed. We look forward to welcoming you to Ahsell Resorts.</p>
+                <p style="font-size: 14px; color: ${mutedColor}; line-height: 1.6;">Your reservation is confirmed. We look forward to welcoming you to Amadiya Leisure.</p>
               </div>
             </div>
             
             <div class="footer">
-              <p>&copy; ${new Date().getFullYear()} Ahsell Resorts. Handcrafted Hospitality in Sri Lanka.</p>
+              <p>&copy; ${new Date().getFullYear()} Amadiya Leisure. Handcrafted Hospitality in Sri Lanka.</p>
             </div>
           </div>
         </div>
@@ -270,7 +270,7 @@ export const processEmailQueue = async (pool: any) => {
       try {
         console.log(`Sending email to ${email.recipient} (Subject: ${email.subject})...`);
         await transporter.sendMail({
-          from: `"Ahsell Resorts" <${process.env.SMTP_USER}>`,
+          from: `"Amadiya Leisure" <${process.env.SMTP_USER}>`,
           to: email.recipient,
           subject: email.subject,
           html: email.body,

@@ -35,7 +35,7 @@ export const Sidebar = ({
       <div className="mb-12 flex justify-between items-start">
         <div>
           <h1 className="font-serif text-2xl font-bold text-natural-dark italic">Admin Panel</h1>
-          <p className="text-[10px] uppercase tracking-widest text-natural-muted font-bold mt-1">Ahsell Resorts Manager</p>
+          <p className="text-[10px] uppercase tracking-widest text-natural-muted font-bold mt-1">Amadiya Leisure Manager</p>
         </div>
         {onClose && (
           <button 

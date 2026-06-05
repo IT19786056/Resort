@@ -10,7 +10,7 @@ export const Footer = () => {
             <div className="w-10 h-10 bg-natural-primary rounded-full flex items-center justify-center group-hover:rotate-12 transition-transform">
               <Search className="w-5 h-5 text-white" />
             </div>
-            <span className="font-serif text-3xl font-bold italic tracking-tighter">Ahsell.</span>
+            <span className="font-serif text-3xl font-bold italic tracking-tighter">Amadiya.</span>
           </div>
           <p className="text-natural-muted text-sm leading-relaxed mb-8 font-light italic">
             Experience the harmony of sustainable luxury and untouched nature. Our holiday resort offers a sanctuary for the soul, crafted with intention and respect for our surroundings.
@@ -44,7 +44,7 @@ export const Footer = () => {
       </div>
 
       <div className="max-w-7xl mx-auto pt-16 mt-20 border-t border-natural-accent flex flex-col md:flex-row justify-between items-center text-[10px] text-natural-muted uppercase tracking-[0.3em] font-bold">
-        <p>© 2026 Ahsell Holiday Resort Group — Crafted with Intention</p>
+        <p>© 2026 Amadiya Leisure Group — Crafted with Intention</p>
         <div className="flex space-x-12 mt-8 md:mt-0 items-center">
           <a href="#" className="hover:text-natural-primary transition-colors">Privacy</a>
           <a href="#" className="hover:text-natural-primary transition-colors">Terms</a>

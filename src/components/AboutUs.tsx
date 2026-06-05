@@ -18,7 +18,7 @@ export const AboutUs = () => {
               <h1 className="font-serif text-4xl md:text-6xl italic text-natural-dark leading-tight">Crafting Memories Since 1992</h1>
             </div>
             <p className="text-natural-muted leading-relaxed font-light text-base md:text-lg">
-              What started as a single boutique villa in Ahungalla has evolved into Sri Lanka's premiere luxury resort collection. At Ahsell Resorts, we don't just provide rooms; we curate experiences that linger in the soul.
+              What started as a single boutique villa in Ahungalla has evolved into Sri Lanka's premiere luxury resort collection. At Amadiya Leisure, we don't just provide rooms; we curate experiences that linger in the soul.
             </p>
             <p className="text-natural-muted leading-relaxed font-light">
               Founded by visionaries who believed that true hospitality lies in the perfect balance of architectural grandeur and heartfelt service, we've remained true to our heritage while embracing modern luxury.

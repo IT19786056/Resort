@@ -70,7 +70,7 @@ export const Navbar = ({ activeTab, onTabChange }: NavbarProps) => {
               <Search className="w-5 h-5 text-white" />
             </div>
             <div className={`font-serif text-2xl font-bold tracking-tight transition-colors duration-500 text-natural-dark`}>
-              Ahsell Resorts
+              Amadiya Leisure
             </div>
           </div>
 
@@ -183,7 +183,7 @@ export const Navbar = ({ activeTab, onTabChange }: NavbarProps) => {
                 )}
                 {!user && (
                   <button onClick={() => { setIsAuthOpen(true); setIsMobileMenuOpen(false); }} className="bg-natural-primary text-white py-5 rounded-2xl text-center">
-                    Join Ahsell Resorts
+                    Join Amadiya Leisure
                   </button>
                 )}
               </div>

@@ -27,7 +27,7 @@ export const Hero = () => {
           >
             <div className="flex items-center gap-4 text-white/70 text-[10px] md:text-[11px] uppercase font-bold tracking-[0.6em] mb-12">
               <span className="w-12 h-[1px] bg-white/40"></span>
-              Welcome to Ahsell Reserves
+              Welcome to Amadiya Reserves
             </div>
 
             <h1 className="font-serif text-6xl md:text-8xl lg:text-[10rem] italic text-white leading-[0.8] tracking-tighter mb-12 drop-shadow-2xl">
