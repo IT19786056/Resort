@@ -24,6 +24,7 @@ export const Admin = () => {
     });
 
     async function handleUser(u: User | null) {
+      setLoading(true);
       setUser(u);
       if (u) {
         // Fetch profile from admins table
