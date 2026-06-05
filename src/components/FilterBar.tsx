@@ -41,7 +41,7 @@ export const FilterBar = ({
   const minCheckIn = getMinCheckInDate();
 
   return (
-    <div id="filter-section" className="py-4 md:py-8 bg-transparent relative md:sticky md:top-20 z-40">
+    <div id="filter-section" className="py-4 md:py-8 bg-transparent relative z-20">
       <div className="max-w-6xl mx-auto px-4 md:px-6">
         <div className="bg-natural-cream rounded-3xl md:rounded-full p-2 shadow-sm border border-natural-accent flex flex-col xl:flex-row items-center justify-between gap-2 md:gap-4">
           <div className="flex flex-col md:grid md:grid-cols-2 lg:flex lg:flex-row flex-1 lg:divide-x divide-natural-accent w-full">
