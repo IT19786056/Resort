@@ -330,11 +330,21 @@ async function initDb() {
         "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS media (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "parentId" UUID NOT NULL,
+        "parentType" TEXT NOT NULL,
+        "data" TEXT NOT NULL,
+        "order" INTEGER DEFAULT 0,
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE INDEX IF NOT EXISTS idx_email_queue_status ON email_queue(status) WHERE status = 'pending';
       CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON bookings("userId");
       CREATE INDEX IF NOT EXISTS idx_bookings_room_id ON bookings("roomId");
       CREATE INDEX IF NOT EXISTS idx_rooms_hotel_id ON rooms("hotelId");
       CREATE INDEX IF NOT EXISTS idx_rooms_availability ON rooms("isAvailable") WHERE "isAvailable" = true;
+      CREATE INDEX IF NOT EXISTS idx_media_parent_id ON media("parentId");
     `);
     console.log('Database tables initialized');
 
@@ -486,11 +496,23 @@ app.get('/api/hotels', async (req, res) => {
   try {
     const result = await query('SELECT * FROM hotels ORDER BY "createdAt" DESC');
     const hotels = result.rows;
-    for (let h of hotels) {
-      if (!h.imageUrl || h.imageUrl.startsWith('https://images.unsplash.com') || h.imageUrl === '') {
-        const mediaResult = await query('SELECT data FROM media WHERE "parentId" = $1 ORDER BY "order" ASC, id ASC LIMIT 1', [h.id]);
-        if (mediaResult.rows.length > 0) {
-          h.imageUrl = mediaResult.rows[0].data;
+    const hotelsToFetch = hotels.filter((h: any) => !h.imageUrl || h.imageUrl.startsWith('https://images.unsplash.com') || h.imageUrl === '');
+    if (hotelsToFetch.length > 0) {
+      const ids = hotelsToFetch.map((h: any) => h.id);
+      const mediaResult = await query(
+        `SELECT DISTINCT ON ("parentId") "parentId", data 
+         FROM media 
+         WHERE "parentId" = ANY($1::uuid[]) 
+         ORDER BY "parentId", "order" ASC, id ASC`,
+        [ids]
+      );
+      const mediaMap = new Map();
+      for (const row of mediaResult.rows) {
+        mediaMap.set(row.parentId, row.data);
+      }
+      for (const h of hotelsToFetch) {
+        if (mediaMap.has(h.id)) {
+          h.imageUrl = mediaMap.get(h.id);
         }
       }
     }
@@ -562,11 +584,23 @@ app.get('/api/rooms', async (req, res) => {
        price: parseFloat(r.price),
        rating: r.rating ? parseFloat(r.rating) : null
     }));
-    for (let r of rooms) {
-      if (!r.imageUrl || r.imageUrl.startsWith('https://images.unsplash.com') || r.imageUrl === '') {
-        const mediaResult = await query('SELECT data FROM media WHERE "parentId" = $1 ORDER BY "order" ASC, id ASC LIMIT 1', [r.id]);
-        if (mediaResult.rows.length > 0) {
-          r.imageUrl = mediaResult.rows[0].data;
+    const roomsToFetch = rooms.filter(r => !r.imageUrl || r.imageUrl.startsWith('https://images.unsplash.com') || r.imageUrl === '');
+    if (roomsToFetch.length > 0) {
+      const ids = roomsToFetch.map(r => r.id);
+      const mediaResult = await query(
+        `SELECT DISTINCT ON ("parentId") "parentId", data 
+         FROM media 
+         WHERE "parentId" = ANY($1::uuid[]) 
+         ORDER BY "parentId", "order" ASC, id ASC`,
+        [ids]
+      );
+      const mediaMap = new Map();
+      for (const row of mediaResult.rows) {
+        mediaMap.set(row.parentId, row.data);
+      }
+      for (const r of roomsToFetch) {
+        if (mediaMap.has(r.id)) {
+          r.imageUrl = mediaMap.get(r.id);
         }
       }
     }
