@@ -46,19 +46,25 @@ export const ImageGalleryUpload = ({ parentId, parentType }: ImageGalleryUploadP
 
     setUploading(true);
     try {
+      const uploadPromises = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         if (!file.type.startsWith('image/')) continue;
-        const base64 = await fileToBase64(file);
-        const compressed = await compressImage(base64);
         
-        await dbService.addMedia({
-          parentId,
-          parentType,
-          data: compressed,
-          order: media.length + i
-        });
+        const processAndUpload = async (index: number) => {
+          const base64 = await fileToBase64(file);
+          const compressed = await compressImage(base64);
+          await dbService.addMedia({
+            parentId,
+            parentType,
+            data: compressed,
+            order: media.length + index
+          });
+        };
+        uploadPromises.push(processAndUpload(i));
       }
+      
+      await Promise.all(uploadPromises);
       fetchMedia();
     } catch (e) {
       console.error(e);

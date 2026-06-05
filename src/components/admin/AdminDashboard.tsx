@@ -188,6 +188,7 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
                   {activeTab === 'bookings' || activeTab === 'past_bookings' ? (
                     <AdminBookingsList 
                       bookings={bookings} 
+                      setBookings={setBookings}
                       rooms={rooms} 
                       hotels={hotels} 
                       onUpdate={fetchData} 
@@ -207,6 +208,7 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
                   {activeTab === 'rooms' && (
                     <AdminRoomsList 
                       rooms={rooms} 
+                      setRooms={setRooms}
                       hotels={hotels} 
                       onEdit={(r: Accommodation) => { setEditingRoom(r); setShowRoomForm(true); }} 
                       onDelete={(r: Accommodation) => setDeleteTarget({ id: r.id, type: 'room', name: r.name })}
@@ -290,7 +292,7 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
 
 // --- Embedded Components (Refactored from original Admin.tsx) ---
 
-const AdminBookingsList = ({ bookings, rooms, hotels, onUpdate, type, onSuccess, onError, onProcessing }: any) => {
+const AdminBookingsList = ({ bookings, setBookings, rooms, hotels, onUpdate, type, onSuccess, onError, onProcessing }: any) => {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -310,6 +312,28 @@ const AdminBookingsList = ({ bookings, rooms, hotels, onUpdate, type, onSuccess,
     if (isUpdating) return;
     const booking = selectedBooking || bookings.find((b: any) => b.id === id);
     if (!booking) return;
+
+    // Save previous state for potential rollback
+    const originalBookings = [...bookings];
+
+    // Optimistically update the local bookings state
+    const updatedBookings = bookings.map((b: any) => {
+      if (b.id === id) {
+        return {
+          ...b,
+          status,
+          cancellationReason: reason || b.cancellationReason
+        };
+      }
+      return b;
+    });
+
+    setBookings(updatedBookings);
+
+    // Speed up UX: dismiss modals/dialogs instantly
+    setSelectedBooking(null);
+    setShowCancelDialog(false);
+    setCancelReason('');
     
     onProcessing?.(status === 'confirmed' ? 'Confirming reservation...' : 'Cancelling booking...');
     setIsUpdating(true);
@@ -318,14 +342,13 @@ const AdminBookingsList = ({ bookings, rooms, hotels, onUpdate, type, onSuccess,
       if (reason) updateData.cancellationReason = reason;
       
       await dbService.updateBooking(id, updateData);
-      onUpdate(true); // Silent refresh
+      onUpdate(true); // Silent background refresh to coordinate with DB
       triggerDataRefresh();
       onSuccess?.(status === 'confirmed' ? 'Reservation confirmed' : 'Booking cancelled');
-      setSelectedBooking(null);
-      setShowCancelDialog(false);
-      setCancelReason('');
     } catch (error: any) {
       console.error(error);
+      // Rollback state in case of server failure
+      setBookings(originalBookings);
       onError?.(error.message || 'Operation failed');
     } finally {
       setIsUpdating(false);
@@ -422,8 +445,19 @@ const AdminHotelsList = ({ hotels, onEdit, onDelete }: any) => (
   </div>
 );
 
-const AdminRoomsList = ({ rooms, hotels, onEdit, onDelete, onUpdate, onSuccess, onError, onProcessing }: any) => {
+const AdminRoomsList = ({ rooms, setRooms, hotels, onEdit, onDelete, onUpdate, onSuccess, onError, onProcessing }: any) => {
   const toggleAvailability = async (room: Accommodation) => {
+    const originalRooms = [...rooms];
+
+    // Optimistically toggle availability state
+    const updatedRooms = rooms.map((r: any) => {
+      if (r.id === room.id) {
+        return { ...r, isAvailable: !r.isAvailable };
+      }
+      return r;
+    });
+    setRooms(updatedRooms);
+
     onProcessing?.(room.isAvailable ? 'Marking as booked...' : 'Marking as available...');
     try {
       await dbService.updateRoom(room.id, { isAvailable: !room.isAvailable });
@@ -431,6 +465,8 @@ const AdminRoomsList = ({ rooms, hotels, onEdit, onDelete, onUpdate, onSuccess, 
       triggerDataRefresh();
       onSuccess?.(`Room ${room.isAvailable ? 'booked' : 'available'}`);
     } catch (e: any) {
+      // Rollback style update on database update failure
+      setRooms(originalRooms);
       onError?.(e.message || 'Failed to update availability');
     }
   }

@@ -32,20 +32,46 @@ export const MyBookings = () => {
 
   const handleCancel = async () => {
     if (!cancelModalId || !reason.trim()) return;
-    setSubmitting(true);
+    const bookingIdToCancel = cancelModalId;
+    const cancelReasonText = reason;
+
+    // Save current bookings state for rollback
+    const originalBookings = [...bookings];
+
+    // Optimistically update local booking state instantly
+    const optimisticBookings = bookings.map(b => {
+      if (b.id === bookingIdToCancel) {
+        return {
+          ...b,
+          status: 'cancelled' as const,
+          cancellationReason: cancelReasonText
+        };
+      }
+      return b;
+    });
+    setBookings(optimisticBookings);
+
+    // Dismiss the cancellation dialog instantly for rapid responsive UX
+    setCancelModalId(null);
+    setReason('');
+
     try {
-      await dbService.updateBooking(cancelModalId, { 
+      await dbService.updateBooking(bookingIdToCancel, { 
         status: 'cancelled', 
-        cancellationReason: reason 
+        cancellationReason: cancelReasonText 
       });
-      await fetchBookings();
-      setCancelModalId(null);
-      setReason('');
+      
+      // Quiet background refresh to secure exact DB state correlation
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const data = await dbService.getUserBookings(user.id);
+        setBookings(data || []);
+      }
     } catch (error) {
       console.error('Error cancelling booking:', error);
+      // Revert upon server failures
+      setBookings(originalBookings);
       alert('Failed to cancel booking. Please try again.');
-    } finally {
-      setSubmitting(false);
     }
   };
 
