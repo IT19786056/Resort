@@ -16,7 +16,8 @@ import {
   LogOut,
   Menu,
   Camera,
-  Upload
+  Upload,
+  Bell
 } from 'lucide-react';
 import { compressImage, fileToBase64 } from '../../lib/imageUtils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -301,6 +302,54 @@ const AdminBookingsList = ({ bookings, setBookings, rooms, hotels, onUpdate, typ
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Local storage seen bookings tracker
+  const [seenBookingIds, setSeenBookingIds] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('amadiya_seen_bookings_v1');
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const markAsRead = (id: string) => {
+    setSeenBookingIds(prev => {
+      if (prev.includes(id)) return prev;
+      const next = [...prev, id];
+      try {
+        localStorage.setItem('amadiya_seen_bookings_v1', JSON.stringify(next));
+      } catch (e) {
+        console.error(e);
+      }
+      return next;
+    });
+  };
+
+  const markAllAsRead = () => {
+    const activeUnreadIds = bookings
+      .filter((b: Booking) => !seenBookingIds.includes(b.id))
+      .map((b: Booking) => b.id);
+    setSeenBookingIds(prev => {
+      const next = Array.from(new Set([...prev, ...activeUnreadIds]));
+      try {
+        localStorage.setItem('amadiya_seen_bookings_v1', JSON.stringify(next));
+      } catch (e) {
+        console.error(e);
+      }
+      return next;
+    });
+    onSuccess?.("All notification alerts cleared");
+  };
+
+  // Automatically mark bookings as read when they are clicked/selected
+  useEffect(() => {
+    if (selectedBooking) {
+      markAsRead(selectedBooking.id);
+    }
+  }, [selectedBooking]);
 
   const filteredBookings = React.useMemo(() => {
     const today = new Date();
@@ -311,6 +360,23 @@ const AdminBookingsList = ({ bookings, setBookings, rooms, hotels, onUpdate, typ
       return type === 'past' ? (isCancelled || isPastDate) : (!isCancelled && !isPastDate);
     });
   }, [bookings, type]);
+
+  // Unread bookings (only consider active or pending bookings as alerts for staff)
+  const unreadBookings = React.useMemo(() => {
+    return bookings.filter((b: Booking) => !seenBookingIds.includes(b.id) && b.status !== 'cancelled');
+  }, [bookings, seenBookingIds]);
+
+  // Pagination slicing
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [type, bookings.length]);
+
+  const paginatedBookings = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredBookings.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredBookings, currentPage]);
+
+  const totalPages = Math.ceil(filteredBookings.length / itemsPerPage);
 
   const handleStatusUpdate = async (id: string, status: 'confirmed' | 'cancelled', reason?: string) => {
     if (isUpdating) return;
@@ -360,48 +426,200 @@ const AdminBookingsList = ({ bookings, setBookings, rooms, hotels, onUpdate, typ
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8 select-none">
+      {/* 1. New Booking Alerts Banner */}
+      {unreadBookings.length > 0 && (
+        <div className="bg-amber-50/70 border border-amber-200 p-6 md:p-8 rounded-[32px] shadow-sm space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-4 border-b border-amber-200 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Bell className="w-5 h-5 text-amber-700 animate-bounce" />
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping" />
+              </div>
+              <div>
+                <h3 className="font-bold text-amber-900 text-sm md:text-base">New Booking Alerts</h3>
+                <p className="text-xs text-amber-700/80 mt-0.5">You have {unreadBookings.length} booking request{unreadBookings.length > 1 ? 's' : ''} requiring review in the bookings panel.</p>
+              </div>
+            </div>
+            <button 
+              onClick={markAllAsRead}
+              className="px-4 py-2 border border-amber-300 text-amber-800 bg-white hover:bg-amber-100/50 rounded-full font-bold uppercase text-[9px] tracking-widest transition-all"
+            >
+              Clear All Alerts
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[220px] overflow-y-auto pr-2 custom-modal-scrollbar">
+            {unreadBookings.map((b: Booking) => {
+              const room = rooms.find((r: any) => r.id === b.roomId);
+              const hotel = hotels.find((h: any) => h.id === b.hotelId);
+              return (
+                <div 
+                  key={b.id}
+                  className="bg-white/80 p-4 border border-amber-200/50 rounded-2xl flex items-center justify-between gap-4 group hover:bg-white hover:border-amber-400 transition-all cursor-pointer relative"
+                  onClick={() => setSelectedBooking(b)}
+                >
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <span className="w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse shrink-0" />
+                    <div className="overflow-hidden">
+                      <h4 className="font-bold text-xs text-stone-900 group-hover:text-natural-primary transition-colors truncate">{b.fullName}</h4>
+                      <p className="text-[10px] text-stone-500 mt-0.5 truncate">{hotel?.name} — {room?.name}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        markAsRead(b.id);
+                        onSuccess?.("Alert cleared");
+                      }}
+                      className="p-1.5 px-3 border border-stone-200 text-stone-700 hover:border-amber-300 hover:text-amber-800 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-white transition-all"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 2. Headline Empty state placeholder */}
       {filteredBookings.length === 0 && (
         <div className="bg-white p-12 md:p-20 rounded-[32px] md:rounded-[40px] text-center border-2 border-dashed border-natural-accent">
           <p className="font-serif italic text-xl md:text-2xl text-natural-muted">No {type} reservations found.</p>
         </div>
       )}
-      <div className="grid grid-cols-1 gap-6">
-        {filteredBookings.map((booking: Booking) => {
-          const room = rooms.find((r: any) => r.id === booking.roomId);
-          const hotel = hotels.find((h: any) => h.id === booking.hotelId);
-          return (
-            <motion.div 
-              key={booking.id}
-              onClick={() => setSelectedBooking(booking)}
-              className="bg-white p-6 md:p-8 rounded-[24px] md:rounded-[32px] border border-natural-accent flex flex-col md:flex-row md:items-center justify-between gap-6 group cursor-pointer hover:shadow-lg transition-all"
-            >
-              <div className="flex items-center gap-4 md:gap-8">
-                <div className="w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl bg-natural-accent overflow-hidden shrink-0">
-                  <img src={room?.imageUrl || undefined} className="w-full h-full object-cover" />
+
+      {/* 3. Paginated Grid View (Max 10 grids per page) */}
+      {filteredBookings.length > 0 && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {paginatedBookings.map((booking: Booking) => {
+              const room = rooms.find((r: any) => r.id === booking.roomId);
+              const hotel = hotels.find((h: any) => h.id === booking.hotelId);
+              const isUnread = !seenBookingIds.includes(booking.id);
+              
+              return (
+                <motion.div 
+                  key={booking.id}
+                  onClick={() => setSelectedBooking(booking)}
+                  className={`bg-white rounded-[32px] border relative flex flex-col justify-between overflow-hidden cursor-pointer hover:shadow-xl transition-all group ${
+                    isUnread 
+                      ? 'border-amber-300 shadow-md ring-1 ring-amber-200 bg-amber-50/10' 
+                      : 'border-natural-accent'
+                  }`}
+                >
+                  {isUnread && (
+                    <div className="absolute top-4 left-4 z-10 bg-amber-500 text-white font-bold text-[8px] uppercase tracking-[0.2em] px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-md">
+                      <span className="w-1.5 h-1.5 bg-white rounded-full inline-block animate-ping" />
+                      New Alert
+                    </div>
+                  )}
+                  
+                  <div className="h-44 bg-natural-accent relative overflow-hidden shrink-0">
+                    <img 
+                      src={room?.imageUrl || undefined} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                      alt={room?.name}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+                    
+                    <div className="absolute bottom-4 left-6 right-6 flex items-end justify-between">
+                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-widest block shadow-lg ${
+                        booking.status === 'confirmed' 
+                          ? 'bg-green-600 text-white' 
+                          : booking.status === 'cancelled' 
+                          ? 'bg-red-600 text-white' 
+                          : 'bg-amber-500 text-white'
+                      }`}>
+                        {booking.status}
+                      </span>
+                      
+                      <span className="text-[10px] text-white font-mono font-bold uppercase tracking-wider backdrop-blur-md bg-black/40 px-3 py-1 rounded-lg">
+                        Qty: {booking.roomCount || 1}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="p-6 flex-1 flex flex-col justify-between gap-6">
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="font-bold text-natural-dark text-base md:text-lg line-clamp-1 group-hover:text-natural-primary transition-colors">{booking.fullName}</h3>
+                        <p className="text-xs text-natural-muted font-medium mt-0.5 line-clamp-1">{hotel?.name} — {room?.name}</p>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 pt-3 border-t border-natural-accent/50">
+                        <div>
+                          <p className="text-[9px] uppercase font-bold text-natural-muted tracking-widest mb-0.5">Check In</p>
+                          <p className="text-xs font-bold text-natural-dark">{new Date(booking.checkIn).toLocaleDateString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] uppercase font-bold text-natural-muted tracking-widest mb-0.5">Check Out</p>
+                          <p className="text-xs font-bold text-natural-dark">{new Date(booking.checkOut).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between pt-4 border-t border-natural-accent/40 text-xs">
+                      <div className="text-natural-muted font-bold uppercase text-[9px] tracking-wider shrink-0">
+                        {booking.guests} Guests
+                      </div>
+                      <div className="text-natural-primary font-bold tracking-tight text-right">
+                        ${((room?.price || 0) * (booking.roomCount || 1)).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {/* 4. Pagination Navigation Bar */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-natural-accent border-dashed">
+              <p className="text-xs text-natural-muted font-medium">
+                Showing <span className="font-bold text-natural-dark">{((currentPage - 1) * itemsPerPage) + 1}</span> to <span className="font-bold text-natural-dark">{Math.min(currentPage * itemsPerPage, filteredBookings.length)}</span> of <span className="font-bold text-natural-dark">{filteredBookings.length}</span> bookings
+              </p>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 border border-natural-accent bg-white rounded-full text-xs font-bold uppercase tracking-wider text-natural-dark hover:bg-natural-bg transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-sm"
+                >
+                  Previous
+                </button>
+                
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-8 h-8 rounded-full text-xs font-bold flex items-center justify-center transition-all ${
+                        currentPage === pageNum
+                          ? 'bg-natural-primary text-white shadow-md'
+                          : 'border border-natural-accent bg-white text-natural-dark hover:bg-natural-bg'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
                 </div>
-                <div>
-                  <h3 className="font-bold text-natural-dark text-base md:text-lg">{booking.fullName}</h3>
-                  <p className="text-xs text-natural-muted font-medium mt-1">{hotel?.name} — {room?.name}</p>
-                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 border border-natural-accent bg-white rounded-full text-xs font-bold uppercase tracking-wider text-natural-dark hover:bg-natural-bg transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none shadow-sm"
+                >
+                  Next
+                </button>
               </div>
-              <div className="flex flex-wrap md:flex-nowrap items-center justify-between md:justify-end gap-4 md:gap-12 w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0 border-natural-accent/50">
-                <div className="text-left md:text-right">
-                  <p className="text-[10px] uppercase font-bold text-natural-muted tracking-widest mb-1">Check In</p>
-                  <p className="text-sm font-bold text-natural-dark">{new Date(booking.checkIn).toLocaleDateString()}</p>
-                </div>
-                <div className="text-right sm:min-w-[100px]">
-                  <p className="text-[10px] uppercase font-bold text-natural-muted tracking-widest mb-1">Status</p>
-                  <span className={`inline-block text-center px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : booking.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {booking.status}
-                  </span>
-                </div>
-                <ChevronRight className="hidden md:block w-6 h-6 text-natural-accent group-hover:text-natural-primary transition-colors" />
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
+            </div>
+          )}
+        </>
+      )}
+
       <AnimatePresence>
         {selectedBooking && (
           <BookingDetailsModal 
