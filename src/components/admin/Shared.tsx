@@ -28,7 +28,7 @@ export const Modal = ({ children, onClose, title }: any) => (
     />
     <motion.div 
       initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
-      className="relative z-10 w-full max-w-2xl bg-white rounded-[32px] sm:rounded-[40px] overflow-hidden flex flex-col max-h-[90vh] modal-container"
+      className="relative z-10 w-full max-w-2xl bg-natural-cream rounded-[32px] sm:rounded-[40px] overflow-hidden flex flex-col max-h-[90vh] modal-container"
     >
       <div className="overflow-y-auto flex-1">
         <div className="p-6 sm:p-12">

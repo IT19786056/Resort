@@ -205,7 +205,7 @@ export const HotelsList = () => {
         {deleteConfirm && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDeleteConfirm(null)} className="fixed inset-0 bg-natural-dark/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative z-10 w-full max-w-lg bg-white rounded-[40px] p-12 shadow-2xl">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative z-10 w-full max-w-lg bg-natural-cream rounded-[40px] p-12 shadow-2xl">
               <h3 className="font-serif text-3xl mb-4 italic text-red-600">Irreversible Action</h3>
               <p className="text-natural-muted text-sm leading-relaxed mb-8 italic">You are about to remove <strong>{deleteConfirm.name}</strong> from your collection. This will also potentially archive all associated rooms.</p>
               

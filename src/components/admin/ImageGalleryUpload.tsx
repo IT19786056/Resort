@@ -166,26 +166,21 @@ export const ImageGalleryUpload = ({ parentId, parentType }: ImageGalleryUploadP
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={() => document.getElementById(`gallery-file-input-${parentId}`)?.click()}
-            className={`aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-3 cursor-pointer transition-all duration-300 ${
-              media.length === 0 ? 'col-span-full py-12' : ''
-            } ${
+            className={`aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-300 ${
               isDragging
                 ? 'border-natural-primary bg-natural-primary/5 text-natural-primary scale-[0.99]'
                 : 'border-natural-accent bg-natural-bg/35 text-natural-muted hover:border-natural-primary hover:bg-natural-bg/70 hover:text-natural-dark shadow-sm'
             }`}
           >
-            <div className={`p-3 bg-natural-accent/15 rounded-full text-natural-primary transition-transform duration-300 ${isDragging ? 'scale-110' : ''}`}>
-              <Camera className="w-6 h-6" />
+            <div className={`p-2.5 bg-natural-accent/15 rounded-full text-natural-primary transition-transform duration-300 ${isDragging ? 'scale-110' : ''}`}>
+              <Camera className="w-5 h-5" />
             </div>
-            <div className="text-center px-4">
+            <div className="text-center px-2">
               <p className="text-[10px] font-bold uppercase tracking-widest text-natural-dark">
-                {media.length === 0 ? 'Upload Gallery Photos' : 'Add Image'}
+                {media.length === 0 ? 'Upload Photos' : 'Add Image'}
               </p>
-              <p className="text-[9px] text-natural-muted mt-1 leading-tight max-w-[200px] mx-auto">
-                {media.length === 0 
-                  ? 'Drag and drop files here, or click to browse' 
-                  : 'Drag & drop or click'
-                }
+              <p className="text-[9px] text-natural-muted mt-0.5 leading-tight select-none">
+                Drag & drop or click
               </p>
             </div>
           </div>

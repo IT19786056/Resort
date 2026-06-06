@@ -770,10 +770,10 @@ const HotelForm = ({ hotel, rooms = [], onClose, onSuccess, onError, onProcessin
               </button>
             </div>
           ) : (
-            <label className={`border-2 border-dashed border-natural-accent rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-natural-primary hover:bg-natural-bg transition-all ${uploadingCover ? 'opacity-50 pointer-events-none' : ''}`}>
-              <Camera className="w-8 h-8 text-natural-muted mb-2 animate-pulse" />
-              <span className="text-xs font-bold text-natural-dark uppercase tracking-widest font-mono">Upload Main Image</span>
-              <span className="text-[10px] text-natural-muted mt-1 select-none">PNG, JPG files up to 5MB</span>
+            <label className={`border-2 border-dashed border-natural-accent rounded-2xl py-6 p-4 flex flex-col items-center justify-center cursor-pointer hover:border-natural-primary hover:bg-natural-bg transition-all max-w-sm w-full ${uploadingCover ? 'opacity-50 pointer-events-none' : ''}`}>
+              <Camera className="w-6 h-6 text-natural-muted mb-1.5" />
+              <span className="text-[10px] font-bold text-natural-dark uppercase tracking-widest font-mono">Upload Main Image</span>
+              <span className="text-[9px] text-natural-muted mt-0.5 select-none">PNG, JPG files up to 5MB</span>
               <input type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
             </label>
           )}
@@ -817,7 +817,8 @@ const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: a
     maxGuests: room?.maxGuests || 2,
     description: room?.description || '',
     imageUrl: room?.imageUrl || '',
-    amenities: room?.amenities?.join(', ') || ''
+    amenities: room?.amenities?.join(', ') || '',
+    quantity: room?.quantity || 1
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -835,10 +836,15 @@ const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: a
     setIsSaving(true);
     onProcessing?.(room ? 'Updating room...' : 'Adding room...');
     try {
+      const selectedProperty = hotels.find((h: any) => h.id === formData.hotelId);
       const payload = { 
         ...formData, 
         price: Number(formData.price), 
         maxGuests: Number(formData.maxGuests), 
+        quantity: Number(formData.quantity || 1),
+        imageUrl: formData.imageUrl || selectedProperty?.imageUrl || '',
+        location: selectedProperty?.location || '',
+        rating: room?.rating || 5,
         amenities: formData.amenities.split(',').map(a => a.trim()).filter(Boolean),
         isAvailable: room ? room.isAvailable : true
       };
@@ -872,9 +878,10 @@ const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: a
         
         <Input label="Room Name / Title" value={formData.name} onChange={(v:any) => setFormData({...formData, name: v})} required placeholder="e.g. Presidential Water Villa" />
         
-        <div className="grid grid-cols-2 gap-6">
-          <Input label="Price per Night (USD)" type="number" value={formData.price} onChange={(v:any) => setFormData({...formData, price: v})} required />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Input label="Price/Night (USD)" type="number" value={formData.price} onChange={(v:any) => setFormData({...formData, price: v})} required />
           <Input label="Max Guests" type="number" value={formData.maxGuests} onChange={(v:any) => setFormData({...formData, maxGuests: v})} required />
+          <Input label="Quantity (Supply)" type="number" value={formData.quantity} onChange={(v:any) => setFormData({...formData, quantity: v})} required min="1" />
         </div>
         
         <div className="space-y-4">
@@ -917,7 +924,7 @@ const BookingDetailsModal = ({ booking, hotels, rooms, onClose, showCancelDialog
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-natural-dark/40 backdrop-blur-sm" onClick={onClose} />
       {!showCancelDialog ? (
-        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative z-10 w-full max-w-3xl bg-white rounded-[40px] overflow-hidden flex flex-col max-h-[90vh]">
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative z-10 w-full max-w-3xl bg-natural-cream rounded-[40px] overflow-hidden flex flex-col max-h-[90vh]">
           <div className="overflow-y-auto flex-1">
             <div className="p-12">
               <div className="flex justify-between items-center mb-8 border-b border-natural-accent pb-6">
@@ -1033,7 +1040,7 @@ const BookingDetailsModal = ({ booking, hotels, rooms, onClose, showCancelDialog
           </div>
         </motion.div>
       ) : (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative z-20 w-full max-w-md bg-white rounded-[40px] p-10 shadow-2xl">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative z-20 w-full max-w-md bg-natural-cream rounded-[40px] p-10 shadow-2xl">
           <h4 className="font-serif text-2xl italic text-natural-dark mb-6">Cancellation Reason</h4>
           <textarea className="w-full bg-natural-bg rounded-2xl p-4 min-h-[120px] mb-8 outline-none focus:ring-2 focus:ring-red-500/20" value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="Please state why this booking is being cancelled..." />
           <div className="flex gap-4">
