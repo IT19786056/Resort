@@ -18,7 +18,8 @@ export const HotelsList = () => {
     location: '',
     description: '',
     imageUrl: '',
-    images: []
+    images: [],
+    type: 'Hotel'
   });
 
   const fetchHotels = async () => {
@@ -46,7 +47,7 @@ export const HotelsList = () => {
       }
       setIsModalOpen(false);
       setEditingHotel(null);
-      setFormData({ name: '', location: '', description: '', imageUrl: '', images: [] });
+      setFormData({ name: '', location: '', description: '', imageUrl: '', images: [], type: 'Hotel' });
       fetchHotels();
     } catch (error) {
       console.error(error);
@@ -95,7 +96,7 @@ export const HotelsList = () => {
               <img src={hotel.imageUrl} alt={hotel.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" />
               <div className="absolute top-6 right-6 flex gap-2">
                 <button 
-                  onClick={() => { setEditingHotel(hotel); setFormData(hotel); setIsModalOpen(true); }}
+                  onClick={() => { setEditingHotel(hotel); setFormData({ ...hotel, type: hotel.type || 'Hotel' }); setIsModalOpen(true); }}
                   className="p-3 bg-white/90 backdrop-blur-md text-natural-primary rounded-full hover:bg-natural-primary hover:text-white transition-all shadow-lg"
                 >
                   <Edit2 className="w-4 h-4" />
@@ -109,9 +110,14 @@ export const HotelsList = () => {
               </div>
             </div>
             <div className="p-10">
-              <div className="flex items-center gap-2 mb-4">
-                <MapPin className="w-4 h-4 text-natural-primary" />
-                <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-natural-muted">{hotel.location}</span>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-natural-primary" />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-natural-muted">{hotel.location}</span>
+                </div>
+                <span className="px-3 py-1 bg-natural-primary/5 rounded-full text-[9px] font-bold uppercase tracking-widest text-natural-primary">
+                  {hotel.type || 'Hotel'}
+                </span>
               </div>
               <h3 className="font-serif text-3xl text-natural-dark mb-4 italic group-hover:text-natural-primary transition-colors">{hotel.name}</h3>
               <p className="text-sm text-natural-muted leading-relaxed font-light line-clamp-2 italic">{hotel.description}</p>
@@ -124,8 +130,8 @@ export const HotelsList = () => {
         {isModalOpen && (
           <Modal title={editingHotel ? "Refine Resort" : "Establish New Resort"} onClose={() => setIsModalOpen(false)}>
             <form onSubmit={handleSubmit} className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="md:col-span-2">
                   <SectionLabel label="Property Name" />
                   <Input 
                     required
@@ -145,17 +151,32 @@ export const HotelsList = () => {
                 </div>
               </div>
 
-              <div>
-                <SectionLabel label="Portfolio Image URL" />
-                <div className="relative">
-                  <ImageIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-natural-muted" />
-                  <Input 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <SectionLabel label="Property Type" />
+                  <select 
                     required
-                    value={formData.imageUrl}
-                    onChange={e => setFormData({...formData, imageUrl: e.target.value})}
-                    className="pl-14"
-                    placeholder="https://unsplash.com/..."
-                  />
+                    className="w-full bg-natural-bg border-none rounded-[32px] px-8 py-4 outline-none focus:ring-2 focus:ring-natural-primary/10 transition-all text-sm font-bold appearance-none"
+                    value={formData.type || 'Hotel'}
+                    onChange={e => setFormData({...formData, type: e.target.value as any})}
+                  >
+                    <option value="Hotel">Hotel</option>
+                    <option value="Villa">Villa</option>
+                    <option value="Bungalow">Bungalow</option>
+                  </select>
+                </div>
+                <div>
+                  <SectionLabel label="Portfolio Image URL" />
+                  <div className="relative">
+                    <ImageIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-natural-muted" />
+                    <Input 
+                      required
+                      value={formData.imageUrl}
+                      onChange={e => setFormData({...formData, imageUrl: e.target.value})}
+                      className="pl-14"
+                      placeholder="https://unsplash.com/..."
+                    />
+                  </div>
                 </div>
               </div>
 

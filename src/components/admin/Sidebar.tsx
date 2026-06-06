@@ -67,13 +67,13 @@ export const Sidebar = ({
           active={activeTab === 'hotels'} 
           onClick={() => { setActiveTab('hotels'); onClose?.(); }}
           icon={<Building2 className="w-5 h-5" />}
-          label="Hotels"
+          label="Manage Stays"
         />
         <SidebarButton 
           active={activeTab === 'rooms'} 
           onClick={() => { setActiveTab('rooms'); onClose?.(); }}
           icon={<BedDouble className="w-5 h-5" />}
-          label="Rooms"
+          label="Hotel Guest Rooms"
         />
         {isAdmin && (
           <SidebarButton 

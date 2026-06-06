@@ -86,7 +86,8 @@ const MOCK_HOTELS = [
     location: 'Ahungalla',
     description: 'A legendary 5-star resort designed by Geoffrey Bawa, offering ultimate barefoot luxury in a tropical paradise.',
     imageUrl: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?q=80&w=2070&auto=format&fit=crop',
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    type: 'Hotel'
   },
   {
     id: 'h2',
@@ -94,7 +95,8 @@ const MOCK_HOTELS = [
     location: 'Bolgoda',
     description: 'A serene luxury boutique villa set on the banks of the Bolgoda Lake, perfect for a private getaway.',
     imageUrl: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=2070&auto=format&fit=crop',
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    type: 'Villa'
   },
   {
     id: 'h3',
@@ -102,7 +104,8 @@ const MOCK_HOTELS = [
     location: 'Hikkaduwa',
     description: 'Vibrant and modern accommodation in the heart of Hikkaduwa, offering easy access to the reef and surf.',
     imageUrl: 'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?q=80&w=2070&auto=format&fit=crop',
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    type: 'Bungalow'
   }
 ];
 
@@ -120,7 +123,8 @@ const MOCK_ROOMS = [
     description: 'Comfortable room for two.',
     imageUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=2070&auto=format&fit=crop',
     amenities: ['Wifi', 'TV'],
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    quantity: 5
   },
   {
     id: 'r2',
@@ -135,7 +139,8 @@ const MOCK_ROOMS = [
     description: 'Spacious suite with lake view.',
     imageUrl: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=2070&auto=format&fit=crop',
     amenities: ['Jacuzzi', 'Mini bar'],
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    quantity: 1
   },
   {
     id: 'r3',
@@ -150,7 +155,8 @@ const MOCK_ROOMS = [
     description: 'Right on the beach.',
     imageUrl: 'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?q=80&w=2070&auto=format&fit=crop',
     amenities: ['Air Conditioning', 'Breakfast'],
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    quantity: 1
   }
 ];
 
@@ -167,7 +173,8 @@ const MOCK_BOOKINGS = [
     checkOut: '2024-06-05',
     guests: 2,
     status: 'confirmed',
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    roomCount: 1
   }
 ];
 
@@ -288,6 +295,11 @@ async function initDb() {
         "cancellationReason" TEXT,
         "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
+
+      -- Add dynamic scheme-level support columns if they don't exist
+      ALTER TABLE hotels ADD COLUMN IF NOT EXISTS "type" TEXT DEFAULT 'Hotel';
+      ALTER TABLE rooms ADD COLUMN IF NOT EXISTS "quantity" INTEGER DEFAULT 1;
+      ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "roomCount" INTEGER DEFAULT 1;
 
       -- Robust cleanup of any existing foreign keys on bookings.userId
       DO $$
@@ -538,11 +550,28 @@ app.get('/api/hotels', async (req, res) => {
 });
 
 app.post('/api/hotels', async (req, res) => {
+  if (!pool) {
+    const { name, location, description, imageUrl, hasBanquetHall, email, phone, type } = req.body;
+    const newHotel = {
+      id: 'h_' + Math.random().toString(36).substring(2, 11),
+      name,
+      location,
+      description,
+      imageUrl,
+      hasBanquetHall: hasBanquetHall || false,
+      email,
+      phone,
+      type: type || 'Hotel',
+      createdAt: new Date().toISOString()
+    };
+    MOCK_HOTELS.push(newHotel);
+    return res.json(newHotel);
+  }
   try {
-    const { name, location, description, imageUrl, hasBanquetHall, email, phone } = req.body;
+    const { name, location, description, imageUrl, hasBanquetHall, email, phone, type } = req.body;
     const result = await query(
-      'INSERT INTO hotels (name, location, description, "imageUrl", "hasBanquetHall", email, phone) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [name, location, description, imageUrl, hasBanquetHall || false, email, phone]
+      'INSERT INTO hotels (name, location, description, "imageUrl", "hasBanquetHall", email, phone, "type") VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [name, location, description, imageUrl, hasBanquetHall || false, email, phone, type || 'Hotel']
     );
     clearCache();
     res.json(result.rows[0]);
@@ -633,15 +662,39 @@ app.get('/api/rooms', async (req, res) => {
 });
 
 app.post('/api/rooms', async (req, res) => {
+  if (!pool) {
+    const { 
+      hotelId, name, type, description, price, rating, imageUrl, amenities, maxGuests, 
+      isAvailable = true, location, quantity
+    } = req.body;
+    const newRoom = {
+      id: 'r_' + Math.random().toString(36).substring(2, 11),
+      hotelId,
+      name,
+      type,
+      description,
+      price: Number(price),
+      rating: rating ? Number(rating) : 5,
+      imageUrl,
+      amenities: amenities || [],
+      maxGuests: Number(maxGuests),
+      isAvailable: isAvailable !== false,
+      location,
+      quantity: quantity ? Number(quantity) : 1,
+      createdAt: new Date().toISOString()
+    };
+    MOCK_ROOMS.push(newRoom);
+    return res.json(newRoom);
+  }
   try {
     const { 
       hotelId, name, type, description, price, rating, imageUrl, amenities, maxGuests, 
-      isAvailable = true, location 
+      isAvailable = true, location, quantity 
     } = req.body;
     const result = await query(
-      `INSERT INTO rooms ("hotelId", name, type, description, price, rating, "imageUrl", amenities, "maxGuests", "isAvailable", location) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-      [hotelId, name, type, description, price, rating, imageUrl, amenities, maxGuests, isAvailable, location]
+      `INSERT INTO rooms ("hotelId", name, type, description, price, rating, "imageUrl", amenities, "maxGuests", "isAvailable", location, quantity) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      [hotelId, name, type, description, price, rating, imageUrl, amenities, maxGuests, isAvailable, location, quantity || 1]
     );
     clearCache();
     res.json(result.rows[0]);
@@ -652,6 +705,16 @@ app.post('/api/rooms', async (req, res) => {
 });
 
 app.patch('/api/rooms/:id', async (req, res) => {
+  if (!pool) {
+    const { id } = req.params;
+    const updates = req.body;
+    const room = MOCK_ROOMS.find(r => r.id === id);
+    if (room) {
+      Object.assign(room, updates);
+      return res.json(room);
+    }
+    return res.status(404).json({ error: 'Mock room not found' });
+  }
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -677,6 +740,64 @@ app.delete('/api/rooms/:id', async (req, res) => {
     res.sendStatus(204);
   } catch (err: any) {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message || 'Failed to delete room' });
+  }
+});
+
+app.get('/api/rooms/:id/availability', async (req, res) => {
+  const { id } = req.params;
+  const { checkIn, checkOut } = req.query;
+  
+  if (!checkIn || !checkOut) {
+    return res.status(400).json({ error: 'checkIn and checkOut dates are required' });
+  }
+
+  if (!pool) {
+    const room = MOCK_ROOMS.find(r => r.id === id);
+    if (!room) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+    
+    const reqIn = new Date(checkIn as string);
+    const reqOut = new Date(checkOut as string);
+    
+    let sumBooked = 0;
+    for (const b of MOCK_BOOKINGS) {
+      if (b.roomId === id && b.status !== 'cancelled') {
+        const bIn = new Date(b.checkIn);
+        const bOut = new Date(b.checkOut);
+        if (bIn < reqOut && bOut > reqIn) {
+          sumBooked += (b.roomCount || 1);
+        }
+      }
+    }
+    
+    const remainingQuantity = Math.max(0, (room.quantity || 1) - sumBooked);
+    return res.json({ remainingQuantity });
+  }
+  
+  try {
+    const roomRes = await query('SELECT COALESCE(quantity, 1) as quantity FROM rooms WHERE id = $1', [id]);
+    if (!roomRes.rows[0]) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+    const totalQty = parseInt(roomRes.rows[0].quantity);
+    
+    const bookingsRes = await query(
+      `SELECT COALESCE(SUM(COALESCE("roomCount", 1)), 0) as booked_count 
+       FROM bookings 
+       WHERE "roomId" = $1 
+         AND status != 'cancelled' 
+         AND "checkIn" < $3 
+         AND "checkOut" > $2`,
+      [id, checkIn, checkOut]
+    );
+    
+    const bookedCount = parseInt(bookingsRes.rows[0].booked_count);
+    const remainingQuantity = Math.max(0, totalQty - bookedCount);
+    
+    res.json({ remainingQuantity });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch availability' });
   }
 });
 
@@ -717,8 +838,34 @@ app.get('/api/bookings', async (req, res) => {
 });
 
 app.post('/api/bookings', async (req, res) => {
+  const { userId, roomId, hotelId, fullName, email, phone, checkIn, checkOut, guests, specialRequests, status, roomCount = 1 } = req.body;
+  const requestedRoomCount = parseInt(roomCount as string) || 1;
+
   if (!pool) {
-    const { userId, roomId, hotelId, fullName, email, phone, checkIn, checkOut, guests, specialRequests, status } = req.body;
+    const room = MOCK_ROOMS.find(r => r.id === roomId);
+    if (!room) {
+      return res.status(404).json({ error: 'Accommodation not found' });
+    }
+
+    const reqIn = new Date(checkIn as string);
+    const reqOut = new Date(checkOut as string);
+    
+    let sumBooked = 0;
+    for (const b of MOCK_BOOKINGS) {
+      if (b.roomId === roomId && b.status !== 'cancelled') {
+        const bIn = new Date(b.checkIn);
+        const bOut = new Date(b.checkOut);
+        if (bIn < reqOut && bOut > reqIn) {
+          sumBooked += (b.roomCount || 1);
+        }
+      }
+    }
+    
+    const remainingQuantity = Math.max(0, (room.quantity || 1) - sumBooked);
+    if (requestedRoomCount > remainingQuantity) {
+      return res.status(409).json({ error: `Not enough rooms available for these dates! Only ${remainingQuantity} available.` });
+    }
+
     const newBooking = {
       id: 'b_' + Math.random().toString(36).substring(2, 11),
       userId: userId || 'mock-user-rand',
@@ -732,6 +879,7 @@ app.post('/api/bookings', async (req, res) => {
       guests: guests || 2,
       specialRequests,
       status: status || 'pending',
+      roomCount: requestedRoomCount,
       createdAt: new Date().toISOString()
     };
     MOCK_BOOKINGS.push(newBooking);
@@ -746,14 +894,11 @@ app.post('/api/bookings', async (req, res) => {
   let isClientReleased = false;
   
   try {
-    const { userId, roomId, hotelId, fullName, email, phone, checkIn, checkOut, guests, specialRequests, status } = req.body;
-    
     await client.query('BEGIN');
     
-    // IMPORTANT: Row-level lock on the room to prevent race conditions
-    // Using FOR UPDATE ensures that only one transaction can touch this room at a time
+    // Lock the room categories to serialize booking confirmations of this card type
     const roomCheck = await client.query(
-      'SELECT "isAvailable", name, "imageUrl" FROM rooms WHERE id = $1 FOR UPDATE',
+      'SELECT COALESCE(quantity, 1) as quantity, name, "imageUrl" FROM rooms WHERE id = $1 FOR UPDATE',
       [roomId]
     );
 
@@ -761,18 +906,36 @@ app.post('/api/bookings', async (req, res) => {
       throw new Error('Accommodation not found');
     }
 
-    if (!roomCheck.rows[0].isAvailable) {
-      throw new Error('This accommodation was just booked by another user. Please choose another.');
+    const totalQty = parseInt(roomCheck.rows[0].quantity);
+    
+    // Query booked count for this room category in overlapping overlapping intervals
+    const bookingsRes = await client.query(
+      `SELECT COALESCE(SUM(COALESCE("roomCount", 1)), 0) as booked_count 
+       FROM bookings 
+       WHERE "roomId" = $1 
+         AND status != 'cancelled' 
+         AND "checkIn" < $3 
+         AND "checkOut" > $2`,
+      [roomId, checkIn, checkOut]
+    );
+    
+    const bookedCount = parseInt(bookingsRes.rows[0].booked_count);
+    const remainingQuantity = Math.max(0, totalQty - bookedCount);
+    
+    if (requestedRoomCount > remainingQuantity) {
+      throw new Error(`Only ${remainingQuantity} units of this accommodation are available for your selected dates.`);
     }
     
     const result = await client.query(
-      `INSERT INTO bookings ("userId", "roomId", "hotelId", "fullName", email, phone, "checkIn", "checkOut", guests, "specialRequests", status) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-      [userId, roomId, hotelId, fullName, email, phone, checkIn, checkOut, guests, specialRequests, status || 'pending']
+      `INSERT INTO bookings ("userId", "roomId", "hotelId", "fullName", email, phone, "checkIn", "checkOut", guests, "specialRequests", status, "roomCount") 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      [userId, roomId, hotelId, fullName, email, phone, checkIn, checkOut, guests, specialRequests, status || 'pending', requestedRoomCount]
     );
 
-    // Update availability
-    await client.query('UPDATE rooms SET "isAvailable" = false WHERE id = $1', [roomId]);
+    // Update isAvailable only if the capacity completely sales out for some reference
+    if (remainingQuantity - requestedRoomCount <= 0) {
+      await client.query('UPDATE rooms SET "isAvailable" = false WHERE id = $1', [roomId]);
+    }
 
     const booking = result.rows[0];
     const hotelResult = await client.query('SELECT name FROM hotels WHERE id = $1', [hotelId]);
@@ -796,8 +959,6 @@ app.post('/api/bookings', async (req, res) => {
     isClientReleased = true;
     
     // --- NEW: Trigger email processing immediately for Vercel ---
-    // We await this so Vercel stays awake long enough to send the email.
-    // The .catch ensures that if the email fails, the user still gets a successful booking response.
     await processEmailQueue(pool).catch(err => {
       console.error('Immediate email processing failed:', err);
     });

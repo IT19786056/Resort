@@ -8,6 +8,7 @@ export interface Hotel {
   hasBanquetHall: boolean;
   email?: string;
   phone?: string;
+  type?: 'Hotel' | 'Villa' | 'Bungalow';
 }
 
 export interface Accommodation {
@@ -24,6 +25,7 @@ export interface Accommodation {
   amenities: string[];
   maxGuests: number;
   isAvailable?: boolean;
+  quantity?: number;
 }
 
 export interface Booking {
@@ -41,6 +43,7 @@ export interface Booking {
   status: 'pending' | 'confirmed' | 'cancelled';
   cancellationReason?: string;
   createdAt: string;
+  roomCount?: number;
 }
 
 export interface CustomerProfile {
@@ -67,3 +70,13 @@ export interface FilterState {
   checkIn: string;
   checkOut: string;
 }
+
+export interface CartItem {
+  id: string;
+  accommodation: Accommodation;
+  checkIn: string;
+  checkOut: string;
+  guests: number;
+  roomCount: number;
+}
+

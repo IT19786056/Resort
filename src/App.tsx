@@ -1,7 +1,8 @@
 import React, { useState, lazy, Suspense, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Star, MapPin, ChevronRight, ArrowLeft, Search } from 'lucide-react';
+import { Star, MapPin, ChevronRight, ArrowLeft, Search, Trash2, ShoppingCart } from 'lucide-react';
 import { supabase } from './lib/supabase';
+import { dbService } from './services/db';
 
 // Hooks
 import { useAccommodations } from './hooks/useAccommodations';
@@ -19,6 +20,8 @@ import { WeddingsEvents } from './components/WeddingsEvents';
 import { LoadingPlane } from './components/ui/LoadingPlane';
 import { SkeletonCard } from './components/ui/SkeletonCard';
 import { Gallery } from './components/ui/Gallery';
+import { UserAuth } from './components/UserAuth';
+import { CartDrawer } from './components/CartDrawer';
 
 // Lazy load Admin to minimize initial bundle size and make site feel lighter
 const Admin = lazy(() => import('./components/Admin').then(m => ({ default: m.Admin })));
@@ -35,6 +38,54 @@ export default function App() {
   const [selectedHotel, setSelectedHotel] = useState<any>(null);
   const [isBooking, setIsBooking] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
+
+  // Cart and user auth states
+  const [cart, setCart] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('amadiya_cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isCartAuthOpen, setIsCartAuthOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    localStorage.setItem('amadiya_cart', JSON.stringify(cart));
+  }, [cart]);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleAddToCart = (item: any) => {
+    // Prevent duplicate accommodations with same dates
+    const exists = cart.some(
+      i => i.accommodation.id === item.accommodation.id &&
+           i.checkIn === item.checkIn &&
+           i.checkOut === item.checkOut
+    );
+    if (exists) {
+      alert('This sanctuary is already in your cart for the selected dates!');
+      return;
+    }
+    setCart(prev => [...prev, { ...item, id: Math.random().toString(36).substring(2, 11) }]);
+    setSelectedItem(null);
+    setIsBooking(false);
+    setIsCartOpen(true); // Open the cart immediately
+  };
+
+  const handleRemoveFromCart = (id: string) => {
+    setCart(prev => prev.filter(item => item.id !== id));
+  };
 
   // Sync activeTab with window URL history
   useEffect(() => {
@@ -77,6 +128,8 @@ export default function App() {
     setFilters,
     refresh
   } = useAccommodations();
+
+  const [isSearched, setIsSearched] = useState(false);
 
   // Database and Supabase status state for debugging
   const [dbStatus, setDbStatus] = useState<any>(null);
@@ -227,6 +280,8 @@ export default function App() {
             <Navbar 
               activeTab={activeTab as any}
               onTabChange={handleTabChange}
+              cartCount={cart.length}
+              onOpenCart={() => setIsCartOpen(true)}
             />
             
             <AnimatePresence mode="wait">
@@ -282,65 +337,127 @@ export default function App() {
 
                   <main id="stays" className="flex-1 scroll-mt-28 md:scroll-mt-32">
                     <FilterBar 
-                      onFilterChange={(f) => setFilters(prev => ({...prev, ...f}))} 
+                      onFilterChange={(f) => {
+                        setFilters(prev => ({...prev, ...f}));
+                        setIsSearched(true);
+                      }} 
+                      onSearch={() => setIsSearched(true)}
                       currentFilter={filters} 
                       hotels={hotels} 
                     />
 
                     <section id="stays-list" className="max-w-7xl mx-auto px-6 py-24">
-                      <div className="mb-20 text-center">
-                        <motion.h2 
-                          initial={{ opacity: 0, y: 20 }}
-                          whileInView={{ opacity: 1, y: 0 }}
-                          viewport={{ once: true }}
-                          className="font-serif text-5xl md:text-6xl mb-6 italic text-natural-dark tracking-tighter"
-                        >
-                          Our Curated Micro-Escapes.
-                        </motion.h2>
-                        <p className="text-natural-muted max-w-2xl mx-auto font-light text-lg italic">
-                          Explore our handpicked selection of stays, from overwater suites to hidden garden villas.
-                        </p>
-                      </div>
+                      {!isSearched ? (
+                        <>
+                          <div className="mb-20 text-center">
+                            <motion.h2 
+                              initial={{ opacity: 0, y: 20 }}
+                              whileInView={{ opacity: 1, y: 0 }}
+                              viewport={{ once: true }}
+                              className="font-serif text-5xl md:text-6xl mb-6 italic text-natural-dark tracking-tighter"
+                            >
+                              Our Portfolio
+                            </motion.h2>
+                            <p className="text-natural-muted max-w-2xl mx-auto font-light text-lg italic">
+                              Our resorts are more than places to stay—they are portals to different worlds, harmonizing architecture with nature.
+                            </p>
+                          </div>
 
-                      <motion.div 
-                        variants={{
-                          hidden: { opacity: 0 },
-                          show: {
-                            opacity: 1,
-                            transition: {
-                              staggerChildren: 0.1
-                            }
-                          }
-                        }}
-                        initial="hidden"
-                        whileInView="show"
-                        viewport={{ once: true }}
-                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-12"
-                      >
-                        {loading ? (
-                          [1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)
-                        ) : filteredItems.map((item, index) => (
-                          <AccommodationCard 
-                            key={item.id} 
-                            item={item} 
-                            index={index} 
-                            onClick={() => setSelectedItem(item)}
-                            onBook={(e) => handleStartBooking(e, item)}
-                            disabled={!item.isAvailable}
-                          />
-                        ))}
-                      </motion.div>
-
-                      {filteredItems.length === 0 && (
-                        <div className="py-40 text-center">
-                          <p className="text-natural-muted text-xl italic font-light">No stays match your current preferences.</p>
-                          <button 
-                            onClick={() => setFilters({ type: 'All', priceRange: [0, 5000], minRating: 0, location: 'All', checkIn: '', checkOut: '' })}
-                            className="mt-8 text-natural-primary font-bold uppercase text-[10px] tracking-[0.4em] border-b border-natural-primary pb-2 hover:opacity-70 transition-opacity"
+                          <motion.div 
+                            variants={{
+                              hidden: { opacity: 0 },
+                              show: {
+                                opacity: 1,
+                                transition: {
+                                  staggerChildren: 0.1
+                                }
+                              }
+                            }}
+                            initial="hidden"
+                            whileInView="show"
+                            viewport={{ once: true }}
+                            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-12"
                           >
-                            Reset All Filters
-                          </button>
-                        </div>
+                            {loading ? (
+                              [1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)
+                            ) : hotels.map((hotel, index) => (
+                              <HotelCard 
+                                key={hotel.id} 
+                                hotel={hotel} 
+                                index={index} 
+                                onClick={() => setSelectedHotel(hotel)} 
+                              />
+                            ))}
+                          </motion.div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="mb-20 text-center">
+                            <motion.h2 
+                              initial={{ opacity: 0, y: 20 }}
+                              whileInView={{ opacity: 1, y: 0 }}
+                              viewport={{ once: true }}
+                              className="font-serif text-5xl md:text-6xl mb-6 italic text-natural-dark tracking-tighter"
+                            >
+                              Our Curated Micro-Escapes.
+                            </motion.h2>
+                            <p className="text-natural-muted max-w-2xl mx-auto font-light text-lg italic">
+                              Explore our handpicked selection of stays, from overwater suites to hidden garden villas.
+                            </p>
+                          </div>
+
+                          <motion.div 
+                            variants={{
+                              hidden: { opacity: 0 },
+                              show: {
+                                opacity: 1,
+                                transition: {
+                                  staggerChildren: 0.1
+                                }
+                              }
+                            }}
+                            initial="hidden"
+                            whileInView="show"
+                            viewport={{ once: true }}
+                            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-12"
+                          >
+                            {loading ? (
+                              [1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)
+                            ) : filteredItems.map((item, index) => (
+                              <AccommodationCard 
+                                key={item.id} 
+                                item={item} 
+                                index={index} 
+                                onClick={() => { setSelectedItem(item); setIsBooking(false); }}
+                                onBook={(e) => handleStartBooking(e, item)}
+                                disabled={!item.isAvailable}
+                              />
+                            ))}
+                          </motion.div>
+
+                          {filteredItems.length === 0 && (
+                            <div className="py-40 text-center">
+                              <p className="text-natural-muted text-xl italic font-light">No stays match your current preferences.</p>
+                              <div className="flex justify-center gap-6 mt-8">
+                                <button 
+                                  onClick={() => {
+                                    setFilters({ type: 'All', priceRange: [0, 5000], minRating: 0, location: 'All', checkIn: '', checkOut: '' });
+                                    setIsSearched(false);
+                                  }}
+                                  className="text-natural-primary font-bold uppercase text-[10px] tracking-[0.4em] border-b border-natural-primary pb-2 hover:opacity-70 transition-opacity"
+                                >
+                                  Reset All Filters
+                                </button>
+                                <button 
+                                  onClick={() => setIsSearched(false)}
+                                  className="text-natural-muted font-bold uppercase text-[10px] tracking-[0.4em] border-b border-natural-accent pb-2 hover:opacity-70 transition-opacity"
+                                >
+                                  View Portfolios
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </>
                       )}
                     </section>
                   </main>
@@ -433,7 +550,12 @@ export default function App() {
             onViewStays={() => {
               setSelectedHotel(null);
               setFilters(prev => ({ ...prev, location: selectedHotel.location }));
+              setIsSearched(true);
               setActiveTab('home');
+              setTimeout(() => {
+                const section = document.getElementById('stays-list');
+                if (section) section.scrollIntoView({ behavior: 'smooth' });
+              }, 200);
             }}
           />
         )}
@@ -444,12 +566,32 @@ export default function App() {
             bookingSuccess={bookingSuccess}
             onClose={handleCloseModal}
             onStartBooking={() => setIsBooking(true)}
-            onBookingSuccess={() => {
-              setBookingSuccess(true);
-              refresh();
-            }}
+            onAddToCart={handleAddToCart}
             initialCheckIn={filters.checkIn}
             initialCheckOut={filters.checkOut}
+          />
+        )}
+      </AnimatePresence>
+
+      <CartDrawer 
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        cart={cart}
+        onRemoveItem={handleRemoveFromCart}
+        onClearCart={() => setCart([])}
+        user={user}
+        onOpenAuth={() => setIsCartAuthOpen(true)}
+        onSuccess={() => {
+          setIsCartOpen(false);
+          refresh();
+        }}
+      />
+
+      <AnimatePresence>
+        {isCartAuthOpen && (
+          <UserAuth 
+            onClose={() => setIsCartAuthOpen(false)}
+            onSuccess={() => setIsCartAuthOpen(false)}
           />
         )}
       </AnimatePresence>
@@ -598,7 +740,7 @@ const HotelDetailModal = ({ hotel, onClose, onViewStays }: any) => (
   </div>
 );
 
-const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, onStartBooking, onBookingSuccess, initialCheckIn, initialCheckOut }: any) => {
+const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, onStartBooking, onAddToCart, initialCheckIn, initialCheckOut }: any) => {
   const isFormState = isBooking && !bookingSuccess;
 
   return (
@@ -616,7 +758,7 @@ const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, on
           <BookingForm 
             accommodation={item} 
             onCancel={onClose} 
-            onSuccess={onBookingSuccess}
+            onAddToCart={onAddToCart}
             initialCheckIn={initialCheckIn}
             initialCheckOut={initialCheckOut}
           />

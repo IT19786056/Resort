@@ -26,7 +26,8 @@ export const RoomsList = () => {
     description: '',
     imageUrl: '',
     amenities: [],
-    isAvailable: true
+    isAvailable: true,
+    quantity: 1
   });
 
   const fetchData = async () => {
@@ -123,7 +124,7 @@ export const RoomsList = () => {
                 </div>
                 <div className="absolute bottom-6 right-6 flex gap-2">
                   <button 
-                    onClick={() => { setEditingRoom(room); setFormData(room); setIsModalOpen(true); }}
+                    onClick={() => { setEditingRoom(room); setFormData({ ...room, quantity: room.quantity || 1 }); setIsModalOpen(true); }}
                     className="p-3 bg-white/90 backdrop-blur-md text-natural-primary rounded-full hover:bg-natural-primary hover:text-white transition-all shadow-lg"
                   >
                     <Edit2 className="w-4 h-4" />
@@ -150,7 +151,7 @@ export const RoomsList = () => {
                     <MapPin className="w-3 h-3" /> {hotel?.name || 'Unknown Portfolio'}
                   </div>
                   <div className="flex items-center gap-2 text-[10px] font-bold text-natural-muted uppercase tracking-widest">
-                    <Tag className="w-3 h-3" /> {room.type} • Up to {room.maxGuests} Guests
+                    <Tag className="w-3 h-3" /> {room.type} • Up to {room.maxGuests} Guests • {room.quantity || 1} units
                   </div>
                 </div>
 
@@ -205,7 +206,7 @@ export const RoomsList = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 <div>
                   <SectionLabel label="Category" />
                   <select 
@@ -234,6 +235,16 @@ export const RoomsList = () => {
                     type="number"
                     value={formData.maxGuests}
                     onChange={e => setFormData({...formData, maxGuests: Number(e.target.value)})}
+                  />
+                </div>
+                <div>
+                  <SectionLabel label="Inventory Quantity" />
+                  <Input 
+                    required
+                    type="number"
+                    min={1}
+                    value={formData.quantity || 1}
+                    onChange={e => setFormData({...formData, quantity: Number(e.target.value)})}
                   />
                 </div>
               </div>

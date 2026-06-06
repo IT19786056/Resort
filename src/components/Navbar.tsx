@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, X, Menu, User as UserIcon, LogOut, Briefcase, Shield } from 'lucide-react';
+import { Search, X, Menu, User as UserIcon, LogOut, Briefcase, Shield, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
 import { UserAuth } from './UserAuth';
@@ -8,9 +8,11 @@ import { User } from '@supabase/supabase-js';
 interface NavbarProps {
   activeTab: 'home' | 'accommodation' | 'weddings-events' | 'about' | 'contact' | 'my-bookings' | 'staff';
   onTabChange: (tab: 'home' | 'accommodation' | 'weddings-events' | 'about' | 'contact' | 'my-bookings' | 'staff') => void;
+  cartCount: number;
+  onOpenCart: () => void;
 }
 
-export const Navbar = ({ activeTab, onTabChange }: NavbarProps) => {
+export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: NavbarProps) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -88,6 +90,20 @@ export const Navbar = ({ activeTab, onTabChange }: NavbarProps) => {
             
             <div className="h-4 w-[1px] bg-natural-accent" />
 
+            {/* Cart Button */}
+            <button 
+              onClick={onOpenCart} 
+              className="relative p-2.5 bg-white border border-natural-accent rounded-full text-natural-dark hover:bg-natural-bg/50 hover:text-natural-primary transition-all shadow-sm flex items-center justify-center mr-2"
+              aria-label="Open your booking cart"
+            >
+              <ShoppingCart className="w-4 h-4 text-natural-dark hover:text-natural-primary" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-natural-primary text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+
             {user ? (
               <div className="relative">
                 <button 
@@ -147,10 +163,24 @@ export const Navbar = ({ activeTab, onTabChange }: NavbarProps) => {
             )}
           </div>
 
-          {/* Mobile Toggle */}
-          <button className="md:hidden p-2 rounded-full hover:bg-black/5" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
-            {isMobileMenuOpen ? <X className="text-natural-dark" /> : <Menu className="text-natural-dark" />}
-          </button>
+          {/* Mobile Cart & Toggle */}
+          <div className="flex md:hidden items-center gap-2">
+            <button 
+              onClick={onOpenCart} 
+              className="relative p-2 bg-white border border-natural-accent rounded-full text-natural-dark hover:bg-natural-bg/50 transition-all shadow-sm flex items-center justify-center"
+              aria-label="Open mobile cart"
+            >
+              <ShoppingCart className="w-4 h-4 text-natural-dark" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-natural-primary text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+            <button className="p-2 rounded-full hover:bg-black/5" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+              {isMobileMenuOpen ? <X className="text-natural-dark" /> : <Menu className="text-natural-dark" />}
+            </button>
+          </div>
         </div>
 
         {/* Mobile Menu */}

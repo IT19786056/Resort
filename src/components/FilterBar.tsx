@@ -6,12 +6,14 @@ interface FilterBarProps {
   onFilterChange: (f: Partial<FilterState>) => void;
   currentFilter: FilterState;
   hotels: Hotel[];
+  onSearch?: () => void;
 }
 
 export const FilterBar = ({ 
   onFilterChange, 
   currentFilter,
-  hotels 
+  hotels,
+  onSearch
 }: FilterBarProps) => {
   const getMinCheckInDate = () => {
     const now = new Date();
@@ -109,6 +111,7 @@ export const FilterBar = ({
           
           <button 
             onClick={() => {
+              if (onSearch) onSearch();
               const section = document.getElementById('stays-list');
               if (section) section.scrollIntoView({ behavior: 'smooth' });
             }}

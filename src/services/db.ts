@@ -127,6 +127,10 @@ export const dbService = {
     return apiFetch<void>(`/api/rooms/${id}`, { method: 'DELETE' });
   },
 
+  async getRoomAvailability(id: string, checkIn: string, checkOut: string) {
+    return apiFetch<{ remainingQuantity: number }>(`/api/rooms/${id}/availability?checkIn=${encodeURIComponent(checkIn)}&checkOut=${encodeURIComponent(checkOut)}`);
+  },
+
   // Bookings
   async getBookings(limit?: number, offset?: number) {
     let url = '/api/bookings';

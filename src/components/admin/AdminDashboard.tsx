@@ -14,8 +14,11 @@ import {
   XCircle,
   MapPin,
   LogOut,
-  Menu
+  Menu,
+  Camera,
+  Upload
 } from 'lucide-react';
+import { compressImage, fileToBase64 } from '../../lib/imageUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar } from './Sidebar';
 import { UsersList } from './UsersList';
@@ -237,6 +240,7 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
         {showHotelForm && (
           <HotelForm 
             hotel={editingHotel} 
+            rooms={rooms}
             onClose={() => setShowHotelForm(false)} 
             onSuccess={(msg: string) => { 
                 showToast(msg || 'Hotel updated successfully');
@@ -482,7 +486,10 @@ const AdminRoomsList = ({ rooms, setRooms, hotels, onEdit, onDelete, onUpdate, o
             </tr>
           </thead>
           <tbody className="divide-y divide-natural-accent">
-            {rooms.map((room: Accommodation) => (
+            {rooms.filter((room: Accommodation) => {
+              const matchingHotel = hotels?.find((h: any) => h.id === room.hotelId);
+              return !matchingHotel || matchingHotel.type === 'Hotel' || matchingHotel.type === undefined;
+            }).map((room: Accommodation) => (
               <tr key={room.id} className="hover:bg-natural-bg/30">
                 <td className="px-8 py-6">
                   <div className="flex items-center gap-4">
@@ -511,20 +518,50 @@ const AdminRoomsList = ({ rooms, setRooms, hotels, onEdit, onDelete, onUpdate, o
   );
 };
 
-const HotelForm = ({ hotel, onClose, onSuccess, onError, onProcessing }: any) => {
+const HotelForm = ({ hotel, rooms = [], onClose, onSuccess, onError, onProcessing }: any) => {
   const [tempId] = useState(() => generateUUID());
   const isSavedRef = useRef(false);
 
+  // Find linked room details if this is editing an existing Villa or Bungalow
+  const linkedRoom = hotel ? rooms.find((r: any) => r.hotelId === hotel.id) : null;
+  
+  // Extract number of bedrooms from amenities if previously saved, e.g. "3 Bedrooms"
+  const getInitialBedrooms = () => {
+    if (!linkedRoom || !linkedRoom.amenities) return 1;
+    const bedroomsAsset = linkedRoom.amenities.find((a: string) => a.toLowerCase().includes('bedroom'));
+    if (bedroomsAsset) {
+      const match = bedroomsAsset.match(/\d+/);
+      return match ? parseInt(match[0]) : 1;
+    }
+    return 1;
+  };
+
+  // Filter out the bedrooms tag from other amenities to avoid duplicating it
+  const getInitialAmenities = () => {
+    if (!linkedRoom || !linkedRoom.amenities) return '';
+    return linkedRoom.amenities
+      .filter((a: string) => !a.toLowerCase().includes('bedroom'))
+      .join(', ');
+  };
+
   const [formData, setFormData] = useState({
     name: hotel?.name || '',
+    type: hotel?.type || 'Hotel',
     location: hotel?.location || '',
     description: hotel?.description || '',
     imageUrl: hotel?.imageUrl || '',
     hasBanquetHall: hotel?.hasBanquetHall || false,
     email: hotel?.email || '',
-    phone: hotel?.phone || ''
+    phone: hotel?.phone || '',
+    // Villa & Bungalow specific fields:
+    price: linkedRoom?.price || 0,
+    maxGuests: linkedRoom?.maxGuests || 2,
+    bedroomsCount: getInitialBedrooms(),
+    amenities: getInitialAmenities()
   });
+
   const [isSaving, setIsSaving] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -535,60 +572,234 @@ const HotelForm = ({ hotel, onClose, onSuccess, onError, onProcessing }: any) =>
     };
   }, [tempId, hotel]);
 
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingCover(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const compressed = await compressImage(base64);
+      setFormData(prev => ({ ...prev, imageUrl: compressed }));
+    } catch (err: any) {
+      console.error(err);
+      alert('Failed to process image: ' + err.message);
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    onProcessing?.(hotel ? 'Updating hotel...' : 'Adding hotel...');
+    onProcessing?.(hotel ? 'Updating stay profile...' : 'Adding new stay...');
     try {
+      const hotelPayload = {
+        name: formData.name,
+        location: formData.location,
+        description: formData.description,
+        imageUrl: formData.imageUrl,
+        hasBanquetHall: formData.hasBanquetHall,
+        email: formData.email,
+        phone: formData.phone,
+        type: formData.type
+      };
+
+      let stayId = hotel?.id;
+
       if (hotel) {
-        await dbService.updateHotel(hotel.id, formData);
+        await dbService.updateHotel(hotel.id, hotelPayload);
       } else {
-        const newId = await dbService.addHotel(formData);
+        stayId = await dbService.addHotel(hotelPayload);
         isSavedRef.current = true;
-        await dbService.reparentMedia(tempId, newId);
+        await dbService.reparentMedia(tempId, stayId);
       }
-      onSuccess(hotel ? 'Hotel details saved' : 'New hotel added');
+
+      // If it's a Villa or Bungalow, synchronize the corresponding bookable Room entity
+      if (formData.type === 'Villa' || formData.type === 'Bungalow') {
+        const associatedRoom = rooms.find((r: any) => r.hotelId === stayId);
+        
+        // Build beautiful amenities list including the Bedroom count and standard assets
+        const customAmenities: string[] = [];
+        customAmenities.push(`${formData.bedroomsCount} Bedroom${formData.bedroomsCount > 1 ? 's' : ''}`);
+        
+        if (formData.amenities) {
+          formData.amenities.split(',').forEach((a: string) => {
+            const trimmed = a.trim();
+            if (trimmed) customAmenities.push(trimmed);
+          });
+        }
+
+        const roomPayload = {
+          hotelId: stayId!,
+          name: formData.name,
+          type: formData.type as any, // 'Villa' or 'Bungalow' or 'Suite' or 'Room'
+          price: Number(formData.price),
+          maxGuests: Number(formData.maxGuests),
+          description: formData.description,
+          imageUrl: formData.imageUrl,
+          amenities: customAmenities,
+          rating: 5,
+          isAvailable: associatedRoom ? associatedRoom.isAvailable : true,
+          quantity: 1, // Single-booking unit
+          location: formData.location
+        };
+
+        if (associatedRoom) {
+          await dbService.updateRoom(associatedRoom.id, roomPayload);
+        } else {
+          await dbService.addRoom(roomPayload);
+        }
+      }
+
+      onSuccess(hotel ? 'Stay profile updated' : 'New stay profile registered');
     } catch (err: any) {
-      onError?.(err.message || 'Failed to save hotel');
+      onError?.(err.message || 'Failed to save stay profile');
     } finally {
       setIsSaving(false);
     }
   };
+
   return (
-    <Modal onClose={onClose} title={hotel ? 'Edit Hotel' : 'Add Hotel'}>
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <Input label="Name" value={formData.name} onChange={(v:any) => setFormData({...formData, name: v})} required />
-        <Input label="Location" value={formData.location} onChange={(v:any) => setFormData({...formData, location: v})} required />
-        <div className="grid grid-cols-2 gap-4">
+    <Modal onClose={onClose} title={hotel ? 'Edit Stay' : 'Add New Stay'}>
+      <form onSubmit={handleSubmit} className="space-y-6 select-none bg-natural-cream">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Input 
+            label="Property Name" 
+            value={formData.name} 
+            onChange={(v:any) => setFormData({...formData, name: v})} 
+            required 
+            placeholder="e.g. Whispering Palms"
+          />
+          <div className="space-y-2">
+            <SectionLabel label="Property Type" />
+            <select 
+              className="w-full bg-white border border-natural-accent rounded-full p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark text-xs appearance-none" 
+              value={formData.type} 
+              onChange={e => setFormData({...formData, type: e.target.value as any})}
+            >
+              <option value="Hotel">Hotel</option>
+              <option value="Villa">Villa (Whole Property Booking)</option>
+              <option value="Bungalow">Bungalow (Whole Property Booking)</option>
+            </select>
+          </div>
+        </div>
+
+        <Input 
+          label="Location" 
+          value={formData.location} 
+          onChange={(v:any) => setFormData({...formData, location: v})} 
+          required 
+          placeholder="e.g. Ambalangoda, Sri Lanka"
+        />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Input label="Contact Email" type="email" value={formData.email} onChange={(v:any) => setFormData({...formData, email: v})} />
           <Input label="Contact Phone" value={formData.phone} onChange={(v:any) => setFormData({...formData, phone: v})} />
         </div>
-        
-        <div className="flex items-center gap-3 p-4 bg-natural-bg rounded-2xl">
+
+        {/* Villa & Bungalow Specific Configuration */}
+        {(formData.type === 'Villa' || formData.type === 'Bungalow') && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="border-2 border-dashed border-natural-accent bg-natural-bg/40 p-6 rounded-[24px] space-y-6"
+          >
+            <h4 className="text-[10px] uppercase font-bold tracking-widest text-natural-primary font-mono select-none">
+              {formData.type} Asset Configuration
+            </h4>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Input 
+                label="Price per Night (USD)" 
+                type="number" 
+                value={formData.price} 
+                onChange={(v:any) => setFormData({...formData, price: v})} 
+                required 
+              />
+              <Input 
+                label="Number of Bedrooms" 
+                type="number" 
+                value={formData.bedroomsCount} 
+                onChange={(v:any) => setFormData({...formData, bedroomsCount: v})} 
+                required 
+              />
+              <Input 
+                label="Max Guest Capacity" 
+                type="number" 
+                value={formData.maxGuests} 
+                onChange={(v:any) => setFormData({...formData, maxGuests: v})} 
+                required 
+              />
+            </div>
+
+            <div className="space-y-2">
+              <SectionLabel label="Included Assets & Amenities (Comma separated)" />
+              <input 
+                className="w-full bg-white border border-natural-accent rounded-full p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark text-xs" 
+                value={formData.amenities} 
+                onChange={e => setFormData({...formData, amenities: e.target.value})}
+                placeholder="e.g. Private Pool, Ocean View, Butler Service, High Speed Wi-Fi"
+              />
+            </div>
+          </motion.div>
+        )}
+
+        <div className="flex items-center gap-3 p-4 bg-natural-bg rounded-2xl border border-natural-accent">
           <input 
             type="checkbox" 
             id="hasBanquetHall"
             checked={formData.hasBanquetHall} 
             onChange={e => setFormData({...formData, hasBanquetHall: e.target.checked})}
-            className="w-5 h-5 accent-natural-primary"
+            className="w-5 h-5 accent-natural-primary cursor-pointer"
           />
-          <label htmlFor="hasBanquetHall" className="text-sm font-medium text-natural-dark">Includes Banquet Hall (for Weddings & Events)</label>
+          <label htmlFor="hasBanquetHall" className="text-sm font-semibold text-natural-dark cursor-pointer">Includes Banquet Hall (for weddings & events)</label>
         </div>
 
+        {/* Cover Photo Upload Area */}
+        <div className="space-y-2 pt-4 border-t border-natural-accent">
+          <SectionLabel label="Cover Photo" />
+          {formData.imageUrl ? (
+            <div className="relative rounded-2xl overflow-hidden border border-natural-accent aspect-video bg-natural-bg">
+              <img src={formData.imageUrl} className="w-full h-full object-cover" />
+              <button 
+                type="button" 
+                onClick={() => setFormData({...formData, imageUrl: ''})}
+                className="absolute top-4 right-4 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 shadow transition-all flex items-center justify-center"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <label className={`border-2 border-dashed border-natural-accent rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-natural-primary hover:bg-natural-bg transition-all ${uploadingCover ? 'opacity-50 pointer-events-none' : ''}`}>
+              <Camera className="w-8 h-8 text-natural-muted mb-2 animate-pulse" />
+              <span className="text-xs font-bold text-natural-dark uppercase tracking-widest font-mono">Upload Main Image</span>
+              <span className="text-[10px] text-natural-muted mt-1 select-none">PNG, JPG files up to 5MB</span>
+              <input type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
+            </label>
+          )}
+        </div>
+
+        {/* Image Gallery Upload (Multiple pictures) */}
         <div className="pt-6 border-t border-natural-accent">
           <ImageGalleryUpload parentId={hotel ? hotel.id : tempId} parentType="hotel" />
         </div>
 
-        <div className="pt-6 border-t border-natural-accent space-y-4">
-          <SectionLabel label="Hotel Description" />
+        <div className="pt-6 border-t border-natural-accent space-y-2">
+          <SectionLabel label="Stay Description" />
           <textarea 
-            className="w-full bg-white border border-natural-accent rounded-2xl p-4 min-h-[120px] outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark placeholder:text-natural-muted/60" 
+            className="w-full bg-white border border-natural-accent rounded-3xl p-4 min-h-[120px] outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark placeholder:text-natural-muted/60 text-xs" 
             value={formData.description} 
             onChange={e => setFormData({...formData, description: e.target.value})} 
-            placeholder="Tell us about this sanctuary..." 
+            placeholder="Introduce this sanctuary's unique narrative and atmosphere..." 
           />
         </div>
-        <button type="submit" className="w-full bg-natural-primary text-white py-5 rounded-full font-bold uppercase tracking-[0.2em] text-[11px] shadow-xl hover:bg-natural-dark transition-all active:scale-[0.98]">Save Hotel Details</button>
+        <button 
+          disabled={isSaving || uploadingCover}
+          type="submit" 
+          className="w-full bg-natural-primary text-white py-5 rounded-full font-bold uppercase tracking-[0.2em] text-[11px] shadow-xl hover:bg-natural-dark transition-all disabled:opacity-50"
+        >
+          {isSaving ? 'Processing Sanctuary...' : hotel ? 'Save Stay Profile' : 'Publish Stay Profile'}
+        </button>
       </form>
     </Modal>
   );
@@ -599,7 +810,7 @@ const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: a
   const isSavedRef = useRef(false);
 
   const [formData, setFormData] = useState({
-    hotelId: room?.hotelId || hotels[0]?.id || '',
+    hotelId: room?.hotelId || hotels.filter((h: any) => h.type === 'Hotel' || h.type === undefined)[0]?.id || '',
     name: room?.name || '',
     type: room?.type || 'Room',
     price: room?.price || 0,
@@ -655,7 +866,7 @@ const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: a
             value={formData.hotelId} 
             onChange={e => setFormData({...formData, hotelId: e.target.value})}
           >
-            {hotels.map((h: Hotel) => <option key={h.id} value={h.id}>{h.name}</option>)}
+            {hotels.filter((h: any) => h.type === 'Hotel' || h.type === undefined).map((h: Hotel) => <option key={h.id} value={h.id}>{h.name}</option>)}
           </select>
         </div>
         
