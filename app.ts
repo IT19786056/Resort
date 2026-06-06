@@ -495,9 +495,22 @@ app.post('/api/admins/:uid', async (req, res) => {
   try {
     const { uid } = req.params;
     const { email, role, displayName } = req.body;
+    
+    // Check if an admin with the same email already exists
+    const existing = await query('SELECT * FROM admins WHERE LOWER(email) = LOWER($1)', [email]);
+    if (existing.rows.length > 0) {
+      // Update existing record by email with the new id and options
+      const result = await query(
+        'UPDATE admins SET id = $1, role = $2, "displayName" = $3 WHERE LOWER(email) = LOWER($4) RETURNING *',
+        [uid, role || 'admin', displayName, email]
+      );
+      return res.json(result.rows[0]);
+    }
+
+    // Otherwise, perform safe ON CONFLICT (id) upsert
     const result = await query(
       'INSERT INTO admins (id, email, role, "displayName") VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, role = EXCLUDED.role, "displayName" = EXCLUDED."displayName" RETURNING *',
-      [uid, email, role, displayName]
+      [uid, email, role || 'admin', displayName]
     );
     res.json(result.rows[0]);
   } catch (err: any) {
