@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, MapPin, Calendar } from 'lucide-react';
+import { Search, MapPin, Calendar, RotateCcw } from 'lucide-react';
 import { FilterState, Hotel } from '../types';
 
 interface FilterBarProps {
@@ -7,13 +7,15 @@ interface FilterBarProps {
   currentFilter: FilterState;
   hotels: Hotel[];
   onSearch?: () => void;
+  onReset?: () => void;
 }
 
 export const FilterBar = ({ 
   onFilterChange, 
   currentFilter,
   hotels,
-  onSearch
+  onSearch,
+  onReset
 }: FilterBarProps) => {
   const getMinCheckInDate = () => {
     const now = new Date();
@@ -109,16 +111,30 @@ export const FilterBar = ({
             </div>
           </div>
           
-          <button 
-            onClick={() => {
-              if (onSearch) onSearch();
-              const section = document.getElementById('stays-list');
-              if (section) section.scrollIntoView({ behavior: 'smooth' });
-            }}
-            className="w-16 h-16 bg-natural-primary rounded-full flex items-center justify-center text-white shadow-xl shrink-0 hover:bg-natural-dark transition-all active:scale-95 group"
-          >
-            <Search className="w-6 h-6 group-hover:scale-110 transition-transform" />
-          </button>
+          <div className="flex items-center gap-3 pr-2 select-none">
+            {(currentFilter.location !== 'All' || currentFilter.type !== 'All' || currentFilter.checkIn !== '' || currentFilter.checkOut !== '') && (
+              <button 
+                type="button"
+                onClick={() => {
+                  if (onReset) onReset();
+                }}
+                className="h-12 px-6 bg-natural-accent/50 hover:bg-natural-accent rounded-full text-natural-primary font-bold text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 border border-natural-accent"
+              >
+                <RotateCcw className="w-3.5 h-3.5 animate-pulse" />
+                Reset
+              </button>
+            )}
+            <button 
+              onClick={() => {
+                if (onSearch) onSearch();
+                const section = document.getElementById('stays-list');
+                if (section) section.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="w-16 h-16 bg-natural-primary rounded-full flex items-center justify-center text-white shadow-xl shrink-0 hover:bg-natural-dark transition-all active:scale-95 group"
+            >
+              <Search className="w-6 h-6 group-hover:scale-110 transition-transform" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

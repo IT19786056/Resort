@@ -17,6 +17,7 @@ export const useAccommodations = () => {
     location: 'All',
     checkIn: '',
     checkOut: '',
+    hotelId: 'All',
   });
 
   const fetchData = async (isRefresh = false) => {
@@ -60,12 +61,14 @@ export const useAccommodations = () => {
       const matchesType = filters.type === 'All' || item.type === filters.type;
       const matchesPrice = item.price >= filters.priceRange[0] && item.price <= filters.priceRange[1];
       const matchesRating = item.rating >= filters.minRating;
-      const matchesLocation = filters.location === 'All' || item.location === filters.location;
+      const itemLocation = item.location || hotels.find(h => h.id === item.hotelId)?.location || '';
+      const matchesLocation = filters.location === 'All' || itemLocation.toLowerCase() === filters.location.toLowerCase();
+      const matchesHotel = !filters.hotelId || filters.hotelId === 'All' || item.hotelId === filters.hotelId;
       
       // Basic check: if checkIn/checkOut is set, find if there are conflicting reservations
       const matchesAvailability = true; // For now simplified, could check against 'bookings'
       
-      return matchesType && matchesPrice && matchesRating && matchesLocation && matchesAvailability;
+      return matchesType && matchesPrice && matchesRating && matchesLocation && matchesHotel && matchesAvailability;
     });
   }, [accommodations, filters]);
 

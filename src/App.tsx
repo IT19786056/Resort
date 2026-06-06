@@ -297,10 +297,30 @@ export default function App() {
                   <main id="stays" className="flex-1 scroll-mt-28 md:scroll-mt-32">
                     <FilterBar 
                       onFilterChange={(f) => {
-                        setFilters(prev => ({...prev, ...f}));
-                        setIsSearched(true);
+                        setFilters(prev => {
+                          const next = { ...prev, ...f };
+                          const isDefaultState = next.location === 'All' && next.type === 'All' && !next.checkIn && !next.checkOut;
+                          if (isDefaultState) {
+                            setIsSearched(false);
+                          } else {
+                            setIsSearched(true);
+                          }
+                          return next;
+                        });
                       }} 
                       onSearch={() => setIsSearched(true)}
+                      onReset={() => {
+                        setFilters({ 
+                          type: 'All', 
+                          priceRange: [0, 5000], 
+                          minRating: 0, 
+                          location: 'All', 
+                          checkIn: '', 
+                          checkOut: '', 
+                          hotelId: 'All' 
+                        });
+                        setIsSearched(false);
+                      }}
                       currentFilter={filters} 
                       hotels={hotels} 
                     />
