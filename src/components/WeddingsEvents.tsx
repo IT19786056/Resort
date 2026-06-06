@@ -62,27 +62,27 @@ export const WeddingsEvents = ({ venues, onSelectVenue }: WeddingsEventsProps) =
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
               {venues.map((venue, i) => (
-                <motion.div
+                 <motion.div
                   key={venue.id}
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.1 }}
-                  className="bg-natural-cream rounded-[48px] overflow-hidden border border-natural-accent hover:shadow-2xl transition-all group"
+                  className="bg-natural-cream rounded-[24px] overflow-hidden border border-natural-accent shadow-md hover:shadow-2xl transition-all duration-500 flex flex-col group"
                 >
-                  <div className="h-64 relative overflow-hidden">
+                  <div className="w-full aspect-[16/10] relative overflow-hidden">
                     <img src={venue.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                     <div className="absolute top-6 left-6 bg-natural-cream/80 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2">
                        <Users className="w-3 h-3 text-natural-primary" />
                        <span className="text-[9px] font-bold uppercase tracking-widest text-natural-dark">Up to 500 Guests</span>
                     </div>
                   </div>
-                  <div className="p-10 space-y-6">
+                  <div className="p-8 space-y-6 flex-1 flex flex-col justify-between">
                     <div>
                       <div className="flex items-center gap-2 text-natural-primary mb-2">
                         <MapPin className="w-3 h-3" />
                         <span className="text-[10px] font-bold uppercase tracking-widest">{venue.location}</span>
                       </div>
-                      <h3 className="font-serif text-2xl italic text-natural-dark">{venue.name}</h3>
+                      <h3 className="font-serif text-[clamp(1.25rem,1.5vw+0.75rem,1.875rem)] italic text-natural-dark">{venue.name}</h3>
                     </div>
                     <p className="text-xs text-natural-muted leading-relaxed line-clamp-3 font-light">
                       {venue.description || "Sophisticated space designed for grand celebrations and intimate gatherings alike."}

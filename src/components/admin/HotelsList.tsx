@@ -90,9 +90,9 @@ export const HotelsList = () => {
           <motion.div 
             layout
             key={hotel.id}
-            className="bg-white rounded-[40px] overflow-hidden border border-natural-accent shadow-sm group hover:shadow-2xl transition-all"
+            className="bg-white rounded-[24px] overflow-hidden border border-natural-accent shadow-md group hover:shadow-2xl transition-all duration-500"
           >
-            <div className="h-64 bg-natural-bg relative overflow-hidden">
+            <div className="w-full aspect-[16/10] bg-natural-bg relative overflow-hidden">
               <img src={hotel.imageUrl} alt={hotel.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" />
               <div className="absolute top-6 right-6 flex gap-2">
                 <button 
@@ -109,7 +109,7 @@ export const HotelsList = () => {
                 </button>
               </div>
             </div>
-            <div className="p-10">
+            <div className="p-8">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-natural-primary" />
@@ -119,7 +119,7 @@ export const HotelsList = () => {
                   {hotel.type || 'Hotel'}
                 </span>
               </div>
-              <h3 className="font-serif text-3xl text-natural-dark mb-4 italic group-hover:text-natural-primary transition-colors">{hotel.name}</h3>
+              <h3 className="font-serif text-[clamp(1.25rem,1.5vw+0.75rem,1.875rem)] text-natural-dark mb-4 italic group-hover:text-natural-primary transition-colors">{hotel.name}</h3>
               <p className="text-sm text-natural-muted leading-relaxed font-light line-clamp-2 italic">{hotel.description}</p>
             </div>
           </motion.div>

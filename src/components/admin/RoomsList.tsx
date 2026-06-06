@@ -111,9 +111,9 @@ export const RoomsList = () => {
             <motion.div 
               layout
               key={room.id}
-              className="bg-white rounded-[40px] overflow-hidden border border-natural-accent shadow-sm group hover:shadow-2xl transition-all flex flex-col"
+              className="bg-white rounded-[24px] overflow-hidden border border-natural-accent shadow-md group hover:shadow-2xl transition-all duration-500 flex flex-col"
             >
-              <div className="h-56 bg-natural-bg relative overflow-hidden">
+              <div className="w-full aspect-[16/10] bg-natural-bg relative overflow-hidden">
                 <img src={room.imageUrl} alt={room.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" />
                 <div className="absolute top-6 left-6">
                   <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-md border ${
@@ -139,7 +139,7 @@ export const RoomsList = () => {
               </div>
               <div className="p-8 flex flex-col flex-1">
                 <div className="flex justify-between items-start mb-4">
-                  <h3 className="font-serif text-2xl text-natural-dark italic">{room.name}</h3>
+                  <h3 className="font-serif text-[clamp(1.25rem,1.5vw+0.75rem,1.875rem)] text-natural-dark italic">{room.name}</h3>
                   <div className="flex items-center gap-1 text-natural-primary">
                     <Star className="w-3 h-3 fill-current" />
                     <span className="text-xs font-bold">{room.rating}</span>
@@ -155,7 +155,7 @@ export const RoomsList = () => {
                   </div>
                 </div>
 
-                <div className="mt-auto flex items-center justify-between pt-6 border-t border-natural-bg">
+                <div className="mt-auto flex items-center justify-between pt-8 border-t border-natural-bg">
                   <div>
                     <span className="text-2xl font-bold font-serif italic text-natural-dark">${room.price}</span>
                     <span className="text-[10px] font-bold text-natural-muted ml-2 tracking-widest uppercase">/ night</span>

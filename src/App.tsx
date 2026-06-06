@@ -672,9 +672,9 @@ const AccommodationCard = ({ item, index, onClick, onBook, disabled }: any) => (
     viewport={{ once: true }}
     transition={{ duration: 0.6, delay: index * 0.1 }}
     onClick={disabled ? undefined : onClick}
-    className={`bg-natural-cream rounded-[32px] md:rounded-[40px] overflow-hidden flex flex-col shadow-sm border border-natural-accent group hover:shadow-2xl transition-all cursor-pointer ${disabled ? 'opacity-70 grayscale-[0.5]' : ''}`}
+    className={`bg-natural-cream rounded-[24px] overflow-hidden flex flex-col shadow-md border border-natural-accent group hover:shadow-2xl transition-all duration-500 cursor-pointer ${disabled ? 'opacity-70 grayscale-[0.5]' : ''}`}
   >
-    <div className="h-56 md:h-72 bg-natural-accent overflow-hidden relative">
+    <div className="w-full aspect-[16/10] bg-natural-accent overflow-hidden relative">
       <img 
         src={item.imageUrl} 
         alt={item.name} 
@@ -690,9 +690,9 @@ const AccommodationCard = ({ item, index, onClick, onBook, disabled }: any) => (
         </div>
       )}
     </div>
-    <div className="p-6 md:p-10 flex flex-col flex-1">
+    <div className="p-8 flex flex-col flex-1">
       <div className="flex justify-between items-start mb-4 md:mb-6">
-        <h3 className="font-serif text-2xl md:text-3xl text-natural-dark italic group-hover:text-natural-primary transition-colors">{item.name}</h3>
+        <h3 className="font-serif text-[clamp(1.25rem,1.5vw+0.75rem,1.875rem)] text-natural-dark italic group-hover:text-natural-primary transition-colors">{item.name}</h3>
         <span className="flex items-center text-[10px] md:text-xs font-bold text-natural-primary bg-natural-primary/5 px-2 md:px-3 py-1 rounded-full">
           <Star className="w-3 h-3 mr-1 md:mr-1.5 fill-current" /> {item.rating}
         </span>
@@ -700,7 +700,7 @@ const AccommodationCard = ({ item, index, onClick, onBook, disabled }: any) => (
       <p className="text-xs md:text-sm text-natural-muted leading-relaxed mb-6 md:mb-8 flex-1 italic font-light">
         {item.description}
       </p>
-      <div className="mt-auto flex items-center justify-between pt-6 md:pt-8 border-t border-natural-bg">
+      <div className="mt-auto flex items-center justify-between pt-8 border-t border-natural-bg">
         <div className="flex items-baseline">
           <span className="text-2xl md:text-3xl font-bold text-natural-dark">${item.price}</span>
           <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-natural-muted ml-2 md:ml-3">/ night</span>
@@ -725,27 +725,27 @@ const HotelCard = ({ hotel, index, onClick }: any) => (
     viewport={{ once: true }}
     transition={{ delay: index * 0.1, duration: 0.8 }}
     onClick={onClick}
-    className="group cursor-pointer mb-12 lg:mb-0"
+    className="group bg-white rounded-[24px] overflow-hidden flex flex-col shadow-md border border-natural-accent hover:shadow-2xl transition-all duration-500 cursor-pointer"
   >
-    <div className="h-[400px] md:h-[600px] rounded-[32px] md:rounded-[60px] overflow-hidden mb-6 md:mb-10 relative bg-natural-accent shadow-2xl">
+    <div className="w-full aspect-[16/10] bg-natural-accent overflow-hidden relative">
       <img 
         src={hotel.imageUrl} 
         className="w-full h-full object-cover group-hover:scale-110 transition-all duration-[2000ms]" 
         alt={hotel.name}
         referrerPolicy="no-referrer"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-natural-dark/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700 flex items-end p-8 md:p-12">
+      <div className="absolute inset-0 bg-gradient-to-t from-natural-dark/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700 flex items-end p-8">
         <p className="text-white text-xs md:text-sm font-light italic max-w-sm">
           {hotel.description}
         </p>
       </div>
     </div>
-    <div className="px-4 md:px-6">
-      <div className="flex items-center gap-3 mb-2 md:mb-4">
-        <MapPin className="w-3 h-3 md:w-4 md:h-4 text-natural-primary" />
-        <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-[0.4em] text-natural-muted">{hotel.location}</span>
+    <div className="p-8 flex-1 flex flex-col">
+      <div className="flex items-center gap-3 mb-4">
+        <MapPin className="w-3 md:w-4 h-3 md:h-4 text-natural-primary" />
+        <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-muted">{hotel.location}</span>
       </div>
-      <h3 className="font-serif text-3xl md:text-5xl text-natural-dark group-hover:italic transition-all duration-500 tracking-tighter">{hotel.name}</h3>
+      <h3 className="font-serif text-[clamp(1.25rem,1.5vw+0.75rem,1.875rem)] text-natural-dark group-hover:italic transition-all duration-500 tracking-tighter">{hotel.name}</h3>
     </div>
   </motion.div>
 );
