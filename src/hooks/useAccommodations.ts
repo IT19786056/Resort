@@ -25,8 +25,8 @@ export const useAccommodations = () => {
 
     try {
       const [h, r] = await Promise.all([
-        dbService.getHotels(),
-        dbService.getRooms()
+        dbService.getHotels(isRefresh),
+        dbService.getRooms(undefined, isRefresh)
       ]);
       setHotels(h || []);
       setAccommodations(r || []);

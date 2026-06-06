@@ -503,16 +503,23 @@ app.delete('/api/admins/:id', async (req, res) => {
 
 // In-Memory Cache for public data to enable sub-millisecond tab switching and page load
 let cachedHotels: any[] | null = null;
+let cachedHotelsTime = 0;
 let cachedRooms: any[] | null = null;
+let cachedRoomsTime = 0;
+const CACHE_TTL = 5000; // 5-second transient cache for fast UI tab switching without locking actual DB updates
 
 const clearCache = () => {
   cachedHotels = null;
   cachedRooms = null;
+  cachedHotelsTime = 0;
+  cachedRoomsTime = 0;
 };
 
 // Hotels
 app.get('/api/hotels', async (req, res) => {
-  if (cachedHotels) {
+  const forceRefresh = req.query.refresh === 'true';
+  const now = Date.now();
+  if (cachedHotels && !forceRefresh && (now - cachedHotelsTime < CACHE_TTL)) {
     return res.json(cachedHotels);
   }
   try {
@@ -539,6 +546,7 @@ app.get('/api/hotels', async (req, res) => {
       }
     }
     cachedHotels = hotels;
+    cachedHotelsTime = Date.now();
     res.json(hotels);
   } catch (err: any) {
     if (err.isConfigError || err.message?.includes('does not exist')) {
@@ -611,8 +619,10 @@ app.delete('/api/hotels/:id', async (req, res) => {
 
 // Rooms
 app.get('/api/rooms', async (req, res) => {
-  const { hotelId } = req.query;
-  if (cachedRooms) {
+  const { hotelId, refresh } = req.query;
+  const forceRefresh = refresh === 'true';
+  const now = Date.now();
+  if (cachedRooms && !forceRefresh && (now - cachedRoomsTime < CACHE_TTL)) {
     if (hotelId) {
       return res.json(cachedRooms.filter((r: any) => r.hotelId === hotelId));
     }
@@ -648,6 +658,7 @@ app.get('/api/rooms', async (req, res) => {
       }
     }
     cachedRooms = rooms;
+    cachedRoomsTime = Date.now();
     if (hotelId) {
       return res.json(rooms.filter((r: any) => r.hotelId === hotelId));
     }
@@ -655,7 +666,8 @@ app.get('/api/rooms', async (req, res) => {
   } catch (err: any) {
     if (err.isConfigError || err.message?.includes('does not exist')) {
       console.warn('Using Mock Rooms (DB fallback)');
-      return res.json(MOCK_ROOMS);
+      const fallbackRooms = hotelId ? MOCK_ROOMS.filter(r => r.hotelId === hotelId) : MOCK_ROOMS;
+      return res.json(fallbackRooms);
     }
     res.status(500).json({ error: err.message });
   }
@@ -1139,9 +1151,25 @@ async function startServer() {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: 'spa',
+      appType: 'custom',
     });
     app.use(vite.middlewares);
+
+    const fs = await import('fs');
+    app.get('*', async (req, res, next) => {
+      // Exclude API requests and paths with file extensions
+      if (req.originalUrl.startsWith('/api') || req.originalUrl.includes('.')) {
+        return next();
+      }
+      try {
+        const url = req.originalUrl;
+        const indexHtml = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
+        const html = await vite.transformIndexHtml(url, indexHtml);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      } catch (e) {
+        next(e);
+      }
+    });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));

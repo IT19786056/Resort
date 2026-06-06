@@ -79,8 +79,9 @@ export const dbService = {
   },
 
   // Hotels
-  async getHotels() {
-    return apiFetch<Hotel[]>('/api/hotels');
+  async getHotels(refresh?: boolean) {
+    const url = refresh ? '/api/hotels?refresh=true' : '/api/hotels';
+    return apiFetch<Hotel[]>(url);
   },
 
   async addHotel(hotel: Omit<Hotel, 'id'>) {
@@ -103,8 +104,11 @@ export const dbService = {
   },
 
   // Rooms
-  async getRooms(hotelId?: string) {
-    const url = hotelId ? `/api/rooms?hotelId=${hotelId}` : '/api/rooms';
+  async getRooms(hotelId?: string, refresh?: boolean) {
+    const params = new URLSearchParams();
+    if (hotelId) params.append('hotelId', hotelId);
+    if (refresh) params.append('refresh', 'true');
+    const url = params.toString() ? `/api/rooms?${params.toString()}` : '/api/rooms';
     return apiFetch<Accommodation[]>(url);
   },
 
