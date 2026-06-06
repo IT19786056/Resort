@@ -301,6 +301,8 @@ async function initDb() {
       ALTER TABLE hotels ADD COLUMN IF NOT EXISTS "type" TEXT DEFAULT 'Hotel';
       ALTER TABLE rooms ADD COLUMN IF NOT EXISTS "quantity" INTEGER DEFAULT 1;
       ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "roomCount" INTEGER DEFAULT 1;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS "password" TEXT;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS "phone" TEXT;
 
       -- Robust cleanup of any existing foreign keys on bookings.userId
       DO $$
@@ -1281,13 +1283,113 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     await query('DELETE FROM user_otps WHERE email = $1', [email.toLowerCase()]).catch(() => {});
   }
 
+  // Create our customer in our local customers table on backend verification success
+  const customId = 'cust_' + Math.random().toString(36).substring(2, 11);
+  const displayName = dbOtpRecord.displayName || email.split('@')[0];
+  const phone = dbOtpRecord.phone || '';
+  const password = dbOtpRecord.password || '';
+
+  let finalUser: any = null;
+
+  if (!pool) {
+    finalUser = {
+      id: customId,
+      email: email.toLowerCase(),
+      displayName: displayName,
+      phone: phone,
+      createdAt: new Date().toISOString()
+    };
+  } else {
+    try {
+      const result = await query(
+        `INSERT INTO customers (id, email, "displayName", "password", "phone")
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (email) DO UPDATE 
+         SET "displayName" = EXCLUDED."displayName", "password" = EXCLUDED."password", "phone" = EXCLUDED."phone"
+         RETURNING *`,
+        [customId, email.toLowerCase(), displayName, password, phone]
+      );
+      const row = result.rows[0];
+      finalUser = {
+        id: row.id,
+        email: row.email,
+        displayName: row.displayName,
+        phone: row.phone,
+        createdAt: row.createdAt
+      };
+    } catch (err: any) {
+      console.error('Failed to save verified user profile to customer DB:', err);
+      return res.status(500).json({ error: 'OTP is verified but profile storage failed. Please contact support.' });
+    }
+  }
+
   return res.json({
     success: true,
-    message: 'OTP verified successfully',
-    password: dbOtpRecord.password,
-    displayName: dbOtpRecord.displayName,
-    phone: dbOtpRecord.phone
+    message: 'OTP verified successfully and user account synchronized.',
+    user: {
+      id: finalUser.id,
+      email: finalUser.email,
+      user_metadata: {
+        full_name: finalUser.displayName,
+        phone: finalUser.phone
+      },
+      email_confirmed_at: new Date().toISOString()
+    }
   });
+});
+
+// Custom customer credentials login endpoint (bypassing Supabase unconfirmed emails error)
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  try {
+    if (!pool) {
+      return res.json({
+        success: true,
+        user: {
+          id: 'mock_cust_' + Math.random().toString(36).substring(2, 9),
+          email: email.toLowerCase(),
+          user_metadata: {
+            full_name: email.split('@')[0],
+            phone: ''
+          }
+        }
+      });
+    }
+
+    const result = await query(
+      'SELECT * FROM customers WHERE LOWER(email) = $1',
+      [email.toLowerCase()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'No account found with this email address.' });
+    }
+
+    const customer = result.rows[0];
+    if (customer.password !== password) {
+      return res.status(400).json({ error: 'Incorrect password. Please try again.' });
+    }
+
+    return res.json({
+      success: true,
+      user: {
+        id: customer.id,
+        email: customer.email,
+        user_metadata: {
+          full_name: customer.displayName,
+          phone: customer.phone
+        }
+      }
+    });
+
+  } catch (err: any) {
+    console.error('Auth login error:', err);
+    return res.status(500).json({ error: 'Server authentication database error' });
+  }
 });
 
 // Vite Setup

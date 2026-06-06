@@ -117,54 +117,14 @@ export const UserAuth = ({
       throw new Error(verifyData.error || 'Failed to verify verification code.');
     }
 
-    // Server-side OTP is valid! Register account in active environment auth layer
-    const isSupabaseConfigured = () => {
-      const url = import.meta.env.VITE_SUPABASE_URL;
-      return url && url !== 'https://your-project-id.supabase.co' && !url.includes('your-project-id');
-    };
-
-    let finalUserId = 'u_' + Math.random().toString(36).substring(2, 9);
-
-    if (isSupabaseConfigured()) {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: displayName,
-            phone: phone
-          }
-        }
-      });
-
-      if (signUpError) {
-        // Fallback or attempt signIn directly if user exists
-        if (signUpError.message?.toLowerCase().includes('already registered') || signUpError.message?.toLowerCase().includes('exists')) {
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-          if (signInError) throw signInError;
-          if (signInData?.user) {
-            finalUserId = signInData.user.id;
-          }
-        } else {
-          throw signUpError;
-        }
-      } else if (data?.user) {
-        finalUserId = data.user.id;
-      }
-    } else {
-      // Mock environment login helper
-      const mockUser = {
-        id: finalUserId,
-        email,
-        user_metadata: { full_name: displayName, phone: phone },
-        isMockUser: true
-      };
-      localStorage.setItem('ahsell_mock_user', JSON.stringify(mockUser));
+    const finalUser = verifyData.user;
+    if (finalUser) {
+      // Set the customer session in local storage and dispatch event to synchronize all components
+      localStorage.setItem('amadiya_customer_user', JSON.stringify(finalUser));
       window.dispatchEvent(new Event('storage'));
     }
+
+    const finalUserId = finalUser?.id || 'cust_' + Math.random().toString(36).substring(2, 9);
 
     // Save profile record in customer database
     await dbService.saveCustomerProfile(finalUserId, {
