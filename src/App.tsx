@@ -1,4 +1,4 @@
-\import React, { useState, lazy, Suspense, useEffect } from 'react';
+import React, { useState, lazy, Suspense, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Star, MapPin, ChevronRight, ArrowLeft, Search, Trash2, ShoppingCart, ShieldCheck, X } from 'lucide-react';
 import { supabase } from './lib/supabase';
