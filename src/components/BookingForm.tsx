@@ -138,13 +138,14 @@ export const BookingForm = ({
   };
 
   return (
-    <div className="bg-natural-cream p-8 rounded-[32px] max-w-xl w-full selection:bg-natural-primary/20 shadow-2xl border border-natural-accent max-h-[90vh] overflow-y-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="font-serif text-3xl italic text-natural-dark">Check Availability</h3>
-        <button onClick={onCancel} className="p-2 hover:bg-natural-bg rounded-full transition-colors">
-          <X className="w-6 h-6 text-natural-muted" />
-        </button>
-      </div>
+    <div className="bg-natural-cream rounded-[32px] max-w-xl w-full selection:bg-natural-primary/20 shadow-2xl border border-natural-accent max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="p-8 overflow-y-auto flex-1 pr-6 hover:pr-6 custom-modal-scrollbar">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="font-serif text-3xl italic text-natural-dark">Check Availability</h3>
+          <button onClick={onCancel} className="p-2 hover:bg-natural-bg rounded-full transition-colors">
+            <X className="w-6 h-6 text-natural-muted" />
+          </button>
+        </div>
 
       <div className="mb-6 p-4 bg-natural-bg rounded-2xl flex items-center gap-4 border border-natural-accent">
         <img src={accommodation.imageUrl || undefined} alt={accommodation.name} className="w-16 h-16 rounded-xl object-cover" />
@@ -293,6 +294,7 @@ export const BookingForm = ({
           {availableCount === 0 ? 'Fully Booked for Selected Dates' : 'Add to Sanctuary Cart'}
         </button>
       </form>
+      </div>
     </div>
   );
 };

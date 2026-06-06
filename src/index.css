@@ -76,6 +76,15 @@
     background: var(--color-natural-muted);
   }
 
+  /* Transparent track for modals to blend in with dynamic backgrounds */
+  .custom-modal-scrollbar::-webkit-scrollbar-track {
+    background: transparent !important;
+  }
+
+  .custom-modal-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+
   /* Modal scroll containment */
   [data-radix-portal] > div,
   .modal-container {
