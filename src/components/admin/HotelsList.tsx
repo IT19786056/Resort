@@ -113,14 +113,14 @@ export const HotelsList = () => {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-natural-primary" />
-                  <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-natural-muted">{hotel.location}</span>
+                  <span className="text-fluid-eyebrow font-bold uppercase tracking-[0.3em] text-natural-muted">{hotel.location}</span>
                 </div>
-                <span className="px-3 py-1 bg-natural-primary/5 rounded-full text-[9px] font-bold uppercase tracking-widest text-natural-primary">
+                <span className="px-3 py-1 bg-natural-primary/5 rounded-full text-fluid-eyebrow font-bold uppercase tracking-widest text-natural-primary">
                   {hotel.type || 'Hotel'}
                 </span>
               </div>
-              <h3 className="font-serif text-[clamp(1.25rem,1.5vw+0.75rem,1.875rem)] text-natural-dark mb-4 italic group-hover:text-natural-primary transition-colors">{hotel.name}</h3>
-              <p className="text-sm text-natural-muted leading-relaxed font-light line-clamp-2 italic">{hotel.description}</p>
+              <h3 className="font-serif text-fluid-card-title text-natural-dark mb-4 italic group-hover:text-natural-primary transition-colors">{hotel.name}</h3>
+              <p className="text-fluid-body text-natural-muted leading-relaxed font-light line-clamp-2 italic">{hotel.description}</p>
             </div>
           </motion.div>
         ))}

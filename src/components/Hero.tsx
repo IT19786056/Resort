@@ -25,7 +25,7 @@ export const Hero = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, delay: 0.5 }}
           >
-            <div className="flex items-center gap-4 text-white/70 text-[10px] md:text-[11px] uppercase font-bold tracking-[0.6em] mb-12">
+            <div className="flex items-center gap-4 text-white/70 text-fluid-eyebrow uppercase font-bold tracking-[0.6em] mb-12">
               <span className="w-12 h-[1px] bg-white/40"></span>
               Welcome to Amadiya Reserves
             </div>
@@ -34,7 +34,7 @@ export const Hero = () => {
               Sanctuary <br /> of Soul.
             </h1>
             
-            <p className="text-white/90 font-light text-fluid-h3 leading-relaxed italic max-w-xl mb-12 md:mb-16 drop-shadow-lg">
+            <p className="text-white/90 font-light text-fluid-card-title leading-relaxed italic max-w-xl mb-12 md:mb-16 drop-shadow-lg">
               Experience curated luxury where architecture meets nature's raw beauty. Every moment is a crafted escape into the extraordinary.
             </p>
             

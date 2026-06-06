@@ -139,7 +139,7 @@ export const RoomsList = () => {
               </div>
               <div className="p-8 flex flex-col flex-1">
                 <div className="flex justify-between items-start mb-4">
-                  <h3 className="font-serif text-[clamp(1.25rem,1.5vw+0.75rem,1.875rem)] text-natural-dark italic">{room.name}</h3>
+                  <h3 className="font-serif text-fluid-card-title text-natural-dark italic">{room.name}</h3>
                   <div className="flex items-center gap-1 text-natural-primary">
                     <Star className="w-3 h-3 fill-current" />
                     <span className="text-xs font-bold">{room.rating}</span>
@@ -147,10 +147,10 @@ export const RoomsList = () => {
                 </div>
                 
                 <div className="flex flex-col gap-2 mb-6">
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-natural-muted uppercase tracking-widest">
+                  <div className="flex items-center gap-2 text-fluid-eyebrow font-bold text-natural-muted uppercase tracking-widest">
                     <MapPin className="w-3 h-3" /> {hotel?.name || 'Unknown Portfolio'}
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-natural-muted uppercase tracking-widest">
+                  <div className="flex items-center gap-2 text-fluid-eyebrow font-bold text-natural-muted uppercase tracking-widest">
                     <Tag className="w-3 h-3" /> {room.type} • Up to {room.maxGuests} Guests • {room.quantity || 1} units
                   </div>
                 </div>
@@ -158,11 +158,11 @@ export const RoomsList = () => {
                 <div className="mt-auto flex items-center justify-between pt-8 border-t border-natural-bg">
                   <div>
                     <span className="text-2xl font-bold font-serif italic text-natural-dark">${room.price}</span>
-                    <span className="text-[10px] font-bold text-natural-muted ml-2 tracking-widest uppercase">/ night</span>
+                    <span className="text-fluid-eyebrow font-bold text-natural-muted ml-2 tracking-widest uppercase">/ night</span>
                   </div>
                   <button 
                     onClick={() => toggleAvailability(room)}
-                    className={`px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${
+                    className={`px-4 py-2 rounded-full text-fluid-eyebrow font-bold uppercase tracking-widest transition-all ${
                       room.isAvailable ? 'bg-natural-bg text-natural-dark hover:bg-red-50 hover:text-red-600' : 'bg-natural-primary text-white hover:bg-natural-dark'
                     }`}
                   >

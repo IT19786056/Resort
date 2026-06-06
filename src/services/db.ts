@@ -1,11 +1,13 @@
 import { Hotel, Accommodation, Booking, CustomerProfile, AdminProfile } from '../types';
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  // Use relative paths for same-origin API calls. 
-  // We ensure it starts with / but not // (which would be interpreted as protocol-blind absolute URL)
+  // Use fully qualified paths for same-origin API calls to ensure
+  // compatibility with iframe and sandbox environments.
   let url = path;
   if (!path.startsWith('http')) {
-    url = path.startsWith('/') ? path : `/${path}`;
+    const origin = typeof window !== 'undefined' && window.location ? window.location.origin : 'http://localhost:3000';
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    url = `${origin}${cleanPath}`;
   }
   
   try {

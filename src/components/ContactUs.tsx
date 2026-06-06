@@ -29,8 +29,8 @@ export const ContactUs = () => {
     <div className="min-h-screen bg-natural-bg pt-28 md:pt-32 pb-20">
       <div className="max-w-7xl mx-auto px-6 md:px-10">
         <div className="text-center mb-12 md:mb-20 space-y-4">
-          <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-primary">Connect With Us</span>
-          <h1 className="font-serif text-3xl md:text-5xl italic text-natural-dark">We're Here for You</h1>
+          <span className="text-fluid-eyebrow font-bold uppercase tracking-[0.4em] text-natural-primary">Connect With Us</span>
+          <h1 className="font-serif text-fluid-h1 italic text-natural-dark">We're Here for You</h1>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 md:gap-20 mb-20 md:mb-32">
@@ -147,8 +147,8 @@ export const ContactUs = () => {
             className="space-y-12"
           >
             <div className="flex items-end justify-between border-b border-natural-accent pb-8">
-              <h2 className="font-serif text-3xl italic text-natural-dark">Resort Contacts</h2>
-              <p className="text-[10px] text-natural-muted uppercase font-bold tracking-widest">Connect Directly</p>
+              <h2 className="font-serif text-fluid-h1 italic text-natural-dark">Resort Contacts</h2>
+              <p className="text-fluid-eyebrow text-natural-muted uppercase font-bold tracking-widest">Connect Directly</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">

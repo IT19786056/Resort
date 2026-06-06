@@ -14,23 +14,23 @@ export const AboutUs = () => {
             className="space-y-6 md:space-y-8"
           >
             <div className="space-y-4">
-              <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-primary">Our Legacy</span>
+              <span className="text-fluid-eyebrow font-bold uppercase tracking-[0.4em] text-natural-primary">Our Legacy</span>
               <h1 className="font-serif text-fluid-h1 italic text-natural-dark leading-tight">Crafting Memories Since 1992</h1>
             </div>
-            <p className="text-natural-muted leading-relaxed font-light text-base md:text-lg">
+            <p className="text-natural-muted leading-relaxed font-light text-fluid-body">
               What started as a single boutique villa in Ahungalla has evolved into Sri Lanka's premiere luxury resort collection. At Amadiya Leisure, we don't just provide rooms; we curate experiences that linger in the soul.
             </p>
-            <p className="text-natural-muted leading-relaxed font-light">
+            <p className="text-natural-muted leading-relaxed font-light text-fluid-body">
               Founded by visionaries who believed that true hospitality lies in the perfect balance of architectural grandeur and heartfelt service, we've remained true to our heritage while embracing modern luxury.
             </p>
             <div className="grid grid-cols-2 gap-8 pt-6">
               <div className="space-y-2">
                 <p className="text-4xl font-serif italic text-natural-primary">15+</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-natural-muted">Exquisite Locations</p>
+                <p className="text-fluid-eyebrow font-bold uppercase tracking-widest text-natural-muted">Exquisite Locations</p>
               </div>
               <div className="space-y-2">
                 <p className="text-4xl font-serif italic text-natural-primary">50k+</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-natural-muted">Happy Guests</p>
+                <p className="text-fluid-eyebrow font-bold uppercase tracking-widest text-natural-muted">Happy Guests</p>
               </div>
             </div>
           </motion.div>
@@ -50,7 +50,7 @@ export const AboutUs = () => {
             </div>
             <div className="absolute xl:-bottom-10 xl:-right-10 sm:-bottom-6 sm:-right-6 bottom-4 right-4 bg-natural-cream p-6 sm:p-10 rounded-[24px] sm:rounded-[40px] shadow-xl max-w-[200px] sm:max-w-[280px] border border-natural-accent">
               <p className="font-serif italic text-sm sm:text-xl text-natural-dark mb-2">"True luxury is found in the moments of silence and service."</p>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-natural-primary">— Founder</p>
+              <p className="text-fluid-eyebrow font-bold uppercase tracking-widest text-natural-primary">— Founder</p>
             </div>
           </motion.div>
         </div>

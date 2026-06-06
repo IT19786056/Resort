@@ -359,7 +359,7 @@ export default function App() {
                             >
                               Our Portfolio
                             </motion.h2>
-                            <p className="text-natural-muted max-w-2xl mx-auto font-light text-lg italic">
+                            <p className="text-natural-muted max-w-2xl mx-auto font-light text-fluid-body italic">
                               Our resorts are more than places to stay—they are portals to different worlds, harmonizing architecture with nature.
                             </p>
                           </div>
@@ -402,7 +402,7 @@ export default function App() {
                             >
                               Our Curated Micro-Escapes.
                             </motion.h2>
-                            <p className="text-natural-muted max-w-2xl mx-auto font-light text-lg italic">
+                            <p className="text-natural-muted max-w-2xl mx-auto font-light text-fluid-body italic">
                               Explore our handpicked selection of stays, from overwater suites to hidden garden villas.
                             </p>
                           </div>
@@ -474,7 +474,7 @@ export default function App() {
                   <div className="max-w-7xl mx-auto">
                     <div className="mb-16 md:mb-28 text-center">
                       <h1 className="font-serif text-fluid-hero italic text-natural-dark mb-6 md:mb-10 tracking-tighter leading-none">The Portfolios.</h1>
-                      <p className="text-natural-muted max-w-3xl mx-auto text-base sm:text-xl md:text-2xl font-light italic leading-relaxed">
+                      <p className="text-natural-muted max-w-3xl mx-auto text-fluid-body font-light italic leading-relaxed">
                         Our resorts are more than places to stay—they are portals to different worlds, harmonizing architecture with the raw beauty of nature.
                       </p>
                     </div>
@@ -681,7 +681,7 @@ const AccommodationCard = ({ item, index, onClick, onBook, disabled }: any) => (
         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" 
         referrerPolicy="no-referrer"
       />
-      <div className="absolute top-4 md:top-6 right-4 md:right-6 bg-white/90 backdrop-blur-md px-3 md:px-4 py-1 md:py-1.5 rounded-full text-[9px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-natural-primary border border-natural-accent">
+      <div className="absolute top-4 md:top-6 right-4 md:right-6 bg-white/90 backdrop-blur-md px-3 md:px-4 py-1 md:py-1.5 rounded-full text-fluid-eyebrow font-bold uppercase tracking-[0.2em] text-natural-primary border border-natural-accent">
         {item.type}
       </div>
       {disabled && (
@@ -692,18 +692,18 @@ const AccommodationCard = ({ item, index, onClick, onBook, disabled }: any) => (
     </div>
     <div className="p-8 flex flex-col flex-1">
       <div className="flex justify-between items-start mb-4 md:mb-6">
-        <h3 className="font-serif text-[clamp(1.25rem,1.5vw+0.75rem,1.875rem)] text-natural-dark italic group-hover:text-natural-primary transition-colors">{item.name}</h3>
+        <h3 className="font-serif text-fluid-card-title text-natural-dark italic group-hover:text-natural-primary transition-colors">{item.name}</h3>
         <span className="flex items-center text-[10px] md:text-xs font-bold text-natural-primary bg-natural-primary/5 px-2 md:px-3 py-1 rounded-full">
           <Star className="w-3 h-3 mr-1 md:mr-1.5 fill-current" /> {item.rating}
         </span>
       </div>
-      <p className="text-xs md:text-sm text-natural-muted leading-relaxed mb-6 md:mb-8 flex-1 italic font-light">
+      <p className="text-fluid-body text-natural-muted leading-relaxed mb-6 md:mb-8 flex-1 italic font-light">
         {item.description}
       </p>
       <div className="mt-auto flex items-center justify-between pt-8 border-t border-natural-bg">
         <div className="flex items-baseline">
           <span className="text-2xl md:text-3xl font-bold text-natural-dark">${item.price}</span>
-          <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-natural-muted ml-2 md:ml-3">/ night</span>
+          <span className="text-fluid-eyebrow font-bold uppercase tracking-[0.2em] text-natural-muted ml-2 md:ml-3">/ night</span>
         </div>
         {!disabled && (
           <button 
@@ -735,7 +735,7 @@ const HotelCard = ({ hotel, index, onClick }: any) => (
         referrerPolicy="no-referrer"
       />
       <div className="absolute inset-0 bg-gradient-to-t from-natural-dark/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700 flex items-end p-8">
-        <p className="text-white text-xs md:text-sm font-light italic max-w-sm">
+        <p className="text-white text-fluid-body font-light italic max-w-sm">
           {hotel.description}
         </p>
       </div>
@@ -743,9 +743,9 @@ const HotelCard = ({ hotel, index, onClick }: any) => (
     <div className="p-8 flex-1 flex flex-col">
       <div className="flex items-center gap-3 mb-4">
         <MapPin className="w-3 md:w-4 h-3 md:h-4 text-natural-primary" />
-        <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-muted">{hotel.location}</span>
+        <span className="text-fluid-eyebrow font-bold uppercase tracking-[0.4em] text-natural-muted">{hotel.location}</span>
       </div>
-      <h3 className="font-serif text-[clamp(1.25rem,1.5vw+0.75rem,1.875rem)] text-natural-dark group-hover:italic transition-all duration-500 tracking-tighter">{hotel.name}</h3>
+      <h3 className="font-serif text-fluid-card-title text-natural-dark group-hover:italic transition-all duration-500 tracking-tighter">{hotel.name}</h3>
     </div>
   </motion.div>
 );
@@ -768,7 +768,7 @@ const HotelDetailModal = ({ hotel, onClose, onViewStays }: any) => (
           <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-muted">{hotel.location}</span>
         </div>
         <h2 className="font-serif text-fluid-h1 text-natural-dark italic mb-6 md:mb-12 tracking-tighter leading-tight md:leading-none">{hotel.name}</h2>
-        <p className="text-lg md:text-xl text-natural-muted font-light italic leading-relaxed mb-10 md:mb-16">{hotel.description}</p>
+        <p className="text-fluid-body text-natural-muted font-light italic leading-relaxed mb-10 md:mb-16">{hotel.description}</p>
         <DetailDivider />
         <div className="mb-10 md:mb-16">
           <h4 className="text-[10px] uppercase font-bold tracking-[0.3em] text-natural-dark mb-6 md:mb-8">The Sanctuary Map</h4>
@@ -829,7 +829,7 @@ const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, on
                    <div className="flex items-center gap-2 text-xs md:text-sm font-bold"><Star className="w-4 h-4 text-natural-primary" /> {item.rating}</div>
                    <div className="flex items-center gap-2 text-xs md:text-sm font-bold"><MapPin className="w-4 h-4 text-natural-primary" /> {item.location}</div>
                 </div>
-                <p className="text-base md:text-lg text-natural-muted font-light italic leading-relaxed mb-10 md:mb-12">{item.description}</p>
+                <p className="text-fluid-body text-natural-muted font-light italic leading-relaxed mb-10 md:mb-12">{item.description}</p>
                 <div className="mt-auto flex items-center justify-between gap-4">
                   <div>
                     <span className="text-3xl md:text-4xl font-bold font-serif italic text-natural-dark">${item.price}</span>
@@ -843,7 +843,7 @@ const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, on
             <div className="w-full p-8 sm:p-16 md:p-24 flex flex-col items-center text-center justify-center bg-natural-cream rounded-[32px] md:rounded-[50px] overflow-hidden">
               <div className="w-16 h-16 md:w-20 md:h-20 bg-green-50 rounded-full flex items-center justify-center mb-6 md:mb-10"><Star className="w-8 h-8 md:w-10 md:h-10 text-green-600"/></div>
               <h2 className="font-serif text-fluid-h1 italic text-natural-dark mb-4 md:mb-6 tracking-tighter text-center leading-tight">Sanctuary Requested.</h2>
-              <p className="text-lg md:text-xl text-natural-muted max-w-md font-light italic leading-relaxed mb-12 text-center">Our concierge will contact you within the hour to finalize your tropical escape.</p>
+              <p className="text-fluid-body text-natural-muted max-w-md font-light italic leading-relaxed mb-12 text-center">Our concierge will contact you within the hour to finalize your tropical escape.</p>
               <button onClick={onClose} className="bg-natural-primary text-white px-12 py-5 rounded-full font-bold uppercase tracking-[0.2em] shadow-xl text-sm">Complete</button>
             </div>
           )}
