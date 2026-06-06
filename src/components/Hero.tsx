@@ -30,11 +30,11 @@ export const Hero = () => {
               Welcome to Amadiya Reserves
             </div>
 
-            <h1 className="font-serif text-6xl md:text-8xl lg:text-[10rem] italic text-white leading-[0.8] tracking-tighter mb-12 drop-shadow-2xl">
+            <h1 className="font-serif text-fluid-hero italic text-white leading-[0.85] tracking-tighter mb-8 md:mb-12 drop-shadow-2xl">
               Sanctuary <br /> of Soul.
             </h1>
             
-            <p className="text-white/90 font-light text-xl md:text-2xl lg:text-3xl leading-relaxed italic max-w-xl mb-16 drop-shadow-lg">
+            <p className="text-white/90 font-light text-fluid-h3 leading-relaxed italic max-w-xl mb-12 md:mb-16 drop-shadow-lg">
               Experience curated luxury where architecture meets nature's raw beauty. Every moment is a crafted escape into the extraordinary.
             </p>
             

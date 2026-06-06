@@ -20,7 +20,7 @@ export const WeddingsEvents = ({ venues, onSelectVenue }: WeddingsEventsProps) =
           >
             <div className="space-y-4">
               <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-primary">Forever Starts Here</span>
-              <h1 className="font-serif text-4xl md:text-6xl italic text-natural-dark leading-[1.1]">Weddings & Exclusive Events</h1>
+              <h1 className="font-serif text-fluid-h1 italic text-natural-dark leading-[1.1]">Weddings & Exclusive Events</h1>
             </div>
             <p className="text-natural-muted leading-relaxed font-light text-base md:text-lg">
               Experience the perfect union of tropical elegance and sophisticated celebration. Our collection of banquet halls provides the ultimate backdrop for your most cherished moments.

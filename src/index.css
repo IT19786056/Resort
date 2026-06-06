@@ -12,11 +12,27 @@
 
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Playfair Display", ui-serif, Georgia, serif;
+
+  --font-size-fluid-hero: clamp(2.5rem, 8.5vw + 0.5rem, 9.5rem);
+  --font-size-fluid-h1: clamp(2rem, 5vw + 1rem, 5rem);
+  --font-size-fluid-h2: clamp(1.5rem, 3.5vw + 0.5rem, 3.5rem);
+  --font-size-fluid-h3: clamp(1.125rem, 2vw + 0.6rem, 2.25rem);
+  --font-size-fluid-body: clamp(0.875rem, 0.3vw + 0.75rem, 1.125rem);
 }
 
 @layer base {
   body {
     @apply font-sans antialiased bg-natural-bg text-natural-text;
+  }
+
+  /* Max-width requirements for all media */
+  img, svg, video, iframe, canvas {
+    max-width: 100%;
+    height: auto;
+  }
+
+  img.object-cover, img.h-full {
+    height: 100%;
   }
 
   /* Custom Scrollbar */

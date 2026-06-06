@@ -350,12 +350,12 @@ export default function App() {
                     <section id="stays-list" className="max-w-7xl mx-auto px-6 py-24">
                       {!isSearched ? (
                         <>
-                          <div className="mb-20 text-center">
+                          <div className="mb-12 md:mb-20 text-center">
                             <motion.h2 
                               initial={{ opacity: 0, y: 20 }}
                               whileInView={{ opacity: 1, y: 0 }}
                               viewport={{ once: true }}
-                              className="font-serif text-5xl md:text-6xl mb-6 italic text-natural-dark tracking-tighter"
+                              className="font-serif text-fluid-h1 mb-4 md:mb-6 italic text-natural-dark tracking-tighter"
                             >
                               Our Portfolio
                             </motion.h2>
@@ -393,12 +393,12 @@ export default function App() {
                         </>
                       ) : (
                         <>
-                          <div className="mb-20 text-center">
+                          <div className="mb-12 md:mb-20 text-center">
                             <motion.h2 
                               initial={{ opacity: 0, y: 20 }}
                               whileInView={{ opacity: 1, y: 0 }}
                               viewport={{ once: true }}
-                              className="font-serif text-5xl md:text-6xl mb-6 italic text-natural-dark tracking-tighter"
+                              className="font-serif text-fluid-h1 mb-4 md:mb-6 italic text-natural-dark tracking-tighter"
                             >
                               Our Curated Micro-Escapes.
                             </motion.h2>
@@ -472,9 +472,9 @@ export default function App() {
                   className="pt-40 pb-32 px-10 min-h-screen"
                 >
                   <div className="max-w-7xl mx-auto">
-                    <div className="mb-28 text-center">
-                      <h1 className="font-serif text-6xl md:text-9xl italic text-natural-dark mb-10 tracking-tighter">The Portfolios.</h1>
-                      <p className="text-natural-muted max-w-3xl mx-auto text-xl md:text-2xl font-light italic leading-relaxed">
+                    <div className="mb-16 md:mb-28 text-center">
+                      <h1 className="font-serif text-fluid-hero italic text-natural-dark mb-6 md:mb-10 tracking-tighter leading-none">The Portfolios.</h1>
+                      <p className="text-natural-muted max-w-3xl mx-auto text-base sm:text-xl md:text-2xl font-light italic leading-relaxed">
                         Our resorts are more than places to stay—they are portals to different worlds, harmonizing architecture with the raw beauty of nature.
                       </p>
                     </div>
@@ -753,21 +753,21 @@ const HotelCard = ({ hotel, index, onClick }: any) => (
 const DetailDivider = () => <div className="h-[1px] w-full bg-natural-accent my-6 md:my-8" />;
 
 const HotelDetailModal = ({ hotel, onClose, onViewStays }: any) => (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10">
+  <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 md:p-10">
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-natural-dark/70 backdrop-blur-lg" />
-    <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="relative z-10 w-full max-w-6xl bg-natural-cream rounded-[40px] md:rounded-[60px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.3)] flex flex-col lg:flex-row h-[90vh] md:h-[85vh] modal-container">
-      <div className="lg:w-1/2 h-64 lg:h-full relative overflow-hidden bg-natural-accent">
+    <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="relative z-10 w-full max-w-6xl bg-natural-cream rounded-[24px] sm:rounded-[40px] md:rounded-[60px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.3)] flex flex-col lg:flex-row h-[94vh] lg:h-[85vh] max-h-[850px] modal-container">
+      <div className="lg:w-1/2 h-56 sm:h-72 lg:h-full relative overflow-hidden bg-natural-accent">
         <Gallery parentId={hotel.id} fallbackImage={hotel.imageUrl} className="w-full h-full" />
-        <div className="absolute top-6 left-6 md:top-10 md:left-10 flex gap-4">
-          <button onClick={onClose} className="p-3 md:p-4 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all"><ArrowLeft className="w-5 h-5 md:w-6 md:h-6"/></button>
+        <div className="absolute top-4 left-4 md:top-8 md:left-8 flex gap-4">
+          <button onClick={onClose} className="p-2 sm:p-3 md:p-4 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all"><ArrowLeft className="w-5 h-5 md:w-6 md:h-6"/></button>
         </div>
       </div>
-      <div className="lg:w-1/2 p-8 md:p-16 lg:p-24 overflow-y-auto flex flex-col selection:bg-natural-primary/20">
-        <div className="mb-6 md:mb-10 flex items-center gap-3">
+      <div className="lg:w-1/2 p-6 sm:p-10 md:p-16 lg:p-24 overflow-y-auto flex flex-col selection:bg-natural-primary/20">
+        <div className="mb-4 md:mb-10 flex items-center gap-3">
           <MapPin className="w-4 h-4 text-natural-primary" />
           <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-muted">{hotel.location}</span>
         </div>
-        <h2 className="font-serif text-4xl md:text-6xl lg:text-7xl text-natural-dark italic mb-8 md:mb-12 tracking-tighter leading-tight md:leading-none">{hotel.name}</h2>
+        <h2 className="font-serif text-fluid-h1 text-natural-dark italic mb-6 md:mb-12 tracking-tighter leading-tight md:leading-none">{hotel.name}</h2>
         <p className="text-lg md:text-xl text-natural-muted font-light italic leading-relaxed mb-10 md:mb-16">{hotel.description}</p>
         <DetailDivider />
         <div className="mb-10 md:mb-16">
@@ -812,19 +812,19 @@ const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, on
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }} 
           animate={{ opacity: 1, scale: 1 }} 
-          className="relative z-10 w-full max-w-5xl bg-natural-cream rounded-[32px] md:rounded-[50px] overflow-hidden shadow-2xl h-[90vh] md:h-auto md:min-h-[600px] flex overflow-y-auto md:overflow-visible modal-container"
+          className="relative z-10 w-full max-w-5xl bg-natural-cream rounded-[24px] sm:rounded-[36px] md:rounded-[50px] overflow-hidden shadow-2xl h-[94vh] md:h-auto md:min-h-[600px] flex overflow-y-auto md:overflow-visible modal-container"
           onClick={e => e.stopPropagation()}
         >
           {!isBooking ? (
-            <div className="flex flex-col lg:flex-row w-full bg-natural-cream rounded-[32px] md:rounded-[50px] overflow-hidden">
-              <div className="lg:w-1/2 h-64 lg:h-auto relative bg-natural-accent">
+            <div className="flex flex-col lg:flex-row w-full bg-natural-cream rounded-[24px] sm:rounded-[36px] md:rounded-[50px] overflow-hidden">
+              <div className="lg:w-1/2 h-56 sm:h-72 lg:h-auto relative bg-natural-accent">
                 <Gallery parentId={item.id} fallbackImage={item.imageUrl} className="w-full h-full" />
-                <button onClick={onClose} className="absolute top-6 left-6 lg:hidden p-3 bg-white/20 backdrop-blur-md rounded-full text-white"><ArrowLeft className="w-5 h-5"/></button>
+                <button onClick={onClose} className="absolute top-4 left-4 lg:hidden p-2 sm:p-3 bg-white/20 backdrop-blur-md rounded-full text-white"><ArrowLeft className="w-5 h-5"/></button>
               </div>
-              <div className="lg:w-1/2 p-8 md:p-16 flex flex-col selection:bg-natural-primary/20 bg-natural-cream">
+              <div className="lg:w-1/2 p-6 sm:p-10 md:p-16 flex flex-col selection:bg-natural-primary/20 bg-natural-cream">
                 <button onClick={onClose} className="hidden lg:flex self-end p-2 hover:bg-natural-bg rounded-full mb-4"><ArrowLeft className="w-6 h-6 text-natural-muted"/></button>
                 <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-primary mb-4 md:mb-6">{item.type} Portfolio</span>
-                <h2 className="font-serif text-4xl md:text-5xl lg:text-6xl text-natural-dark italic mb-6 md:mb-8 tracking-tighter leading-tight">{item.name}</h2>
+                <h2 className="font-serif text-fluid-h1 text-natural-dark italic mb-4 md:mb-8 tracking-tighter leading-tight">{item.name}</h2>
                 <div className="flex flex-wrap items-center gap-4 md:gap-6 mb-8 md:mb-10 pb-6 md:pb-8 border-b border-natural-accent">
                    <div className="flex items-center gap-2 text-xs md:text-sm font-bold"><Star className="w-4 h-4 text-natural-primary" /> {item.rating}</div>
                    <div className="flex items-center gap-2 text-xs md:text-sm font-bold"><MapPin className="w-4 h-4 text-natural-primary" /> {item.location}</div>
@@ -840,9 +840,9 @@ const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, on
               </div>
             </div>
           ) : (
-            <div className="w-full p-12 md:p-24 flex flex-col items-center text-center justify-center bg-natural-cream rounded-[32px] md:rounded-[50px] overflow-hidden">
-              <div className="w-16 h-16 md:w-20 md:h-20 bg-green-50 rounded-full flex items-center justify-center mb-10"><Star className="w-8 h-8 md:w-10 md:h-10 text-green-600"/></div>
-              <h2 className="font-serif text-4xl md:text-6xl italic text-natural-dark mb-6 tracking-tighter text-center leading-tight">Sanctuary Requested.</h2>
+            <div className="w-full p-8 sm:p-16 md:p-24 flex flex-col items-center text-center justify-center bg-natural-cream rounded-[32px] md:rounded-[50px] overflow-hidden">
+              <div className="w-16 h-16 md:w-20 md:h-20 bg-green-50 rounded-full flex items-center justify-center mb-6 md:mb-10"><Star className="w-8 h-8 md:w-10 md:h-10 text-green-600"/></div>
+              <h2 className="font-serif text-fluid-h1 italic text-natural-dark mb-4 md:mb-6 tracking-tighter text-center leading-tight">Sanctuary Requested.</h2>
               <p className="text-lg md:text-xl text-natural-muted max-w-md font-light italic leading-relaxed mb-12 text-center">Our concierge will contact you within the hour to finalize your tropical escape.</p>
               <button onClick={onClose} className="bg-natural-primary text-white px-12 py-5 rounded-full font-bold uppercase tracking-[0.2em] shadow-xl text-sm">Complete</button>
             </div>
