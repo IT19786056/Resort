@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import pg from 'pg';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
+import crypto from 'crypto';
 import { queueBookingConfirmation, processEmailQueue } from './server/email.js';
 
 if (!process.env.VERCEL) {
@@ -1139,6 +1140,33 @@ app.delete('/api/media/:id', async (req, res) => {
   }
 });
 
+// Custom password cryptographic hashing using PBKDF2 with custom salting to prevent dictionary / brute-force attacks
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+  return `pbkdf2_10000$${salt}$${hash}`;
+}
+
+// Timing-safe password confirmation protecting against side-channel analysis
+function verifyPassword(password: string, storedHash: string): boolean {
+  if (!storedHash) return false;
+  if (storedHash.startsWith('pbkdf2_10000$')) {
+    const parts = storedHash.split('$');
+    if (parts.length === 3) {
+      const salt = parts[1];
+      const hash = parts[2];
+      const verifyHash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+      const hashBuffer = Buffer.from(hash, 'hex');
+      const verifyBuffer = Buffer.from(verifyHash, 'hex');
+      if (hashBuffer.length === verifyBuffer.length) {
+        return crypto.timingSafeEqual(hashBuffer, verifyBuffer);
+      }
+      return hash === verifyHash;
+    }
+  }
+  return password === storedHash;
+}
+
 // Custom Node In-Memory cache fallback for mock mode OTPs
 const mockOtps = new Map<string, { otp: string, password: string, displayName: string, phone: string, expiresAt: Date }>();
 
@@ -1151,12 +1179,13 @@ app.post('/api/auth/send-otp', async (req, res) => {
   // Generate 6 digit OTP
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+  const hashedPassword = hashPassword(password);
 
   console.log(`[OTP DEBUG] Generating OTP ${otp} for ${email}`);
 
-  // Save OTP
+  // Save OTP with hashed password
   if (!pool) {
-    mockOtps.set(email.toLowerCase(), { otp, password, displayName, phone, expiresAt });
+    mockOtps.set(email.toLowerCase(), { otp, password: hashedPassword, displayName, phone, expiresAt });
   } else {
     try {
       await query(
@@ -1164,7 +1193,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (email) DO UPDATE 
          SET otp = EXCLUDED.otp, password = EXCLUDED.password, "displayName" = EXCLUDED."displayName", phone = EXCLUDED.phone, "expiresAt" = EXCLUDED."expiresAt"`,
-        [email.toLowerCase(), otp, password, displayName, phone, expiresAt]
+        [email.toLowerCase(), otp, hashedPassword, displayName, phone, expiresAt]
       );
     } catch (err: any) {
       console.error('Failed to store OTP in database:', err);
@@ -1338,11 +1367,25 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   });
 });
 
+// Brute force protection state map (persists in-memory during continuous app execution)
+const loginBruteForceTracker = new Map<string, { attempts: number, lockoutUntil: number }>();
+
 // Custom customer credentials login endpoint (bypassing Supabase unconfirmed emails error)
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  const emailKey = email.toLowerCase().trim();
+  
+  // Rate limits check protecting against brute-force account credential guessing
+  const tracker = loginBruteForceTracker.get(emailKey);
+  if (tracker && Date.now() < tracker.lockoutUntil) {
+    const minutesRemaining = Math.ceil((tracker.lockoutUntil - Date.now()) / 1000 / 60);
+    return res.status(429).json({ 
+      error: `Too many failed attempts. This account is temporarily locked for security. Please try again in ${minutesRemaining} minutes.` 
+    });
   }
 
   try {
@@ -1362,17 +1405,28 @@ app.post('/api/auth/login', async (req, res) => {
 
     const result = await query(
       'SELECT * FROM customers WHERE LOWER(email) = $1',
-      [email.toLowerCase()]
+      [emailKey]
     );
 
     if (result.rows.length === 0) {
+      // Record a failed attempt to prevent brute force harvesting profile check
+      const attempts = (tracker?.attempts || 0) + 1;
+      const lockoutUntil = attempts >= 5 ? Date.now() + 15 * 60 * 1000 : 0;
+      loginBruteForceTracker.set(emailKey, { attempts, lockoutUntil });
       return res.status(400).json({ error: 'No account found with this email address.' });
     }
 
     const customer = result.rows[0];
-    if (customer.password !== password) {
+    if (!verifyPassword(password, customer.password)) {
+      // Increment failed password matching count
+      const attempts = (tracker?.attempts || 0) + 1;
+      const lockoutUntil = attempts >= 5 ? Date.now() + 15 * 60 * 1000 : 0;
+      loginBruteForceTracker.set(emailKey, { attempts, lockoutUntil });
       return res.status(400).json({ error: 'Incorrect password. Please try again.' });
     }
+
+    // Success: delete tracking record and authenticate
+    loginBruteForceTracker.delete(emailKey);
 
     return res.json({
       success: true,

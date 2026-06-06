@@ -1,4 +1,4 @@
-import React, { useState, lazy, Suspense, useEffect } from 'react';
+\import React, { useState, lazy, Suspense, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Star, MapPin, ChevronRight, ArrowLeft, Search, Trash2, ShoppingCart, ShieldCheck, X } from 'lucide-react';
 import { supabase } from './lib/supabase';
@@ -566,51 +566,22 @@ export default function App() {
             initialPhone={authPhone}
             isModalMode={authMode}
             onVerifySuccess={async (credentials) => {
-              // Custom verify success callback that auto-places the booking!
               if (pendingBooking) {
-                try {
-                  const checkInDate = new Date(pendingBooking.checkIn);
-                  checkInDate.setHours(14, 0, 0, 0); // Standard check-in
-
-                  const checkOutDate = new Date(pendingBooking.checkOut);
-                  checkOutDate.setHours(11, 0, 0, 0); // Standard check-out
-
-                  // Add Booking of the accommodation directly to database
-                  await dbService.addBooking({
-                    fullName: pendingBooking.fullName,
-                    email: pendingBooking.email,
-                    phone: pendingBooking.phone,
-                    specialRequests: pendingBooking.specialRequests,
-                    checkIn: checkInDate.toISOString(),
-                    checkOut: checkOutDate.toISOString(),
-                    roomId: pendingBooking.accommodation.id,
-                    hotelId: pendingBooking.accommodation.hotelId,
-                    userId: credentials.userId,
-                    status: 'pending',
-                    guests: pendingBooking.guests || 2,
-                    roomCount: pendingBooking.roomCount || 1,
-                    createdAt: new Date().toISOString()
-                  });
-
-                  // Close accommodation modal and show beautiful global booking success!
-                  setSelectedItem(null);
-                  setIsBooking(false);
-                  setPendingBooking(null);
-                  setAuthMode('login');
-                  setAuthEmail('');
-                  setAuthName('');
-                  setAuthPhone('');
-                  
-                  // Open the booking success dialog!
-                  setBookingSuccess(true);
-                  setShowCartSuccess(true);
-                  if (typeof refresh === 'function') {
-                    refresh();
-                  }
-                } catch (err: any) {
-                  console.error('Auto-placing booking after registration OTP failed:', err);
-                  alert('Verification succeeded but booking failed: ' + (err.message || 'Please check with support.'));
-                }
+                // Add the booking to the cart rather than placing it automatically
+                setCart(prev => [...prev, { ...pendingBooking, id: Math.random().toString(36).substring(2, 11) }]);
+                
+                // Reset all states and modals
+                setSelectedItem(null);
+                setIsBooking(false);
+                setPendingBooking(null);
+                setAuthMode('login');
+                setAuthEmail('');
+                setAuthName('');
+                setAuthPhone('');
+                setIsCartAuthOpen(false);
+                
+                // Slide open the sanctuary cart drawer allowing review and final booking checkout
+                setIsCartOpen(true);
               }
             }}
           />
