@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { dbService } from '../services/db';
+import { supabase } from '../lib/supabase';
 import { Accommodation } from '../types';
 
 interface BookingFormProps {
@@ -60,6 +61,32 @@ export const BookingForm = ({
   const [availableCount, setAvailableCount] = useState<number | null>(null);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
 
+  // Authenticated user state
+  const [user, setUser] = useState<any>(null);
+  const [visitorDetails, setVisitorDetails] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    specialRequests: ''
+  });
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      setVisitorDetails(prev => ({
+        ...prev,
+        fullName: user.user_metadata?.full_name || prev.fullName,
+        email: user.email || prev.email,
+        phone: user.user_metadata?.phone || prev.phone
+      }));
+    }
+  }, [user]);
+
   useEffect(() => {
     let active = true;
     const checkAvailability = async () => {
@@ -102,20 +129,24 @@ export const BookingForm = ({
       checkIn: formData.checkIn,
       checkOut: formData.checkOut,
       guests: formData.guests,
-      roomCount: roomCount
+      roomCount: roomCount,
+      fullName: visitorDetails.fullName,
+      email: visitorDetails.email,
+      phone: visitorDetails.phone,
+      specialRequests: visitorDetails.specialRequests
     });
   };
 
   return (
-    <div className="bg-natural-cream p-8 rounded-[32px] max-w-xl w-full selection:bg-natural-primary/20 shadow-2xl border border-natural-accent">
-      <div className="flex justify-between items-center mb-8">
+    <div className="bg-natural-cream p-8 rounded-[32px] max-w-xl w-full selection:bg-natural-primary/20 shadow-2xl border border-natural-accent max-h-[90vh] overflow-y-auto">
+      <div className="flex justify-between items-center mb-6">
         <h3 className="font-serif text-3xl italic text-natural-dark">Check Availability</h3>
         <button onClick={onCancel} className="p-2 hover:bg-natural-bg rounded-full transition-colors">
           <X className="w-6 h-6 text-natural-muted" />
         </button>
       </div>
 
-      <div className="mb-8 p-4 bg-natural-bg rounded-2xl flex items-center gap-4 border border-natural-accent">
+      <div className="mb-6 p-4 bg-natural-bg rounded-2xl flex items-center gap-4 border border-natural-accent">
         <img src={accommodation.imageUrl || undefined} alt={accommodation.name} className="w-16 h-16 rounded-xl object-cover" />
         <div>
           <div className="text-sm font-bold text-natural-dark">{accommodation.name}</div>
@@ -123,15 +154,15 @@ export const BookingForm = ({
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-[10px] uppercase font-bold text-natural-muted mb-2 tracking-widest ml-4 font-mono">Check-In</label>
             <input 
               required
               type="date" 
               min={minCheckIn}
-              className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-4 outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark"
+              className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-3.5 outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark"
               value={formData.checkIn.split('T')[0]}
               onChange={e => {
                 const newCheckIn = e.target.value;
@@ -150,18 +181,18 @@ export const BookingForm = ({
               required
               type="date" 
               min={getMinCheckOutDate(formData.checkIn)}
-              className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-4 outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark"
+              className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-3.5 outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark"
               value={formData.checkOut.split('T')[0]}
               onChange={e => setFormData({...formData, checkOut: e.target.value})}
             />
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-[10px] uppercase font-bold text-natural-muted mb-2 tracking-widest ml-4 font-mono">Guests</label>
             <select 
-              className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-4 outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark appearance-none"
+              className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-3.5 outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark appearance-none"
               value={formData.guests}
               onChange={e => setFormData({...formData, guests: parseInt(e.target.value)})}
             >
@@ -173,20 +204,20 @@ export const BookingForm = ({
               Rooms / Units Count
             </label>
             {checkingAvailability ? (
-              <div className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-4 text-xs italic text-natural-muted">
+              <div className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-3.5 text-xs italic text-natural-muted">
                 Checking availability...
               </div>
             ) : availableCount === null ? (
-              <div className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-4 text-xs italic text-natural-muted">
+              <div className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-3.5 text-xs italic text-natural-muted">
                 Select dates first
               </div>
             ) : availableCount === 0 ? (
-              <div className="w-full bg-red-50 text-red-600 border border-red-200 rounded-full px-6 py-4 text-xs font-bold text-center">
+              <div className="w-full bg-red-50 text-red-600 border border-red-200 rounded-full px-6 py-3.5 text-xs font-bold text-center">
                 Fully Booked
               </div>
             ) : (
               <select 
-                className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-4 outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark appearance-none"
+                className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-3.5 outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark appearance-none"
                 value={roomCount}
                 onChange={e => setRoomCount(parseInt(e.target.value))}
               >
@@ -199,11 +230,65 @@ export const BookingForm = ({
             )}
           </div>
         </div>
+
+        {/* Guest Information Details */}
+        <div className="space-y-4 pt-4 border-t border-[#EAE5E0] mt-2">
+          <h4 className="font-serif italic text-lg text-natural-dark tracking-wide">Guest Details</h4>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[9px] uppercase font-bold text-natural-muted mb-1.5 tracking-widest ml-4 font-mono">Full Name</label>
+                <input 
+                  type="text"
+                  required
+                  placeholder="John Doe"
+                  className="w-full bg-natural-bg border border-natural-accent rounded-full px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark"
+                  value={visitorDetails.fullName}
+                  onChange={e => setVisitorDetails({ ...visitorDetails, fullName: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] uppercase font-bold text-natural-muted mb-1.5 tracking-widest ml-4 font-mono">Email Address</label>
+                <input 
+                  type="email"
+                  required
+                  placeholder="name@example.com"
+                  className="w-full bg-natural-bg border border-natural-accent rounded-full px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark"
+                  value={visitorDetails.email}
+                  onChange={e => setVisitorDetails({ ...visitorDetails, email: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <label className="block text-[9px] uppercase font-bold text-natural-muted mb-1.5 tracking-widest ml-4 font-mono">Phone Number</label>
+                <input 
+                  type="text"
+                  required
+                  placeholder="+94 77 123 4567"
+                  className="w-full bg-natural-bg border border-natural-accent rounded-full px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark"
+                  value={visitorDetails.phone}
+                  onChange={e => setVisitorDetails({ ...visitorDetails, phone: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] uppercase font-bold text-natural-muted mb-1.5 tracking-widest ml-4 font-mono">Special Requests (Optional)</label>
+                <textarea 
+                  rows={2}
+                  placeholder="E.g. room preference, dietary needs, special occasions..."
+                  className="w-full bg-natural-bg border border-natural-accent rounded-2xl px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark resize-none"
+                  value={visitorDetails.specialRequests}
+                  onChange={e => setVisitorDetails({ ...visitorDetails, specialRequests: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
         
         <button 
           disabled={checkingAvailability || availableCount === 0}
           type="submit" 
-          className="w-full bg-natural-primary text-white py-5 rounded-full font-bold uppercase tracking-widest hover:bg-natural-dark transition-all shadow-xl shadow-natural-primary/20 disabled:opacity-50 text-[10px]"
+          className="w-full bg-natural-primary text-white py-4.5 rounded-full font-bold uppercase tracking-widest hover:bg-natural-dark transition-all shadow-xl shadow-natural-primary/20 disabled:opacity-50 text-[10px] mt-2 cursor-pointer"
         >
           {availableCount === 0 ? 'Fully Booked for Selected Dates' : 'Add to Sanctuary Cart'}
         </button>

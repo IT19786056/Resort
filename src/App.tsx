@@ -53,6 +53,13 @@ export default function App() {
   const [showCartSuccess, setShowCartSuccess] = useState(false);
   const [user, setUser] = useState<any>(null);
 
+  // Guest booking and dynamic OTP registration memory state
+  const [pendingBooking, setPendingBooking] = useState<any>(null);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authName, setAuthName] = useState('');
+  const [authPhone, setAuthPhone] = useState('');
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'booking-signup'>('login');
+
   useEffect(() => {
     localStorage.setItem('amadiya_cart', JSON.stringify(cart));
   }, [cart]);
@@ -78,10 +85,22 @@ export default function App() {
       alert('This sanctuary is already in your cart for the selected dates!');
       return;
     }
-    setCart(prev => [...prev, { ...item, id: Math.random().toString(36).substring(2, 11) }]);
-    setSelectedItem(null);
-    setIsBooking(false);
-    setIsCartOpen(true); // Open the cart immediately
+
+    if (user) {
+      // Normal flow if user is logged in: Add to cart and slide out the Cart Panel
+      setCart(prev => [...prev, { ...item, id: Math.random().toString(36).substring(2, 11) }]);
+      setSelectedItem(null);
+      setIsBooking(false);
+      setIsCartOpen(true);
+    } else {
+      // Guest flow: Capture input, lock on booking-signup OTP modal, and open it
+      setPendingBooking(item);
+      setAuthEmail(item.email || '');
+      setAuthName(item.fullName || '');
+      setAuthPhone(item.phone || '');
+      setAuthMode('booking-signup');
+      setIsCartAuthOpen(true);
+    }
   };
 
   const handleRemoveFromCart = (id: string) => {
@@ -159,67 +178,6 @@ export default function App() {
       .then(data => setDbStatus(data))
       .catch(() => {});
   }, []);
-
-  // Enforce session timeout of 1 hour (3,600,000 milliseconds) from the moment of logging in
-  useEffect(() => {
-    const handleSignOutAndReload = async () => {
-      localStorage.removeItem('ahsell_session_start');
-      await supabase.auth.signOut();
-      window.location.reload();
-    };
-
-    const checkSessionExpiration = async () => {
-      const loginTime = localStorage.getItem('ahsell_session_start');
-      if (loginTime) {
-        const age = Date.now() - Number(loginTime);
-        if (age > 3600000) {
-          await handleSignOutAndReload();
-        }
-      }
-    };
-
-    // Check expiration on mount/render
-    checkSessionExpiration();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session) {
-        if (event === 'SIGNED_IN') {
-          // New login, record the initial timestamp
-          localStorage.setItem('ahsell_session_start', String(Date.now()));
-        } else {
-          // Token refreshed, etc. Verify if existing timestamp has expired
-          const loginTime = localStorage.getItem('ahsell_session_start');
-          if (!loginTime) {
-            localStorage.setItem('ahsell_session_start', String(Date.now()));
-          } else {
-            const age = Date.now() - Number(loginTime);
-            if (age > 3600000) {
-              await handleSignOutAndReload();
-            }
-          }
-        }
-      } else {
-        localStorage.removeItem('ahsell_session_start');
-      }
-    });
-
-    // Periodically check age of session every 15 seconds while user is on the site
-    const interval = setInterval(async () => {
-      const loginTime = localStorage.getItem('ahsell_session_start');
-      if (loginTime) {
-        const age = Date.now() - Number(loginTime);
-        if (age > 3600000) {
-          await handleSignOutAndReload();
-        }
-      }
-    }, 15000);
-
-    return () => {
-      subscription.unsubscribe();
-      clearInterval(interval);
-    };
-  }, []);
-
 
 
   const handleCloseModal = () => {
@@ -592,8 +550,69 @@ export default function App() {
       <AnimatePresence>
         {isCartAuthOpen && (
           <UserAuth 
-            onClose={() => setIsCartAuthOpen(false)}
-            onSuccess={() => setIsCartAuthOpen(false)}
+            onClose={() => {
+              setIsCartAuthOpen(false);
+              setPendingBooking(null);
+              setAuthMode('login');
+              setAuthEmail('');
+              setAuthName('');
+              setAuthPhone('');
+            }}
+            onSuccess={() => {
+              setIsCartAuthOpen(false);
+            }}
+            initialEmail={authEmail}
+            initialDisplayName={authName}
+            initialPhone={authPhone}
+            isModalMode={authMode}
+            onVerifySuccess={async (credentials) => {
+              // Custom verify success callback that auto-places the booking!
+              if (pendingBooking) {
+                try {
+                  const checkInDate = new Date(pendingBooking.checkIn);
+                  checkInDate.setHours(14, 0, 0, 0); // Standard check-in
+
+                  const checkOutDate = new Date(pendingBooking.checkOut);
+                  checkOutDate.setHours(11, 0, 0, 0); // Standard check-out
+
+                  // Add Booking of the accommodation directly to database
+                  await dbService.addBooking({
+                    fullName: pendingBooking.fullName,
+                    email: pendingBooking.email,
+                    phone: pendingBooking.phone,
+                    specialRequests: pendingBooking.specialRequests,
+                    checkIn: checkInDate.toISOString(),
+                    checkOut: checkOutDate.toISOString(),
+                    roomId: pendingBooking.accommodation.id,
+                    hotelId: pendingBooking.accommodation.hotelId,
+                    userId: credentials.userId,
+                    status: 'pending',
+                    guests: pendingBooking.guests || 2,
+                    roomCount: pendingBooking.roomCount || 1,
+                    createdAt: new Date().toISOString()
+                  });
+
+                  // Close accommodation modal and show beautiful global booking success!
+                  setSelectedItem(null);
+                  setIsBooking(false);
+                  setPendingBooking(null);
+                  setAuthMode('login');
+                  setAuthEmail('');
+                  setAuthName('');
+                  setAuthPhone('');
+                  
+                  // Open the booking success dialog!
+                  setBookingSuccess(true);
+                  setShowCartSuccess(true);
+                  if (typeof refresh === 'function') {
+                    refresh();
+                  }
+                } catch (err: any) {
+                  console.error('Auto-placing booking after registration OTP failed:', err);
+                  alert('Verification succeeded but booking failed: ' + (err.message || 'Please check with support.'));
+                }
+              }
+            }}
           />
         )}
       </AnimatePresence>

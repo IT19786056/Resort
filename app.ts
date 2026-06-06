@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
 import dotenv from 'dotenv';
+import nodemailer from 'nodemailer';
 import { queueBookingConfirmation, processEmailQueue } from './server/email.js';
 
 if (!process.env.VERCEL) {
@@ -346,6 +347,16 @@ async function initDb() {
         "parentType" TEXT NOT NULL,
         "data" TEXT NOT NULL,
         "order" INTEGER DEFAULT 0,
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS user_otps (
+        email TEXT PRIMARY KEY,
+        otp TEXT NOT NULL,
+        password TEXT NOT NULL,
+        "displayName" TEXT,
+        "phone" TEXT,
+        "expiresAt" TIMESTAMP WITH TIME ZONE NOT NULL,
         "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -1124,6 +1135,159 @@ app.delete('/api/media/:id', async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Custom Node In-Memory cache fallback for mock mode OTPs
+const mockOtps = new Map<string, { otp: string, password: string, displayName: string, phone: string, expiresAt: Date }>();
+
+app.post('/api/auth/send-otp', async (req, res) => {
+  const { email, displayName, password, phone } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  // Generate 6 digit OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+  console.log(`[OTP DEBUG] Generating OTP ${otp} for ${email}`);
+
+  // Save OTP
+  if (!pool) {
+    mockOtps.set(email.toLowerCase(), { otp, password, displayName, phone, expiresAt });
+  } else {
+    try {
+      await query(
+        `INSERT INTO user_otps (email, otp, password, "displayName", phone, "expiresAt")
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (email) DO UPDATE 
+         SET otp = EXCLUDED.otp, password = EXCLUDED.password, "displayName" = EXCLUDED."displayName", phone = EXCLUDED.phone, "expiresAt" = EXCLUDED."expiresAt"`,
+        [email.toLowerCase(), otp, password, displayName, phone, expiresAt]
+      );
+    } catch (err: any) {
+      console.error('Failed to store OTP in database:', err);
+      return res.status(500).json({ error: 'Server database error while registering OTP' });
+    }
+  }
+
+  // Send the OTP via email
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const port = parseInt(process.env.SMTP_PORT || '587');
+
+  const subject = `${otp} is your Amadiya Leisure Verification Code`;
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F8F5F2; padding: 40px; border-radius: 20px; max-width: 500px; margin: 40px auto; border: 1px solid #EEEEEE; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <span style="font-family: Georgia, serif; font-size: 24px; font-style: italic; color: #8D7B68; letter-spacing: 0.1em; text-transform: uppercase;">Amadiya Leisure</span>
+      </div>
+      <h2 style="color: #2D2D2D; font-weight: normal; margin-bottom: 16px; font-size: 18px;">Confirm Your Email Address</h2>
+      <p style="font-size: 14px; color: #666666; line-height: 1.6; margin-bottom: 24px;">Hello ${displayName || 'Valued Guest'},</p>
+      <p style="font-size: 14px; color: #666666; line-height: 1.6; margin-bottom: 24px;">Thank you for initiating your reservation at Amadiya Leisure. Please enter the verification code below on the signup page to secure your account and confirm your sanctuary booking:</p>
+      <div style="background-color: #FFFFFF; font-size: 32px; font-weight: bold; letter-spacing: 0.25em; text-align: center; padding: 20px; border-radius: 12px; margin: 24px 0; color: #8D7B68; border: 1px solid #EAE5E0; box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);">
+        ${otp}
+      </div>
+      <p style="font-size: 12px; color: #999999; text-align: center; margin-top: 24px;">This code expires in 5 minutes.</p>
+      <div style="border-top: 1px solid #EAE5E0; padding-top: 20px; margin-top: 30px; text-align: center; font-size: 11px; color: #999999; font-style: italic;">
+        &copy; ${new Date().getFullYear()} Amadiya Leisure. Handcrafted Sri Lankan hospitality.
+      </div>
+    </div>
+  `;
+
+  if (host && user && pass) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: { user, pass }
+      });
+      await transporter.sendMail({
+        from: `"Amadiya Leisure" <${user}>`,
+        to: email,
+        subject,
+        html
+      });
+      console.log(`?? SMTP OTP email successfully sent to ${email}`);
+    } catch (mailErr: any) {
+      console.error('SMTP OTP email sending failed:', mailErr);
+    }
+  } else {
+    console.warn(`?? SMTP not configured. OTP EMAIL NOT SENT. [OTP PIN IS: ${otp}]`);
+  }
+
+  return res.json({ success: true, message: 'OTP sent successfully', debugOtp: otp });
+});
+
+app.post('/api/auth/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return res.status(400).json({ error: 'Email and OTP code are required' });
+  }
+
+  let dbOtpRecord: any = null;
+
+  if (!pool) {
+    const cached = mockOtps.get(email.toLowerCase());
+    if (cached) {
+      dbOtpRecord = {
+        email: email.toLowerCase(),
+        otp: cached.otp,
+        password: cached.password,
+        displayName: cached.displayName,
+        phone: cached.phone,
+        expiresAt: cached.expiresAt
+      };
+    }
+  } else {
+    try {
+      const result = await query(
+        'SELECT * FROM user_otps WHERE email = $1',
+        [email.toLowerCase()]
+      );
+      if (result.rows[0]) {
+        dbOtpRecord = {
+          email: result.rows[0].email,
+          otp: result.rows[0].otp,
+          password: result.rows[0].password,
+          displayName: result.rows[0].displayName,
+          phone: result.rows[0].phone,
+          expiresAt: new Date(result.rows[0].expiresAt)
+        };
+      }
+    } catch (err) {
+      console.error('Database query error on verify OTP:', err);
+      return res.status(500).json({ error: 'Database verification failed' });
+    }
+  }
+
+  if (!dbOtpRecord) {
+    return res.status(400).json({ error: 'No verification request found for this email.' });
+  }
+
+  if (dbOtpRecord.otp !== otp.trim()) {
+    return res.status(400).json({ error: 'Invalid verification code. Please check your email and try again.' });
+  }
+
+  if (new Date() > dbOtpRecord.expiresAt) {
+    return res.status(400).json({ error: 'This verification code has expired (validity 5 minutes). Please request a new one.' });
+  }
+
+  // Clear OTP on success
+  if (!pool) {
+    mockOtps.delete(email.toLowerCase());
+  } else {
+    await query('DELETE FROM user_otps WHERE email = $1', [email.toLowerCase()]).catch(() => {});
+  }
+
+  return res.json({
+    success: true,
+    message: 'OTP verified successfully',
+    password: dbOtpRecord.password,
+    displayName: dbOtpRecord.displayName,
+    phone: dbOtpRecord.phone
+  });
 });
 
 // Vite Setup
