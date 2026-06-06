@@ -18,23 +18,23 @@ export const Hero = () => {
         <div className="absolute inset-0 bg-natural-dark/40 backdrop-blur-[2px]" />
       </div>
 
-      <div className="relative z-10 h-full max-w-7xl mx-auto px-6 md:px-10 flex items-center">
+      <div className="relative z-10 h-full max-w-7xl mx-auto px-6 md:px-10 flex items-center pt-24 md:pt-32 pb-12">
         <div className="max-w-3xl">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, delay: 0.5 }}
           >
-            <div className="flex items-center gap-4 text-white/70 text-fluid-eyebrow uppercase font-bold tracking-[0.6em] mb-12">
+            <div className="flex items-center gap-4 text-white/70 text-fluid-eyebrow uppercase font-bold tracking-[0.6em] mb-4 sm:mb-6 md:mb-8 lg:mb-12">
               <span className="w-12 h-[1px] bg-white/40"></span>
               Welcome to Amadiya Reserves
             </div>
 
-            <h1 className="font-serif text-fluid-hero italic text-white leading-[0.85] tracking-tighter mb-8 md:mb-12 drop-shadow-2xl">
+            <h1 className="font-serif text-fluid-hero italic text-white leading-[0.85] tracking-tighter mb-4 sm:mb-5 md:mb-8 lg:mb-10 drop-shadow-2xl">
               Sanctuary <br /> of Soul.
             </h1>
             
-            <p className="text-white/90 font-light text-fluid-card-title leading-relaxed italic max-w-xl mb-12 md:mb-16 drop-shadow-lg">
+            <p className="text-white/90 font-light text-fluid-card-title leading-relaxed italic max-w-xl mb-6 sm:mb-8 md:mb-10 lg:mb-12 drop-shadow-lg">
               Experience curated luxury where architecture meets nature's raw beauty. Every moment is a crafted escape into the extraordinary.
             </p>
             

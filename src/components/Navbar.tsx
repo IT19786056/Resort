@@ -65,19 +65,19 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
 
   return (
     <>
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isScrolled ? 'bg-natural-cream/80 backdrop-blur-md shadow-sm py-4' : 'bg-transparent py-8'}`}>
-        <div className="max-w-7xl mx-auto px-6 md:px-10 flex justify-between items-center">
-          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => handleNavClick('home')}>
-            <div className="w-10 h-10 bg-natural-primary rounded-full flex items-center justify-center transition-transform group-hover:scale-110">
-              <Search className="w-5 h-5 text-white" />
+      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isScrolled ? 'bg-natural-cream/80 backdrop-blur-md shadow-sm py-3 md:py-4' : 'bg-transparent py-4 md:py-6 lg:py-8'}`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 flex justify-between items-center">
+          <div className="flex items-center gap-2 sm:gap-3 cursor-pointer group" onClick={() => handleNavClick('home')}>
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-natural-primary rounded-full flex items-center justify-center transition-transform group-hover:scale-110 shrink-0">
+              <Search className="w-4 h-4 sm:w-5 h-5 text-white" />
             </div>
-            <div className={`font-serif text-2xl font-bold tracking-tight transition-colors duration-500 text-natural-dark`}>
+            <div className={`font-serif text-base sm:text-lg md:text-xl lg:text-2xl font-bold tracking-tight transition-colors duration-500 text-natural-dark whitespace-nowrap`}>
               Amadiya Leisure
             </div>
           </div>
 
           {/* Desktop Menu */}
-          <div className={`hidden md:flex items-center space-x-10 text-[10px] font-bold uppercase tracking-[0.3em] transition-colors duration-500 text-natural-dark`}>
+          <div className={`hidden md:flex items-center space-x-3 lg:space-x-7 xl:space-x-10 text-[9px] lg:text-[10px] font-bold uppercase tracking-[0.2em] lg:tracking-[0.3em] transition-colors duration-500 text-natural-dark`}>
             {navLinks.map(link => (
               <button 
                 key={link.id}

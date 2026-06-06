@@ -1,6 +1,28 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
 @import "tailwindcss";
 
+:root {
+  /* Default Mobile-first fluid sizes */
+  --fluid-hero: clamp(2.2rem, 6.5vw, 4.5rem);
+  --fluid-h1: clamp(1.5rem, 3.5vw, 2.2rem);
+  --fluid-h2: clamp(1.3rem, 3vw, 1.8rem);
+  --fluid-card-title: clamp(1.1rem, 2.2vw, 1.4rem);
+  --fluid-body: clamp(0.95rem, 1.5vw, 1.05rem);
+  --fluid-eyebrow: clamp(0.65rem, 1.1vw, 0.75rem);
+}
+
+@media (min-width: 1024px) {
+  :root {
+    /* 20% reduction of original maximum desktop/large view sizes */
+    --fluid-hero: clamp(2.4rem, 5.6vw, 6.4rem);       /* original max 8rem */
+    --fluid-h1: clamp(1.4rem, 2.4vw, 2.8rem);         /* original max 3.5rem */
+    --fluid-h2: clamp(1.2rem, 2vw, 2.2rem);           /* original max 2.75rem */
+    --fluid-card-title: clamp(1rem, 1.6vw, 1.8rem);   /* original max 2.25rem */
+    --fluid-body: clamp(0.8rem, 1.12vw, 0.96rem);     /* original max 1.2rem */
+    --fluid-eyebrow: clamp(0.56rem, 0.8vw, 0.68rem);   /* original max 0.85rem */
+  }
+}
+
 @theme {
   --color-natural-bg: #FFFFFF;
   --color-natural-cream: #F5F2ED;
@@ -13,12 +35,12 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Playfair Display", ui-serif, Georgia, serif;
 
-  --text-fluid-hero: clamp(3rem, 7vw, 8rem);
-  --text-fluid-h1: clamp(1.75rem, 3vw, 3.5rem);
-  --text-fluid-h2: clamp(1.5rem, 2.5vw, 2.75rem);
-  --text-fluid-card-title: clamp(1.25rem, 2vw, 2.25rem);
-  --text-fluid-body: clamp(1rem, 1.4vw, 1.2rem);
-  --text-fluid-eyebrow: clamp(0.7rem, 1vw, 0.85rem);
+  --text-fluid-hero: var(--fluid-hero);
+  --text-fluid-h1: var(--fluid-h1);
+  --text-fluid-h2: var(--fluid-h2);
+  --text-fluid-card-title: var(--fluid-card-title);
+  --text-fluid-body: var(--fluid-body);
+  --text-fluid-eyebrow: var(--fluid-eyebrow);
 }
 
 @layer base {
