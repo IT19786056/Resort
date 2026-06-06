@@ -32,7 +32,6 @@ export const CartDrawer = ({
     specialRequests: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
 
   // Auto-sync logged-in user details if they authenticate while the cart is open
   React.useEffect(() => {
@@ -103,11 +102,8 @@ export const CartDrawer = ({
         });
       }
 
-      setCheckoutSuccess(true);
       onClearCart();
-      setTimeout(() => {
-        onSuccess();
-      }, 3000);
+      onSuccess();
     } catch (err: any) {
       console.error('Checkout failed:', err);
       alert('Failed to place booking: ' + (err.message || 'Please try again.'));
@@ -153,20 +149,7 @@ export const CartDrawer = ({
               </button>
             </div>
 
-            {checkoutSuccess ? (
-              /* Success States */
-              <div className="flex-1 flex flex-col items-center justify-center p-10 text-center bg-natural-cream selection:bg-natural-primary/10">
-                <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center border border-green-200 mb-8 animate-bounce">
-                  <ShieldCheck className="w-10 h-10 text-green-600" />
-                </div>
-                <h4 className="font-serif text-3xl italic text-natural-dark mb-4">Escape Requested.</h4>
-                <p className="text-sm text-natural-muted font-light italic leading-relaxed max-w-sm mb-6">
-                  Your bespoke travels have been registered. Our concierge service will reach out to verify and process your booking.
-                </p>
-                <div className="w-16 h-1 bg-natural-primary/20 rounded-full mx-auto" />
-              </div>
-            ) : (
-              /* Core Cart Items Container */
+              {/* Core Cart Items Container */}
               <div className="flex-1 overflow-y-auto p-8 space-y-6">
                 {cart.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center p-6 bg-natural-cream selection:bg-natural-primary/5">
@@ -315,7 +298,6 @@ export const CartDrawer = ({
                   </>
                 )}
               </div>
-            )}
           </motion.div>
         </>
       )}

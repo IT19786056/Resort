@@ -1,6 +1,6 @@
 import React, { useState, lazy, Suspense, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Star, MapPin, ChevronRight, ArrowLeft, Search, Trash2, ShoppingCart } from 'lucide-react';
+import { Star, MapPin, ChevronRight, ArrowLeft, Search, Trash2, ShoppingCart, ShieldCheck, X } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import { dbService } from './services/db';
 
@@ -50,6 +50,7 @@ export default function App() {
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCartAuthOpen, setIsCartAuthOpen] = useState(false);
+  const [showCartSuccess, setShowCartSuccess] = useState(false);
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
@@ -441,7 +442,7 @@ export default function App() {
                               <div className="flex justify-center gap-6 mt-8">
                                 <button 
                                   onClick={() => {
-                                    setFilters({ type: 'All', priceRange: [0, 5000], minRating: 0, location: 'All', checkIn: '', checkOut: '' });
+                                    setFilters({ type: 'All', priceRange: [0, 5000], minRating: 0, location: 'All', checkIn: '', checkOut: '', hotelId: 'All' });
                                     setIsSearched(false);
                                   }}
                                   className="text-natural-primary font-bold uppercase text-[10px] tracking-[0.4em] border-b border-natural-primary pb-2 hover:opacity-70 transition-opacity"
@@ -549,7 +550,7 @@ export default function App() {
             onClose={() => setSelectedHotel(null)} 
             onViewStays={() => {
               setSelectedHotel(null);
-              setFilters(prev => ({ ...prev, location: selectedHotel.location }));
+              setFilters(prev => ({ ...prev, location: selectedHotel.location, hotelId: selectedHotel.id }));
               setIsSearched(true);
               setActiveTab('home');
               setTimeout(() => {
@@ -583,6 +584,7 @@ export default function App() {
         onOpenAuth={() => setIsCartAuthOpen(true)}
         onSuccess={() => {
           setIsCartOpen(false);
+          setShowCartSuccess(true);
           refresh();
         }}
       />
@@ -593,6 +595,49 @@ export default function App() {
             onClose={() => setIsCartAuthOpen(false)}
             onSuccess={() => setIsCartAuthOpen(false)}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showCartSuccess && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.6 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowCartSuccess(false)}
+              className="fixed inset-0 bg-natural-dark backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative z-10 w-full max-w-md bg-natural-cream rounded-[32px] p-8 md:p-12 text-center shadow-2xl border border-natural-accent flex flex-col items-center"
+            >
+              <button 
+                onClick={() => setShowCartSuccess(false)}
+                className="absolute top-6 right-6 p-2 rounded-full hover:bg-natural-accent/20 transition-all border border-natural-accent bg-white cursor-pointer"
+              >
+                <X className="w-5 h-5 text-natural-dark" />
+              </button>
+
+              <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center border border-green-200 mb-6 animate-bounce">
+                <ShieldCheck className="w-10 h-10 text-green-600" />
+              </div>
+
+              <h4 className="font-serif text-3xl italic text-natural-dark mb-4">Escape Requested.</h4>
+              <p className="text-sm text-natural-muted font-light italic leading-relaxed max-w-sm mb-8 select-none">
+                Your bespoke travels have been registered. Our concierge service will reach out to verify and process your booking.
+              </p>
+
+              <button
+                onClick={() => setShowCartSuccess(false)}
+                className="w-full bg-natural-primary text-white py-4 rounded-full font-bold uppercase tracking-[0.2em] shadow-lg hover:bg-natural-dark transition-all text-[10px] cursor-pointer"
+              >
+                Acknowledge
+              </button>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
