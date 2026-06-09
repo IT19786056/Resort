@@ -143,6 +143,7 @@ const AddUserForm = ({ onClose, onSuccess, onProcessing, onError, error, setErro
   const [loading, setLoading] = useState(false);
   const [tempPassword, setTempPassword] = useState('');
   const [copied, setCopied] = useState(false);
+  const [localSuccess, setLocalSuccess] = useState('');
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,11 +153,12 @@ const AddUserForm = ({ onClose, onSuccess, onProcessing, onError, error, setErro
     }
     setLoading(true);
     setError('');
+    setLocalSuccess('');
     onProcessing?.('Requesting invitation OTP...');
     try {
       await dbService.sendAdminOtp(email);
       setOtpSent(true);
-      onSuccess('Onboarding verification code dispatched successfully. Check email!');
+      setLocalSuccess('Onboarding verification code dispatched successfully. Check email!');
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Could not send verification OTP.');
@@ -174,6 +176,7 @@ const AddUserForm = ({ onClose, onSuccess, onProcessing, onError, error, setErro
     }
     setLoading(true);
     setError('');
+    setLocalSuccess('');
     onProcessing?.('Asserting OTP authenticity...');
     try {
       const res = await dbService.verifyAdminOtp({ email, otp: otpCode, role });
@@ -254,8 +257,14 @@ const AddUserForm = ({ onClose, onSuccess, onProcessing, onError, error, setErro
     <Modal onClose={onClose} title="Add New Administrator">
       <form onSubmit={otpSent ? handleVerifyOtp : handleSendOtp} className="space-y-6">
         {error && (
-          <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-xs font-bold uppercase">
+          <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-[10px] font-bold uppercase tracking-wider border border-red-100">
             {error}
+          </div>
+        )}
+        
+        {localSuccess && (
+          <div className="bg-green-50 text-green-700 p-4 rounded-2xl text-[10px] font-bold uppercase tracking-wider border border-green-100">
+            {localSuccess}
           </div>
         )}
         
