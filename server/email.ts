@@ -39,7 +39,7 @@ const createTransporter = () => {
   });
 };
 
-const getEmailTemplate = (details: BookingDetails) => {
+const getEmailTemplate = (details: BookingDetails, type: 'initial' | 'confirmed' | 'cancelled' = 'initial') => {
   const primaryColor = '#8D7B68';
   const bgColor = '#FDFCFB';
   const textColor = '#2D2D2D';
@@ -69,6 +69,17 @@ const getEmailTemplate = (details: BookingDetails) => {
     month: 'numeric', day: 'numeric', year: 'numeric',
     hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true 
   }) : formatDate(new Date().toISOString());
+
+  let headerTitle = 'Reservation Details';
+  let bottomMessage = 'Your reservation is confirmed. We look forward to welcoming you to Amadiya Leisure.';
+
+  if (type === 'confirmed') {
+    headerTitle = 'Reservation Confirmed';
+    bottomMessage = 'Great news! Your reservation has been accepted and confirmed by our staff. We look forward to welcoming you to Amadiya Leisure.';
+  } else if (type === 'cancelled') {
+    headerTitle = 'Reservation Cancelled';
+    bottomMessage = 'Your reservation has been cancelled. If you believe this is in error, or if you need help rescheduling, please reach out to us.';
+  }
 
   return `
     <!DOCTYPE html>
@@ -120,7 +131,7 @@ const getEmailTemplate = (details: BookingDetails) => {
         <div class="wrapper">
           <div class="container">
             <div class="header">
-              <h1 class="title">Reservation Details</h1>
+              <h1 class="title">${headerTitle}</h1>
               <div class="meta">
                 ID: ${details.id} &nbsp; | &nbsp; PLACED: ${placedAt}
               </div>
@@ -196,7 +207,7 @@ const getEmailTemplate = (details: BookingDetails) => {
               </table>
               
               <div style="text-align: center; margin-top: 20px;">
-                <p style="font-size: 14px; color: ${mutedColor}; line-height: 1.6;">Your reservation is confirmed. We look forward to welcoming you to Amadiya Leisure.</p>
+                <p style="font-size: 14px; color: ${mutedColor}; line-height: 1.6;">${bottomMessage}</p>
               </div>
             </div>
             
@@ -212,7 +223,7 @@ const getEmailTemplate = (details: BookingDetails) => {
 
 export const queueBookingConfirmation = async (dbQuery: any, details: BookingDetails) => {
   try {
-    const html = getEmailTemplate(details);
+    const html = getEmailTemplate(details, 'initial');
     const subject = `Your Sanctuary Awaits: Confirmation for ${details.hotelName}`;
     
     await dbQuery(
@@ -222,6 +233,36 @@ export const queueBookingConfirmation = async (dbQuery: any, details: BookingDet
     console.log(`Confirmation email queued for ${details.email}`);
   } catch (error) {
     console.error('Failed to queue confirmation email:', error);
+  }
+};
+
+export const queueBookingAcceptance = async (dbQuery: any, details: BookingDetails) => {
+  try {
+    const html = getEmailTemplate(details, 'confirmed');
+    const subject = `Reservation Confirmed: Your Sanctuary at ${details.hotelName}`;
+    
+    await dbQuery(
+      'INSERT INTO email_queue (recipient, subject, body, status) VALUES ($1, $2, $3, $4)',
+      [details.email, subject, html, 'pending']
+    );
+    console.log(`Acceptance email queued for ${details.email}`);
+  } catch (error) {
+    console.error('Failed to queue acceptance email:', error);
+  }
+};
+
+export const queueBookingCancellation = async (dbQuery: any, details: BookingDetails) => {
+  try {
+    const html = getEmailTemplate(details, 'cancelled');
+    const subject = `Reservation Cancelled: ${details.hotelName}`;
+    
+    await dbQuery(
+      'INSERT INTO email_queue (recipient, subject, body, status) VALUES ($1, $2, $3, $4)',
+      [details.email, subject, html, 'pending']
+    );
+    console.log(`Cancellation email queued for ${details.email}`);
+  } catch (error) {
+    console.error('Failed to queue cancellation email:', error);
   }
 };
 
@@ -269,11 +310,31 @@ export const processEmailQueue = async (pool: any) => {
     for (const email of result.rows) {
       try {
         console.log(`Sending email to ${email.recipient} (Subject: ${email.subject})...`);
+        
+        const attachments: any[] = [];
+        let htmlBody = email.body;
+
+        // Custom base64 image extractor to attach images properly for email clients (Gmail)
+        const base64Regex = /src="data:(image\/[^;]+);base64,([^"]+)"/g;
+        let cidCounter = 1;
+
+        htmlBody = htmlBody.replace(base64Regex, (match: string, mimeType: string, base64Data: string) => {
+          const cid = `embedded_img_${cidCounter++}`;
+          const extension = mimeType.split('/')[1] || 'png';
+          attachments.push({
+            filename: `image_${cidCounter - 1}.${extension}`,
+            content: Buffer.from(base64Data, 'base64'),
+            cid: cid
+          });
+          return `src="cid:${cid}"`;
+        });
+
         await transporter.sendMail({
           from: `"Amadiya Leisure" <${process.env.SMTP_USER}>`,
           to: email.recipient,
           subject: email.subject,
-          html: email.body,
+          html: htmlBody,
+          attachments: attachments.length > 0 ? attachments : undefined
         });
 
         await client.query(

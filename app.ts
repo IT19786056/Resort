@@ -5,7 +5,7 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
-import { queueBookingConfirmation, processEmailQueue } from './server/email.js';
+import { queueBookingConfirmation, queueBookingAcceptance, queueBookingCancellation, processEmailQueue } from './server/email.js';
 
 if (!process.env.VERCEL) {
   dotenv.config();
@@ -987,6 +987,19 @@ app.post('/api/bookings', async (req, res) => {
     const booking = result.rows[0];
     const hotelResult = await client.query('SELECT name FROM hotels WHERE id = $1', [hotelId]);
 
+    let roomImageUrl = roomCheck.rows[0]?.imageUrl || roomCheck.rows[0]?.["imageUrl"];
+    try {
+      const mediaResult = await client.query(
+        'SELECT data FROM media WHERE "parentId" = $1 ORDER BY "order" ASC, id ASC LIMIT 1',
+        [roomId]
+      );
+      if (mediaResult.rows[0]?.data) {
+        roomImageUrl = mediaResult.rows[0].data;
+      }
+    } catch (mediaErr) {
+      console.warn('Could not query dynamic media for initial booking email:', mediaErr);
+    }
+
     await queueBookingConfirmation(client.query.bind(client), {
       id: booking.id,
       fullName: booking.fullName,
@@ -994,7 +1007,7 @@ app.post('/api/bookings', async (req, res) => {
       phone: booking.phone,
       hotelName: hotelResult.rows[0]?.name || 'Amadiya Leisure',
       roomName: roomCheck.rows[0].name,
-      roomImageUrl: roomCheck.rows[0].imageUrl,
+      roomImageUrl: roomImageUrl,
       checkIn: booking.checkIn,
       checkOut: booking.checkOut,
       guests: booking.guests,
@@ -1067,7 +1080,75 @@ app.patch('/api/bookings/:id', async (req, res) => {
         await client.query('UPDATE rooms SET "isAvailable" = false WHERE id = $1', [roomId]);
       }
 
+      // Send status transition email if accepted (confirmed) or cancelled
+      if (status === 'confirmed' || status === 'cancelled') {
+        const detailResult = await client.query(
+          `SELECT 
+             b.id,
+             b."fullName",
+             b.email,
+             b.phone,
+             b."checkIn",
+             b."checkOut",
+             b.guests,
+             b."specialRequests",
+             b."createdAt",
+             r.name AS "roomName",
+             r."imageUrl" AS "roomImageUrl",
+             h.name AS "hotelName"
+           FROM bookings b
+           JOIN rooms r ON b."roomId" = r.id
+           JOIN hotels h ON b."hotelId" = h.id
+           WHERE b.id = $1`,
+          [id]
+        );
+
+        if (detailResult.rows[0]) {
+          const det = detailResult.rows[0];
+          
+          let roomImageUrl = det.roomImageUrl;
+          try {
+            const mediaResult = await client.query(
+              'SELECT data FROM media WHERE "parentId" = $1 ORDER BY "order" ASC, id ASC LIMIT 1',
+              [roomId]
+            );
+            if (mediaResult.rows[0]?.data) {
+              roomImageUrl = mediaResult.rows[0].data;
+            }
+          } catch (mediaErr) {
+            console.warn('Could not query dynamic media for updated booking email:', mediaErr);
+          }
+
+          const bookingDetails = {
+            id: det.id,
+            fullName: det.fullName,
+            email: det.email,
+            phone: det.phone || undefined,
+            hotelName: det.hotelName || 'Amadiya Leisure',
+            roomName: det.roomName,
+            roomImageUrl: roomImageUrl,
+            checkIn: det.checkIn,
+            checkOut: det.checkOut,
+            guests: det.guests,
+            specialRequests: det.specialRequests || undefined,
+            placedAt: det.createdAt
+          };
+
+          if (status === 'confirmed') {
+            await queueBookingAcceptance(client.query.bind(client), bookingDetails);
+          } else {
+            await queueBookingCancellation(client.query.bind(client), bookingDetails);
+          }
+        }
+      }
+
       await client.query('COMMIT');
+
+      // Processing queue fast to make status changes send immediately
+      await processEmailQueue(pool).catch(err => {
+        console.error('Immediate email queue processing failed after booking status change:', err);
+      });
+
       res.json(result.rows[0]);
     } else {
       await client.query('COMMIT');
