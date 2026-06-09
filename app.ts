@@ -1539,7 +1539,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
     console.warn(`?? SMTP not configured. OTP EMAIL NOT SENT. [OTP PIN IS: ${otp}]`);
   }
 
-  return res.json({ success: true, message: 'OTP sent successfully', debugOtp: otp });
+  return res.json({ success: true, message: 'OTP sent successfully' });
 });
 
 app.post('/api/auth/verify-otp', async (req, res) => {
@@ -1987,7 +1987,7 @@ app.post('/api/auth/send-admin-otp', async (req, res) => {
     console.warn(`?? SMTP not configured. OTP EMAIL NOT SENT. [OTP PIN IS: ${otp}]`);
   }
 
-  return res.json({ success: true, message: 'OTP sent successfully', debugOtp: otp });
+  return res.json({ success: true, message: 'OTP sent successfully' });
 });
 
 // Verify Admin OTP and automatically generate a Temporary Password for them

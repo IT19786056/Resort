@@ -146,7 +146,6 @@ const AddUserForm = ({ onClose, onSuccess, onProcessing, onError, error, setErro
   const [tempPassword, setTempPassword] = useState('');
   const [copied, setCopied] = useState(false);
   const [localSuccess, setLocalSuccess] = useState('');
-  const [debugOtp, setDebugOtp] = useState('');
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,12 +157,9 @@ const AddUserForm = ({ onClose, onSuccess, onProcessing, onError, error, setErro
     setError('');
     setLocalSuccess('');
     onProcessing?.('Requesting invitation OTP...');
-    try {
-      const res = await dbService.sendAdminOtp(email);
+     try {
+      await dbService.sendAdminOtp(email);
       setOtpSent(true);
-      if (res.debugOtp) {
-        setDebugOtp(res.debugOtp);
-      }
       const successMsg = 'Onboarding verification code dispatched successfully. Check email!';
       setLocalSuccess(successMsg);
       onSuccess(successMsg, true); // Dismiss loading state with a success notification and keep form open
@@ -297,11 +293,6 @@ const AddUserForm = ({ onClose, onSuccess, onProcessing, onError, error, setErro
               placeholder="6-digit OTP code"
               maxLength={6}
             />
-            {debugOtp && (
-              <div className="bg-amber-50 border border-amber-100 text-amber-800 p-4 rounded-2xl text-[10px] font-bold uppercase tracking-wider">
-                💡 Dev Mode: The invitation code is: <span className="font-mono text-xs text-natural-primary select-all ml-1 bg-white px-2.5 py-1 rounded-lg border border-natural-accent">{debugOtp}</span>
-              </div>
-            )}
             <div className="text-right">
               <button
                 type="button"

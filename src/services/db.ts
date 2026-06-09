@@ -216,7 +216,7 @@ export const dbService = {
   },
 
   async sendAdminOtp(email: string) {
-    return apiFetch<{ success: boolean; message: string; debugOtp?: string }>('/api/auth/send-admin-otp', {
+    return apiFetch<{ success: boolean; message: string }>('/api/auth/send-admin-otp', {
       method: 'POST',
       body: JSON.stringify({ email })
     });
