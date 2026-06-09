@@ -61,6 +61,7 @@ export interface AdminProfile {
   role: 'admin' | 'staff';
   displayName?: string;
   createdAt: string;
+  requiresPasswordChange?: boolean;
 }
 
 export interface FilterState {

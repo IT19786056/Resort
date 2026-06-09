@@ -213,5 +213,26 @@ export const dbService = {
 
   async getAdminLogs() {
     return apiFetch<AdminLog[]>('/api/admin/logs');
+  },
+
+  async sendAdminOtp(email: string) {
+    return apiFetch<{ success: boolean; message: string; debugOtp?: string }>('/api/auth/send-admin-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+  },
+
+  async verifyAdminOtp(payload: { email: string; otp: string; role: 'admin' | 'staff' }) {
+    return apiFetch<{ success: boolean; tempPassword?: string; message: string }>('/api/auth/verify-admin-otp', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async changeAdminPassword(payload: { email: string; currentPassword: string; newPassword: string }) {
+    return apiFetch<{ success: boolean; message: string }>('/api/auth/change-admin-password', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   }
 };
