@@ -35,19 +35,49 @@ const baseSupabase = isConfigured
       }
     });
 
+// Custom JWT payload decoder using client-side base64 decryption (atob)
+const decodeJwtPayload = (token: string) => {
+  try {
+    const parts = token.split('.');
+    if (parts.length === 3) {
+      const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const payloadJson = decodeURIComponent(
+        atob(payloadBase64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      return JSON.parse(payloadJson);
+    }
+  } catch (e) {
+    console.error('Error decoding custom JWT:', e);
+  }
+  return null;
+};
+
 // Custom handlers for storing/reading custom customer user session (completely bypassing Supabase's mandatory auth email verification triggers)
 const getCustomSession = () => {
   try {
     const saved = localStorage.getItem('amadiya_customer_user');
-    if (saved) {
-      const user = JSON.parse(saved);
-      return {
-        session: {
+    const token = localStorage.getItem('amadiya_customer_token');
+    
+    if (saved && token) {
+      const payload = decodeJwtPayload(token);
+      if (payload && payload.exp && payload.exp * 1000 > Date.now()) {
+        const user = JSON.parse(saved);
+        return {
+          session: {
+            user,
+            access_token: token,
+          },
           user,
-          access_token: 'custom_token_active',
-        },
-        user,
-      };
+        };
+      } else {
+        // Expired! Silently remove expired session items to force re-authentication
+        localStorage.removeItem('amadiya_customer_user');
+        localStorage.removeItem('amadiya_customer_token');
+        console.warn('Session has expired (limit 3600s). Forcing logout.');
+      }
     }
   } catch (e) {
     console.error('Error parsing custom user session from localStorage:', e);
@@ -94,9 +124,6 @@ const customAuth = {
     if (custom) {
       return { data: { session: custom.session }, error: null };
     }
-    if (isConfigured) {
-      return baseSupabase.auth.getSession();
-    }
     return { data: { session: null }, error: null };
   },
 
@@ -105,14 +132,10 @@ const customAuth = {
     if (custom) {
       return { data: { user: custom.user }, error: null };
     }
-    if (isConfigured) {
-      return baseSupabase.auth.getUser();
-    }
     return { data: { user: null }, error: null };
   },
 
   async signInWithPassword({ email, password }: any) {
-    // 1. Try our custom backend login (bypassing Supabase mandatory email confirmation state)
     try {
       const origin = typeof window !== 'undefined' && window.location ? window.location.origin : 'http://localhost:3000';
       const response = await fetch(`${origin}/api/auth/login`, {
@@ -123,6 +146,9 @@ const customAuth = {
       const data = await response.json();
       if (response.ok && data.success) {
         localStorage.setItem('amadiya_customer_user', JSON.stringify(data.user));
+        if (data.token) {
+          localStorage.setItem('amadiya_customer_token', data.token);
+        }
         const custom = getCustomSession();
         notifyCustomAuthChange('SIGNED_IN', custom?.session || null);
         return { data: { user: data.user, session: custom?.session }, error: null };
@@ -130,17 +156,37 @@ const customAuth = {
         return { data: { session: null, user: null }, error: new Error(data.error || 'Invalid credentials') };
       }
     } catch (err: any) {
-      console.warn('Custom backend customer sign-in error, falling back:', err);
-    }
-
-    // 2. Fallback to Supabase login for Admin users
-    if (isConfigured) {
-      return baseSupabase.auth.signInWithPassword({ email, password });
+      console.warn('Custom backend sign-in error:', err);
     }
     return { data: { session: null, user: null }, error: new Error('Invalid email or password.') };
   },
 
-  async signUp({ email, password, options }: any) {
+  async signUp({ email, password }: any) {
+    const emailKey = email.toLowerCase().trim();
+    if (emailKey === 'jasonlawrene23@gmail.com' || emailKey.endsWith('@ahsellresorts.com')) {
+      try {
+        const origin = typeof window !== 'undefined' && window.location ? window.location.origin : 'http://localhost:3000';
+        const response = await fetch(`${origin}/api/auth/signup-admin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await response.json();
+        if (response.ok && data.success) {
+          localStorage.setItem('amadiya_customer_user', JSON.stringify(data.user));
+          if (data.token) {
+            localStorage.setItem('amadiya_customer_token', data.token);
+          }
+          const custom = getCustomSession();
+          notifyCustomAuthChange('SIGNED_IN', custom?.session || null);
+          return { data: { user: data.user, session: custom?.session }, error: null };
+        } else {
+          return { data: { user: null }, error: new Error(data.error || 'Failed to register admin profile.') };
+        }
+      } catch (err: any) {
+        return { data: { user: null }, error: err };
+      }
+    }
     return { 
       data: { user: null }, 
       error: new Error('Amadiya Leisure requires confirming signups via custom 6-digit email OTP verify code.') 
@@ -149,35 +195,18 @@ const customAuth = {
 
   async signOut() {
     localStorage.removeItem('amadiya_customer_user');
+    localStorage.removeItem('amadiya_customer_token');
     notifyCustomAuthChange('SIGNED_OUT', null);
-    if (isConfigured) {
-      try {
-        await baseSupabase.auth.signOut();
-      } catch (err) {}
-    }
     return { error: null };
   },
 
   onAuthStateChange(callback: any) {
     customAuthListeners.add(callback);
-    
-    let baseUnsubscribe = () => {};
-    if (isConfigured) {
-      const { data: { subscription } } = baseSupabase.auth.onAuthStateChange((event, session) => {
-        // Only trigger from base Supabase if we don't have an active custom customer session override
-        if (!getCustomSession()) {
-          callback(event, session);
-        }
-      });
-      baseUnsubscribe = () => subscription.unsubscribe();
-    }
-
     return {
       data: {
         subscription: {
           unsubscribe() {
             customAuthListeners.delete(callback);
-            baseUnsubscribe();
           },
         },
       },
