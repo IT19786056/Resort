@@ -81,9 +81,16 @@ export const BookingForm = ({
     if (user) {
       setVisitorDetails(prev => ({
         ...prev,
-        fullName: user.user_metadata?.full_name || prev.fullName,
-        email: user.email || prev.email,
-        phone: user.user_metadata?.phone || prev.phone
+        fullName: user.user_metadata?.full_name || '',
+        email: user.email || '',
+        phone: user.user_metadata?.phone || ''
+      }));
+    } else {
+      setVisitorDetails(prev => ({
+        ...prev,
+        fullName: '',
+        email: '',
+        phone: ''
       }));
     }
   }, [user]);

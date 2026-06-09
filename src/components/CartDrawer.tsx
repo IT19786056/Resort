@@ -39,9 +39,16 @@ export const CartDrawer = ({
     if (user) {
       setFormData(prev => ({
         ...prev,
-        fullName: prev.fullName || user.user_metadata?.full_name || '',
-        email: prev.email || user.email || '',
-        phone: prev.phone || user.user_metadata?.phone || ''
+        fullName: user.user_metadata?.full_name || '',
+        email: user.email || '',
+        phone: user.user_metadata?.phone || ''
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        fullName: '',
+        email: '',
+        phone: ''
       }));
     }
   }, [user]);

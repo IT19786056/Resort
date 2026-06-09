@@ -123,7 +123,19 @@ export const UserAuth = ({
     if (finalUser) {
       // Set the customer session in local storage and dispatch event to synchronize all components
       localStorage.setItem('amadiya_customer_user', JSON.stringify(finalUser));
+      if (verifyData.token) {
+        localStorage.setItem('amadiya_customer_token', verifyData.token);
+      }
       window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new CustomEvent('amadiya_auth_state_change', {
+        detail: {
+          event: 'SIGNED_IN',
+          session: {
+            user: finalUser,
+            access_token: verifyData.token
+          }
+        }
+      }));
     }
 
     const finalUserId = finalUser?.id || 'cust_' + Math.random().toString(36).substring(2, 9);
