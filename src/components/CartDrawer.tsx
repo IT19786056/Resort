@@ -3,6 +3,7 @@ import { X, Trash2, Heart, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CartItem } from '../types';
 import { dbService } from '../services/db';
+import { PhoneInputField } from './PhoneInputField';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -28,7 +29,7 @@ export const CartDrawer = ({
   const [formData, setFormData] = useState({
     fullName: user?.user_metadata?.full_name || '',
     email: user?.email || '',
-    phone: '',
+    phone: user?.user_metadata?.phone || '',
     specialRequests: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,7 +40,8 @@ export const CartDrawer = ({
       setFormData(prev => ({
         ...prev,
         fullName: prev.fullName || user.user_metadata?.full_name || '',
-        email: prev.email || user.email || ''
+        email: prev.email || user.email || '',
+        phone: prev.phone || user.user_metadata?.phone || ''
       }));
     }
   }, [user]);
@@ -73,6 +75,7 @@ export const CartDrawer = ({
       await dbService.saveCustomerProfile(user.id, {
         email: user.email || formData.email,
         displayName: user.user_metadata?.full_name || formData.fullName,
+        phone: formData.phone || user.user_metadata?.phone || undefined,
         photoURL: user.user_metadata?.avatar_url || null,
         createdAt: new Date().toISOString()
       });
@@ -255,14 +258,12 @@ export const CartDrawer = ({
                               />
                             </div>
                             <div>
-                              <label className="block text-[9px] font-bold uppercase tracking-widest text-natural-muted ml-3 mb-1">Phone</label>
-                              <input
+                              <label className="block text-[9px] font-bold uppercase tracking-widest text-natural-muted ml-3 mb-1 font-mono">Phone</label>
+                              <PhoneInputField
+                                id="cart-drawer-phone-input"
                                 required
-                                type="tel"
                                 value={formData.phone}
-                                onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                                placeholder="Contact number"
-                                className="w-full bg-white border border-natural-accent rounded-full px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-natural-primary/20 text-natural-dark font-medium"
+                                onChange={val => setFormData({ ...formData, phone: val })}
                               />
                             </div>
                           </div>

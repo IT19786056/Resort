@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { dbService } from '../services/db';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Mail, Lock, User, LogIn, UserPlus, Shield, Key, Check, Phone } from 'lucide-react';
+import { PhoneInputField } from './PhoneInputField';
 
 interface UserAuthProps {
   onClose: () => void;
@@ -67,6 +68,7 @@ export const UserAuth = ({
           await dbService.saveCustomerProfile(user.id, {
             email: email,
             displayName: user.user_metadata?.full_name || displayName || email.split('@')[0],
+            phone: user.user_metadata?.phone || phone || null,
             photoURL: user.user_metadata?.avatar_url || null,
             createdAt: new Date().toISOString()
           }).catch(err => console.warn('Silently failed to sync customer table:', err));
@@ -130,6 +132,7 @@ export const UserAuth = ({
     await dbService.saveCustomerProfile(finalUserId, {
       email,
       displayName,
+      phone: finalUser?.user_metadata?.phone || phone || null,
       photoURL: null,
       createdAt: new Date().toISOString()
     }).catch(err => console.warn('Silently failed to sync customer table:', err));
@@ -312,17 +315,14 @@ export const UserAuth = ({
 
                 {!isLogin && (
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-natural-muted ml-4">Phone Number</label>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-natural-muted ml-4 font-mono">Phone Number</label>
                     <div className="relative">
-                      <Phone className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-natural-muted" />
-                      <input 
-                        type="text" 
-                        required
+                      <PhoneInputField 
+                        id="user-auth-phone-input"
                         disabled={isModalMode === 'booking-signup'}
-                        className="w-full bg-natural-bg rounded-full py-4 pl-14 pr-6 outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium disabled:opacity-75 disabled:bg-natural-bg/50"
-                        placeholder="+94 77 123 4567"
+                        required
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
+                        onChange={(val) => setPhone(val)}
                       />
                     </div>
                   </div>

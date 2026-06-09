@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { dbService } from '../services/db';
 import { supabase } from '../lib/supabase';
 import { Accommodation } from '../types';
+import { PhoneInputField } from './PhoneInputField';
 
 interface BookingFormProps {
   accommodation: Accommodation;
@@ -263,13 +264,11 @@ export const BookingForm = ({
             <div className="grid grid-cols-1 gap-3">
               <div>
                 <label className="block text-[9px] uppercase font-bold text-natural-muted mb-1.5 tracking-widest ml-4 font-mono">Phone Number</label>
-                <input 
-                  type="text"
+                <PhoneInputField 
+                  id="booking-form-phone-input"
                   required
-                  placeholder="+94 77 123 4567"
-                  className="w-full bg-natural-bg border border-natural-accent rounded-full px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark"
                   value={visitorDetails.phone}
-                  onChange={e => setVisitorDetails({ ...visitorDetails, phone: e.target.value })}
+                  onChange={val => setVisitorDetails({ ...visitorDetails, phone: val })}
                 />
               </div>
               <div>

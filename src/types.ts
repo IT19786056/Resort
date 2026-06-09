@@ -51,6 +51,7 @@ export interface CustomerProfile {
   email: string;
   displayName?: string;
   photoURL?: string;
+  phone?: string;
   createdAt: string;
 }
 
@@ -69,6 +70,7 @@ export interface FilterState {
   location: string;
   checkIn: string;
   checkOut: string;
+  hotelId?: string;
 }
 
 export interface CartItem {

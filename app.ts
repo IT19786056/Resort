@@ -461,10 +461,17 @@ app.get('/api/customers/:uid', async (req, res) => {
 app.post('/api/customers/:uid', async (req, res) => {
   try {
     const { uid } = req.params;
-    const { email, displayName, photoURL } = req.body;
+    const { email, displayName, photoURL, phone } = req.body;
     const result = await query(
-      'INSERT INTO customers (id, email, "displayName", "photoURL") VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, "displayName" = EXCLUDED."displayName", "photoURL" = EXCLUDED."photoURL" RETURNING *',
-      [uid, email, displayName, photoURL]
+      `INSERT INTO customers (id, email, "displayName", "photoURL", "phone")
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (id) DO UPDATE SET
+         email = EXCLUDED.email,
+         "displayName" = EXCLUDED."displayName",
+         "photoURL" = EXCLUDED."photoURL",
+         "phone" = COALESCE(EXCLUDED."phone", customers."phone")
+       RETURNING *`,
+      [uid, email, displayName, photoURL, phone]
     );
     res.json(result.rows[0]);
   } catch (err: any) {
