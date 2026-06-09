@@ -6,6 +6,7 @@ import {
   Clock, 
   LogOut,
   Users,
+  Activity,
   X
 } from 'lucide-react';
 
@@ -76,12 +77,20 @@ export const Sidebar = ({
           label="Hotel Guest Rooms"
         />
         {isAdmin && (
-          <SidebarButton 
-            active={activeTab === 'users'} 
-            onClick={() => { setActiveTab('users'); onClose?.(); }}
-            icon={<Users className="w-5 h-5" />}
-            label="Users"
-          />
+          <>
+            <SidebarButton 
+              active={activeTab === 'users'} 
+              onClick={() => { setActiveTab('users'); onClose?.(); }}
+              icon={<Users className="w-5 h-5" />}
+              label="Users"
+            />
+            <SidebarButton 
+              active={activeTab === 'logs'} 
+              onClick={() => { setActiveTab('logs'); onClose?.(); }}
+              icon={<Activity className="w-5 h-5" />}
+              label="Logs"
+            />
+          </>
         )}
       </nav>
 

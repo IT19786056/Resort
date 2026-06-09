@@ -364,12 +364,25 @@ async function initDb() {
         "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS admin_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "adminId" TEXT,
+        "adminEmail" TEXT NOT NULL,
+        "adminName" TEXT,
+        action TEXT NOT NULL,
+        "targetId" TEXT,
+        "targetName" TEXT,
+        details TEXT,
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE INDEX IF NOT EXISTS idx_email_queue_status ON email_queue(status) WHERE status = 'pending';
       CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON bookings("userId");
       CREATE INDEX IF NOT EXISTS idx_bookings_room_id ON bookings("roomId");
       CREATE INDEX IF NOT EXISTS idx_rooms_hotel_id ON rooms("hotelId");
       CREATE INDEX IF NOT EXISTS idx_rooms_availability ON rooms("isAvailable") WHERE "isAvailable" = true;
       CREATE INDEX IF NOT EXISTS idx_media_parent_id ON media("parentId");
+      CREATE INDEX IF NOT EXISTS idx_admin_logs_createdAt ON admin_logs("createdAt" DESC);
     `);
     console.log('Database tables initialized');
 
@@ -543,6 +556,53 @@ let cachedRooms: any[] | null = null;
 let cachedRoomsTime = 0;
 const CACHE_TTL = 5000; // 5-second transient cache for fast UI tab switching without locking actual DB updates
 
+const getAdminInfo = (req: express.Request) => {
+  return {
+    id: req.headers['x-admin-id'] as string || null,
+    email: req.headers['x-admin-email'] as string || null,
+    name: req.headers['x-admin-name'] as string || null,
+    role: req.headers['x-admin-role'] as string || null,
+  };
+};
+
+async function logAdminAction(dbQuery: any, adminInfo: any, action: string, targetId: string, targetName: string, details: string) {
+  try {
+    if (!adminInfo || !adminInfo.email) {
+      console.log(`Skipping admin audit log because no admin context was provided (Action: ${action})`);
+      return;
+    }
+    const adminId = adminInfo.id || null;
+    const adminEmail = adminInfo.email;
+    const adminName = adminInfo.name || adminEmail.split('@')[0];
+    await dbQuery(
+      `INSERT INTO admin_logs ("adminId", "adminEmail", "adminName", action, "targetId", "targetName", details)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [adminId, adminEmail, adminName, action, targetId, targetName, details]
+    );
+    console.log(`[AUDIT LOG] ${adminName} executed ${action} on ${targetName} (${targetId})`);
+  } catch (err) {
+    console.error('Error writing admin audit log to DB:', err);
+  }
+}
+
+app.get('/api/admin/logs', async (req, res) => {
+  if (!pool) {
+    return res.json([]);
+  }
+  
+  const adminInfo = getAdminInfo(req);
+  if (!adminInfo.email || adminInfo.role !== 'admin') {
+    return res.status(403).json({ error: 'Access denied. Administrator privileges required.' });
+  }
+
+  try {
+    const result = await query('SELECT * FROM admin_logs ORDER BY "createdAt" DESC LIMIT 1000');
+    res.json(result.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch transaction logs' });
+  }
+});
+
 const clearCache = () => {
   cachedHotels = null;
   cachedRooms = null;
@@ -617,6 +677,13 @@ app.post('/api/hotels', async (req, res) => {
       [name, location, description, imageUrl, hasBanquetHall || false, email, phone, type || 'Hotel']
     );
     clearCache();
+
+    const adminInfo = getAdminInfo(req);
+    if (adminInfo.email) {
+      const hotelObj = result.rows[0];
+      await logAdminAction(query, adminInfo, 'ADD_HOTEL', hotelObj.id, hotelObj.name, `Added hotel / resource ${hotelObj.name} (${hotelObj.type || 'Hotel'})`);
+    }
+
     res.json(result.rows[0]);
   } catch (err: any) {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message });
@@ -636,6 +703,13 @@ app.patch('/api/hotels/:id', async (req, res) => {
       [id, ...values]
     );
     clearCache();
+
+    const adminInfo = getAdminInfo(req);
+    if (adminInfo.email && result.rows[0]) {
+      const hotelObj = result.rows[0];
+      await logAdminAction(query, adminInfo, 'UPDATE_HOTEL', hotelObj.id, hotelObj.name, `Updated details of hotel / resource ${hotelObj.name} (${hotelObj.type || 'Hotel'})`);
+    }
+
     res.json(result.rows[0]);
   } catch (err: any) {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message });
@@ -644,8 +718,27 @@ app.patch('/api/hotels/:id', async (req, res) => {
 
 app.delete('/api/hotels/:id', async (req, res) => {
   try {
+    const adminInfo = getAdminInfo(req);
+    let hotelName = 'Hotel';
+    let hotelType = 'Location';
+    
+    try {
+      const hCheck = await query('SELECT name, type FROM hotels WHERE id = $1', [req.params.id]);
+      if (hCheck.rows[0]) {
+        hotelName = hCheck.rows[0].name;
+        hotelType = hCheck.rows[0].type || 'Hotel';
+      }
+    } catch (e) {
+      console.error('Error fetching hotel before delete:', e);
+    }
+
     await query('DELETE FROM hotels WHERE id = $1', [req.params.id]);
     clearCache();
+
+    if (adminInfo.email) {
+      await logAdminAction(query, adminInfo, 'DELETE_HOTEL', req.params.id, hotelName, `Deleted hotel / resource ${hotelName} (${hotelType})`);
+    }
+
     res.sendStatus(204);
   } catch (err: any) {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message });
@@ -744,6 +837,13 @@ app.post('/api/rooms', async (req, res) => {
       [hotelId, name, type, description, price, rating, imageUrl, amenities, maxGuests, isAvailable, location, quantity || 1]
     );
     clearCache();
+
+    const adminInfo = getAdminInfo(req);
+    if (adminInfo.email) {
+      const roomObj = result.rows[0];
+      await logAdminAction(query, adminInfo, 'ADD_ROOM', roomObj.id, roomObj.name, `Added accommodation / room ${roomObj.name} (${roomObj.type})`);
+    }
+
     res.json(result.rows[0]);
   } catch (err: any) {
     console.error(err);
@@ -774,6 +874,13 @@ app.patch('/api/rooms/:id', async (req, res) => {
       [id, ...values]
     );
     clearCache();
+
+    const adminInfo = getAdminInfo(req);
+    if (adminInfo.email && result.rows[0]) {
+      const roomObj = result.rows[0];
+      await logAdminAction(query, adminInfo, 'UPDATE_ROOM', roomObj.id, roomObj.name, `Updated details of accommodation / room ${roomObj.name} (${roomObj.type})`);
+    }
+
     res.json(result.rows[0]);
   } catch (err: any) {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message || 'Failed to update room' });
@@ -782,8 +889,27 @@ app.patch('/api/rooms/:id', async (req, res) => {
 
 app.delete('/api/rooms/:id', async (req, res) => {
   try {
+    const adminInfo = getAdminInfo(req);
+    let roomName = 'Accommodation';
+    let roomType = 'Room';
+
+    try {
+      const rCheck = await query('SELECT name, type FROM rooms WHERE id = $1', [req.params.id]);
+      if (rCheck.rows[0]) {
+        roomName = rCheck.rows[0].name;
+        roomType = rCheck.rows[0].type || 'Room';
+      }
+    } catch (e) {
+      console.error('Error fetching room before delete:', e);
+    }
+
     await query('DELETE FROM rooms WHERE id = $1', [req.params.id]);
     clearCache();
+
+    if (adminInfo.email) {
+      await logAdminAction(query, adminInfo, 'DELETE_ROOM', req.params.id, roomName, `Deleted accommodation / room ${roomName} (${roomType})`);
+    }
+
     res.sendStatus(204);
   } catch (err: any) {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message || 'Failed to delete room' });
@@ -1138,6 +1264,15 @@ app.patch('/api/bookings/:id', async (req, res) => {
             await queueBookingAcceptance(client.query.bind(client), bookingDetails);
           } else {
             await queueBookingCancellation(client.query.bind(client), bookingDetails);
+          }
+
+          const adminInfo = getAdminInfo(req);
+          if (adminInfo.email) {
+            const logAction = status === 'confirmed' ? 'CONFIRM_BOOKING' : 'CANCEL_BOOKING';
+            const logDetails = status === 'confirmed'
+              ? `Confirmed booking for guest ${det.fullName} at ${det.hotelName || 'Amadiya Leisure'} (${det.roomName})`
+              : `Cancelled booking for guest ${det.fullName} at ${det.hotelName || 'Amadiya Leisure'} (${det.roomName})`;
+            await logAdminAction(client.query.bind(client), adminInfo, logAction, det.id, det.fullName, logDetails);
           }
         }
       }

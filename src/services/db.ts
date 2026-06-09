@@ -1,4 +1,6 @@
-import { Hotel, Accommodation, Booking, CustomerProfile, AdminProfile } from '../types';
+import { Hotel, Accommodation, Booking, CustomerProfile, AdminProfile, AdminLog } from '../types';
+
+let adminContext: { id: string; email: string; displayName?: string; role: 'admin' | 'staff' } | null = null;
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   // Use fully qualified paths for same-origin API calls to ensure
@@ -10,14 +12,21 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     url = `${origin}${cleanPath}`;
   }
   
+  const reqHeaders = new Headers(options?.headers || {});
+  reqHeaders.set('Content-Type', 'application/json');
+
+  if (adminContext) {
+    reqHeaders.set('x-admin-id', adminContext.id);
+    reqHeaders.set('x-admin-email', adminContext.email);
+    reqHeaders.set('x-admin-name', adminContext.displayName || '');
+    reqHeaders.set('x-admin-role', adminContext.role);
+  }
+
   try {
     const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  });
+      ...options,
+      headers: reqHeaders,
+    });
 
   if (!response.ok) {
     let errorMessage = 'API Request failed';
@@ -196,5 +205,13 @@ export const dbService = {
   // Seed data is now handled by the backend
   async seedData() {
     console.log('Seed data is now handled by the backend server initialization.');
+  },
+
+  setAdminContext(context: typeof adminContext) {
+    adminContext = context;
+  },
+
+  async getAdminLogs() {
+    return apiFetch<AdminLog[]>('/api/admin/logs');
   }
 };

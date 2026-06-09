@@ -44,8 +44,19 @@ export const Admin = () => {
         }
         
         setProfile(p);
+        if (p) {
+          dbService.setAdminContext({
+            id: p.id,
+            email: p.email,
+            displayName: p.displayName,
+            role: p.role,
+          });
+        } else {
+          dbService.setAdminContext(null);
+        }
       } else {
         setProfile(null);
+        dbService.setAdminContext(null);
       }
       setLoading(false);
     }

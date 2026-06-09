@@ -23,6 +23,7 @@ import { compressImage, fileToBase64 } from '../../lib/imageUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar } from './Sidebar';
 import { UsersList } from './UsersList';
+import { AdminLogsList } from './AdminLogsList';
 import { LoadingPlane } from '../ui/LoadingPlane';
 import { Toast } from '../ui/Toast';
 import { Modal, Input, SectionLabel } from './Shared';
@@ -40,7 +41,7 @@ const generateUUID = () => {
 };
 import { triggerDataRefresh } from '../../lib/events';
 
-type AdminTab = 'hotels' | 'rooms' | 'bookings' | 'past_bookings' | 'users';
+type AdminTab = 'hotels' | 'rooms' | 'bookings' | 'past_bookings' | 'users' | 'logs';
 
 export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>(profile.role === 'admin' ? 'bookings' : 'bookings');
@@ -229,6 +230,9 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
                       onError={(err) => showToast(err, 'error')}
                       onProcessing={(msg) => showToast(msg, 'loading')}
                     />
+                  )}
+                  {activeTab === 'logs' && profile.role === 'admin' && (
+                    <AdminLogsList />
                   )}
                 </>
               )}

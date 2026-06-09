@@ -82,3 +82,15 @@ export interface CartItem {
   roomCount: number;
 }
 
+export interface AdminLog {
+  id: string;
+  adminId: string | null;
+  adminEmail: string;
+  adminName: string | null;
+  action: string;
+  targetId: string | null;
+  targetName: string | null;
+  details: string | null;
+  createdAt: string;
+}
+
