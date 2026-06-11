@@ -10,8 +10,14 @@ const isConfigured = Boolean(
   !supabaseUrl.includes('your-project-id')
 );
 
-const baseSupabase = isConfigured 
-  ? createClient(supabaseUrl, supabaseAnonKey)
+const baseSupabase = isConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    })
   : new Proxy({} as any, {
       get(_, prop) {
         if (prop === 'auth') {

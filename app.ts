@@ -5,17 +5,36 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
+import cors from 'cors';
 import { queueBookingConfirmation, queueBookingAcceptance, queueBookingCancellation, processEmailQueue } from './server/email.js';
 
 if (!process.env.VERCEL) {
   dotenv.config();
 }
 
+// Fatal startup checks — fail immediately if required secrets are absent.
+const _missingVars = ['JWT_SECRET', 'ADMIN_MASTER_PASSWORD'].filter(k => !process.env[k]);
+if (_missingVars.length > 0) {
+  throw new Error(`FATAL: Missing required environment variables: ${_missingVars.join(', ')}. Set them in .env or your hosting provider's secret manager.`);
+}
+const ADMIN_MASTER_PASSWORD = process.env.ADMIN_MASTER_PASSWORD as string;
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export const app = express();
 const PORT = 3000;
+
+const _allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : ['http://localhost:3000', 'http://localhost:5173'];
+
+app.use(cors({
+  origin: _allowedOrigins,
+  credentials: true,
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-id', 'x-admin-email', 'x-admin-name', 'x-admin-role'],
+}));
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -301,6 +320,9 @@ async function initDb() {
       -- Add dynamic scheme-level support columns if they don't exist
       ALTER TABLE hotels ADD COLUMN IF NOT EXISTS "type" TEXT DEFAULT 'Hotel';
       ALTER TABLE rooms ADD COLUMN IF NOT EXISTS "quantity" INTEGER DEFAULT 1;
+      UPDATE rooms SET quantity = 1 WHERE quantity IS NULL;
+      ALTER TABLE rooms ALTER COLUMN quantity SET DEFAULT 1;
+      ALTER TABLE rooms ALTER COLUMN quantity SET NOT NULL;
       ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "roomCount" INTEGER DEFAULT 1;
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS "password" TEXT;
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS "phone" TEXT;
@@ -695,10 +717,12 @@ app.patch('/api/hotels/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
-    const keys = Object.keys(updates);
+    const ALLOWED_HOTEL_FIELDS = new Set(['name', 'location', 'description', 'imageUrl', 'type', 'banquetHall']);
+    const keys = Object.keys(updates).filter(k => ALLOWED_HOTEL_FIELDS.has(k));
+    if (keys.length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
     const setClause = keys.map((key, i) => `"${key}" = $${i + 2}`).join(', ');
     const values = keys.map(key => updates[key]);
-    
+
     const result = await query(
       `UPDATE hotels SET ${setClause} WHERE id = $1 RETURNING *`,
       [id, ...values]
@@ -866,10 +890,12 @@ app.patch('/api/rooms/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
-    const keys = Object.keys(updates);
+    const ALLOWED_ROOM_FIELDS = new Set(['name', 'type', 'description', 'price', 'rating', 'imageUrl', 'amenities', 'maxGuests', 'isAvailable', 'location', 'quantity']);
+    const keys = Object.keys(updates).filter(k => ALLOWED_ROOM_FIELDS.has(k));
+    if (keys.length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
     const setClause = keys.map((key, i) => `"${key}" = $${i + 2}`).join(', ');
     const values = keys.map(key => updates[key]);
-    
+
     const result = await query(
       `UPDATE rooms SET ${setClause} WHERE id = $1 RETURNING *`,
       [id, ...values]
@@ -950,7 +976,7 @@ app.get('/api/rooms/:id/availability', async (req, res) => {
   }
   
   try {
-    const roomRes = await query('SELECT COALESCE(quantity, 1) as quantity FROM rooms WHERE id = $1', [id]);
+    const roomRes = await query('SELECT quantity FROM rooms WHERE id = $1', [id]);
     if (!roomRes.rows[0]) {
       return res.status(404).json({ error: 'Room not found' });
     }
@@ -1072,7 +1098,7 @@ app.post('/api/bookings', async (req, res) => {
     
     // Lock the room categories to serialize booking confirmations of this card type
     const roomCheck = await client.query(
-      'SELECT COALESCE(quantity, 1) as quantity, name, "imageUrl" FROM rooms WHERE id = $1 FOR UPDATE',
+      'SELECT quantity, name, "imageUrl" FROM rooms WHERE id = $1 FOR UPDATE',
       [roomId]
     );
 
@@ -1106,10 +1132,15 @@ app.post('/api/bookings', async (req, res) => {
       [userId, roomId, hotelId, fullName, email, phone, checkIn, checkOut, guests, specialRequests, status || 'pending', requestedRoomCount]
     );
 
-    // Update isAvailable only if the capacity completely sales out for some reference
-    if (remainingQuantity - requestedRoomCount <= 0) {
-      await client.query('UPDATE rooms SET "isAvailable" = false WHERE id = $1', [roomId]);
-    }
+    await client.query(
+      `UPDATE rooms SET "isAvailable" = (
+        quantity > COALESCE((
+          SELECT SUM(COALESCE("roomCount", 1)) FROM bookings
+          WHERE "roomId" = $1 AND status != 'cancelled'
+        ), 0)
+      ) WHERE id = $1`,
+      [roomId]
+    );
 
     const booking = result.rows[0];
     const hotelResult = await client.query('SELECT name FROM hotels WHERE id = $1', [hotelId]);
@@ -1189,22 +1220,28 @@ app.patch('/api/bookings/:id', async (req, res) => {
       throw new Error('Booking not found');
     }
 
-    const keys = Object.keys({ status, ...updates });
+    const ALLOWED_BOOKING_FIELDS = new Set(['status', 'specialRequests', 'fullName', 'phone', 'guests', 'roomCount', 'checkIn', 'checkOut']);
+    const allUpdates = { status, ...updates };
+    const keys = Object.keys(allUpdates).filter(k => ALLOWED_BOOKING_FIELDS.has(k));
     if (keys.length > 0) {
       const setClause = keys.map((key, i) => `"${key}" = $${i + 2}`).join(', ');
-      const values = keys.map(key => ({ status, ...updates }[key as any]));
+      const values = keys.map(key => allUpdates[key as keyof typeof allUpdates]);
       
       const result = await client.query(
         `UPDATE bookings SET ${setClause} WHERE id = $1 RETURNING *`,
         [id, ...values]
       );
 
-      // If cancelled, make the room available again
-      if (status === 'cancelled' && roomId) {
-        await client.query('UPDATE rooms SET "isAvailable" = true WHERE id = $1', [roomId]);
-      } else if (status === 'confirmed' && roomId) {
-        // Re-confirming might happen, ensure it's unavailable
-        await client.query('UPDATE rooms SET "isAvailable" = false WHERE id = $1', [roomId]);
+      if ((status === 'cancelled' || status === 'confirmed') && roomId) {
+        await client.query(
+          `UPDATE rooms SET "isAvailable" = (
+            quantity > COALESCE((
+              SELECT SUM(COALESCE("roomCount", 1)) FROM bookings
+              WHERE "roomId" = $1 AND status != 'cancelled'
+            ), 0)
+          ) WHERE id = $1`,
+          [roomId]
+        );
       }
 
       // Send status transition email if accepted (confirmed) or cancelled
@@ -1405,7 +1442,7 @@ function verifyPassword(password: string, storedHash: string): boolean {
   return password === storedHash;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'amadiya_jwt_secret_key_2026_securities';
+const JWT_SECRET = process.env.JWT_SECRET as string;
 
 function base64UrlEncode(str: string | Buffer): string {
   const buf = typeof str === 'string' ? Buffer.from(str) : str;
@@ -1721,9 +1758,9 @@ app.post('/api/auth/login', async (req, res) => {
     if (adminResult.rows.length > 0) {
       const admin = adminResult.rows[0];
       
-      const isPasswordValid = admin.password 
-        ? verifyPassword(password, admin.password) 
-        : (password === 'amadiya_staff_master_2026' || emailKey === 'jasonlawrene23@gmail.com');
+      const isPasswordValid = admin.password
+        ? verifyPassword(password, admin.password)
+        : password === ADMIN_MASTER_PASSWORD;
       
       if (!isPasswordValid) {
         const attempts = (tracker?.attempts || 0) + 1;
@@ -2105,9 +2142,9 @@ app.post('/api/auth/change-admin-password', async (req, res) => {
     }
 
     const admin = adminResult.rows[0];
-    const isPasswordValid = admin.password 
-      ? verifyPassword(currentPassword, admin.password) 
-      : (currentPassword === 'amadiya_staff_master_2026' || emailKey === 'jasonlawrene23@gmail.com');
+    const isPasswordValid = admin.password
+      ? verifyPassword(currentPassword, admin.password)
+      : currentPassword === ADMIN_MASTER_PASSWORD;
 
     if (!isPasswordValid) {
       return res.status(400).json({ error: 'The current temporary password you entered is incorrect.' });
@@ -2186,3 +2223,11 @@ async function startServer() {
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   startServer();
 }
+
+const _gracefulShutdown = async (signal: string) => {
+  console.log(`${signal} received — closing database pool.`);
+  if (pool) await pool.end().catch(() => {});
+  process.exit(0);
+};
+process.on('SIGTERM', () => _gracefulShutdown('SIGTERM'));
+process.on('SIGINT',  () => _gracefulShutdown('SIGINT'));
