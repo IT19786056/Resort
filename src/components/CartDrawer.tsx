@@ -78,14 +78,15 @@ export const CartDrawer = ({
 
     setIsSubmitting(true);
     try {
-      // 1. Synchronize user profile first to guarantee foreign key constraint safety
-      await dbService.saveCustomerProfile(user.id, {
+      // 1. Ensure a customer record exists and get its canonical id for the FK
+      const customerRecord = await dbService.saveCustomerProfile(user.id, {
         email: user.email || formData.email,
         displayName: user.user_metadata?.full_name || formData.fullName,
         phone: formData.phone || user.user_metadata?.phone || undefined,
         photoURL: user.user_metadata?.avatar_url || null,
         createdAt: new Date().toISOString()
       });
+      const bookingUserId = customerRecord?.id ?? user.id;
 
       // 2. Add Booking for each sanctuary item in the cart
       for (const item of cart) {
@@ -104,7 +105,7 @@ export const CartDrawer = ({
           checkOut: checkOutDate.toISOString(),
           roomId: item.accommodation.id,
           hotelId: item.accommodation.hotelId,
-          userId: user.id,
+          userId: bookingUserId,
           status: 'pending',
           guests: item.guests || 2,
           roomCount: item.roomCount,
