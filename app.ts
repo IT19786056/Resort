@@ -501,8 +501,7 @@ app.post('/api/customers/:uid', async (req, res) => {
     const result = await query(
       `INSERT INTO customers (id, email, "displayName", "photoURL", "phone")
        VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (id) DO UPDATE SET
-         email = EXCLUDED.email,
+       ON CONFLICT (email) DO UPDATE SET
          "displayName" = EXCLUDED."displayName",
          "photoURL" = EXCLUDED."photoURL",
          "phone" = COALESCE(EXCLUDED."phone", customers."phone")

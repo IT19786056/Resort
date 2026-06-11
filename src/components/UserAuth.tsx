@@ -62,9 +62,8 @@ export const UserAuth = ({
         });
         if (loginErr) throw loginErr;
         
-        // Log user and profile status
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
+        if (user && !user.user_metadata?.role) {
           await dbService.saveCustomerProfile(user.id, {
             email: email,
             displayName: user.user_metadata?.full_name || displayName || email.split('@')[0],
