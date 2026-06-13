@@ -15,6 +15,16 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const reqHeaders = new Headers(options?.headers || {});
   reqHeaders.set('Content-Type', 'application/json');
 
+  // Attach the signed session JWT so the server can verify identity/role
+  // (the x-admin-* headers below are display hints only and are NOT trusted
+  // for authorization on the backend).
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('amadiya_customer_token');
+    if (token) {
+      reqHeaders.set('Authorization', `Bearer ${token}`);
+    }
+  }
+
   if (adminContext) {
     reqHeaders.set('x-admin-id', adminContext.id);
     reqHeaders.set('x-admin-email', adminContext.email);

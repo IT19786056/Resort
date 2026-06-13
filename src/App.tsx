@@ -1,8 +1,9 @@
-import React, { useState, lazy, Suspense, useEffect } from 'react';
+import React, { useState, lazy, Suspense, useEffect, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Star, MapPin, ChevronRight, ArrowLeft, Search, Trash2, ShoppingCart, ShieldCheck, X } from 'lucide-react';
+import { MapPin, ChevronRight, ArrowLeft, Search, Trash2, ShoppingCart, ShieldCheck, X, Check } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import { dbService } from './services/db';
+import { cld } from './lib/cloudinary';
 
 // Hooks
 import { useAccommodations } from './hooks/useAccommodations';
@@ -39,15 +40,8 @@ export default function App() {
   const [isBooking, setIsBooking] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
 
-  // Cart and user auth states
-  const [cart, setCart] = useState<any[]>(() => {
-    try {
-      const saved = localStorage.getItem('amadiya_cart');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Cart and user auth states — session-only (clears on page reload)
+  const [cart, setCart] = useState<any[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCartAuthOpen, setIsCartAuthOpen] = useState(false);
   const [showCartSuccess, setShowCartSuccess] = useState(false);
@@ -59,10 +53,6 @@ export default function App() {
   const [authName, setAuthName] = useState('');
   const [authPhone, setAuthPhone] = useState('');
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'booking-signup'>('login');
-
-  useEffect(() => {
-    localStorage.setItem('amadiya_cart', JSON.stringify(cart));
-  }, [cart]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -82,7 +72,7 @@ export default function App() {
            i.checkOut === item.checkOut
     );
     if (exists) {
-      alert('This sanctuary is already in your cart for the selected dates!');
+      alert('This room is already in your cart for the selected dates!');
       return;
     }
 
@@ -138,13 +128,14 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [activeTab]);
 
-  const { 
-    hotels, 
-    loading, 
+  const {
+    hotels,
+    accommodations,
+    loading,
     refreshing,
     error,
-    filters, 
-    filteredItems, 
+    filters,
+    filteredItems,
     setFilters,
     refresh
   } = useAccommodations();
@@ -160,15 +151,17 @@ export default function App() {
   }, [activeTab]);
 
   useEffect(() => {
+    let ticking = false;
     const handleScroll = () => {
-      if (window.scrollY > 800) {
-        setShowScrollTop(true);
-      } else {
-        setShowScrollTop(false);
-      }
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        setShowScrollTop(window.scrollY > 800);
+        ticking = false;
+      });
     };
 
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -186,11 +179,18 @@ export default function App() {
     setBookingSuccess(false);
   };
 
-  const handleStartBooking = (e: React.MouseEvent, item: any) => {
+  const handleStartBooking = useCallback((e: React.MouseEvent, item: any) => {
     e.stopPropagation();
     setSelectedItem(item);
     setIsBooking(true);
-  };
+  }, []);
+
+  // Stable handlers so the memoized cards don't re-render on every App state change.
+  const handleSelectHotel = useCallback((hotel: any) => setSelectedHotel(hotel), []);
+  const handleSelectItem = useCallback((item: any) => {
+    setSelectedItem(item);
+    setIsBooking(false);
+  }, []);
 
   const handleTabChange = (tab: any) => {
     if (tab === 'staff') {
@@ -209,7 +209,7 @@ export default function App() {
             onClick={() => setActiveTab('home')}
             className="fixed bottom-8 left-8 z-[100] bg-natural-dark text-white px-8 py-4 rounded-full font-bold uppercase text-[10px] tracking-[0.3em] shadow-2xl flex items-center gap-3 hover:bg-natural-primary transition-all scale-90 hover:scale-100"
           >
-            <ArrowLeft className="w-4 h-4" /> Back to Sanctuary
+            <ArrowLeft className="w-4 h-4" /> Back
           </button>
           <Admin />
         </div>
@@ -299,7 +299,7 @@ export default function App() {
                       onFilterChange={(f) => {
                         setFilters(prev => {
                           const next = { ...prev, ...f };
-                          const isDefaultState = next.location === 'All' && next.type === 'All' && !next.checkIn && !next.checkOut;
+                          const isDefaultState = (!next.hotelId || next.hotelId === 'All') && next.type === 'All' && !next.checkIn && !next.checkOut;
                           if (isDefaultState) {
                             setIsSearched(false);
                           } else {
@@ -312,7 +312,7 @@ export default function App() {
                       onReset={() => {
                         setFilters({ 
                           type: 'All', 
-                          priceRange: [0, 5000], 
+                          priceRange: [0, 10000000],
                           minRating: 0, 
                           location: 'All', 
                           checkIn: '', 
@@ -321,8 +321,9 @@ export default function App() {
                         });
                         setIsSearched(false);
                       }}
-                      currentFilter={filters} 
-                      hotels={hotels} 
+                      currentFilter={filters}
+                      hotels={hotels}
+                      accommodations={accommodations}
                     />
 
                     <section id="stays-list" className="max-w-7xl mx-auto px-6 py-24">
@@ -364,7 +365,7 @@ export default function App() {
                                 key={hotel.id} 
                                 hotel={hotel} 
                                 index={index} 
-                                onClick={() => setSelectedHotel(hotel)} 
+                                onSelect={handleSelectHotel}
                               />
                             ))}
                           </motion.div>
@@ -407,8 +408,8 @@ export default function App() {
                                 key={item.id} 
                                 item={item} 
                                 index={index} 
-                                onClick={() => { setSelectedItem(item); setIsBooking(false); }}
-                                onBook={(e) => handleStartBooking(e, item)}
+                                onSelect={handleSelectItem}
+                                onBook={handleStartBooking}
                                 disabled={!item.isAvailable}
                               />
                             ))}
@@ -420,7 +421,7 @@ export default function App() {
                               <div className="flex justify-center gap-6 mt-8">
                                 <button 
                                   onClick={() => {
-                                    setFilters({ type: 'All', priceRange: [0, 5000], minRating: 0, location: 'All', checkIn: '', checkOut: '', hotelId: 'All' });
+                                    setFilters({ type: 'All', priceRange: [0, 10000000], minRating: 0, location: 'All', checkIn: '', checkOut: '', hotelId: 'All' });
                                     setIsSearched(false);
                                   }}
                                   className="text-natural-primary font-bold uppercase text-[10px] tracking-[0.4em] border-b border-natural-primary pb-2 hover:opacity-70 transition-opacity"
@@ -463,7 +464,7 @@ export default function App() {
                           key={hotel.id} 
                           hotel={hotel} 
                           index={index} 
-                          onClick={() => setSelectedHotel(hotel)} 
+                          onSelect={handleSelectHotel}
                         />
                       ))}
                     </div>
@@ -515,7 +516,7 @@ export default function App() {
               )}
             </AnimatePresence>
 
-            <Footer />
+            <Footer onTabChange={handleTabChange} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -674,21 +675,22 @@ export default function App() {
 
 // --- Sub-components (Kept here as they are specific to App's view) ---
 
-const AccommodationCard = ({ item, index, onClick, onBook, disabled }: any) => (
-  <motion.div 
+const AccommodationCard = memo(({ item, index, onSelect, onBook, disabled }: any) => (
+  <motion.div
     layout
     initial={{ opacity: 0, y: 30 }}
     whileInView={{ opacity: 1, y: 0 }}
     viewport={{ once: true }}
     transition={{ duration: 0.6, delay: index * 0.1 }}
-    onClick={disabled ? undefined : onClick}
+    onClick={disabled ? undefined : () => onSelect(item)}
     className={`bg-natural-cream rounded-[24px] overflow-hidden flex flex-col shadow-md border border-natural-accent group hover:shadow-2xl transition-all duration-500 cursor-pointer ${disabled ? 'opacity-70 grayscale-[0.5]' : ''}`}
   >
     <div className="w-full aspect-[16/10] bg-natural-accent overflow-hidden relative">
-      <img 
-        src={item.imageUrl} 
-        alt={item.name} 
-        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" 
+      <img
+        src={cld(item.imageUrl, 'f_auto,q_auto,w_800')}
+        alt={item.name}
+        loading="lazy"
+        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
         referrerPolicy="no-referrer"
       />
       <div className="absolute top-4 md:top-6 right-4 md:right-6 bg-white/90 backdrop-blur-md px-3 md:px-4 py-1 md:py-1.5 rounded-full text-fluid-eyebrow font-bold uppercase tracking-[0.2em] text-natural-primary border border-natural-accent">
@@ -703,21 +705,18 @@ const AccommodationCard = ({ item, index, onClick, onBook, disabled }: any) => (
     <div className="p-8 flex flex-col flex-1">
       <div className="flex justify-between items-start mb-4 md:mb-6">
         <h3 className="font-serif text-fluid-card-title text-natural-dark italic group-hover:text-natural-primary transition-colors">{item.name}</h3>
-        <span className="flex items-center text-[10px] md:text-xs font-bold text-natural-primary bg-natural-primary/5 px-2 md:px-3 py-1 rounded-full">
-          <Star className="w-3 h-3 mr-1 md:mr-1.5 fill-current" /> {item.rating}
-        </span>
       </div>
       <p className="text-fluid-body text-natural-muted leading-relaxed mb-6 md:mb-8 flex-1 italic font-light">
         {item.description}
       </p>
       <div className="mt-auto flex items-center justify-between pt-8 border-t border-natural-bg">
         <div className="flex items-baseline">
-          <span className="text-2xl md:text-3xl font-bold text-natural-dark">${item.price}</span>
+          <span className="text-2xl md:text-3xl font-bold text-natural-dark">LKR {item.price.toLocaleString()}</span>
           <span className="text-fluid-eyebrow font-bold uppercase tracking-[0.2em] text-natural-muted ml-2 md:ml-3">/ night</span>
         </div>
         {!disabled && (
-          <button 
-            onClick={onBook}
+          <button
+            onClick={(e) => onBook(e, item)}
             className="bg-natural-primary text-white p-3 md:p-4 rounded-full hover:bg-natural-dark transition-all shadow-lg active:scale-95"
           >
             <ChevronRight className="w-4 md:w-5 h-4 md:h-5" />
@@ -726,22 +725,23 @@ const AccommodationCard = ({ item, index, onClick, onBook, disabled }: any) => (
       </div>
     </div>
   </motion.div>
-);
+));
 
-const HotelCard = ({ hotel, index, onClick }: any) => (
-  <motion.div 
+const HotelCard = memo(({ hotel, index, onSelect }: any) => (
+  <motion.div
     initial={{ opacity: 0, y: 40 }}
     whileInView={{ opacity: 1, y: 0 }}
     viewport={{ once: true }}
     transition={{ delay: index * 0.1, duration: 0.8 }}
-    onClick={onClick}
+    onClick={() => onSelect(hotel)}
     className="group bg-white rounded-[24px] overflow-hidden flex flex-col shadow-md border border-natural-accent hover:shadow-2xl transition-all duration-500 cursor-pointer"
   >
     <div className="w-full aspect-[16/10] bg-natural-accent overflow-hidden relative">
-      <img 
-        src={hotel.imageUrl} 
-        className="w-full h-full object-cover group-hover:scale-110 transition-all duration-[2000ms]" 
+      <img
+        src={cld(hotel.imageUrl, 'f_auto,q_auto,w_900')}
+        className="w-full h-full object-cover group-hover:scale-110 transition-all duration-[2000ms]"
         alt={hotel.name}
+        loading="lazy"
         referrerPolicy="no-referrer"
       />
       <div className="absolute inset-0 bg-gradient-to-t from-natural-dark/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700 flex items-end p-8">
@@ -758,19 +758,19 @@ const HotelCard = ({ hotel, index, onClick }: any) => (
       <h3 className="font-serif text-fluid-card-title text-natural-dark group-hover:italic transition-all duration-500 tracking-tighter">{hotel.name}</h3>
     </div>
   </motion.div>
-);
+));
 
 const DetailDivider = () => <div className="h-[1px] w-full bg-natural-accent my-6 md:my-8" />;
 
 const HotelDetailModal = ({ hotel, onClose, onViewStays }: any) => (
   <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 md:p-10">
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-natural-dark/70 backdrop-blur-lg" />
+    <button onClick={onClose} className="absolute top-5 left-5 z-20 p-3 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all shadow-lg">
+      <ArrowLeft className="w-5 h-5" />
+    </button>
     <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="relative z-10 w-full max-w-6xl bg-natural-cream rounded-[24px] sm:rounded-[40px] md:rounded-[60px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.3)] flex flex-col lg:flex-row h-[94vh] lg:h-[85vh] max-h-[850px] modal-container">
       <div className="lg:w-1/2 h-56 sm:h-72 lg:h-full relative overflow-hidden bg-natural-accent">
         <Gallery parentId={hotel.id} fallbackImage={hotel.imageUrl} className="w-full h-full" />
-        <div className="absolute top-4 left-4 md:top-8 md:left-8 flex gap-4">
-          <button onClick={onClose} className="p-2 sm:p-3 md:p-4 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all"><ArrowLeft className="w-5 h-5 md:w-6 md:h-6"/></button>
-        </div>
       </div>
       <div className="lg:w-1/2 p-6 sm:p-10 md:p-16 lg:p-24 overflow-y-auto flex flex-col selection:bg-natural-primary/20">
         <div className="mb-4 md:mb-10 flex items-center gap-3">
@@ -781,9 +781,13 @@ const HotelDetailModal = ({ hotel, onClose, onViewStays }: any) => (
         <p className="text-fluid-body text-natural-muted font-light italic leading-relaxed mb-10 md:mb-16">{hotel.description}</p>
         <DetailDivider />
         <div className="mb-10 md:mb-16">
-          <h4 className="text-[10px] uppercase font-bold tracking-[0.3em] text-natural-dark mb-6 md:mb-8">The Sanctuary Map</h4>
+          <h4 className="text-[10px] uppercase font-bold tracking-[0.3em] text-natural-dark mb-6 md:mb-8">Location Map</h4>
           <div className="h-56 md:h-72 bg-natural-bg rounded-[32px] md:rounded-[40px] overflow-hidden border border-natural-accent relative">
-             <iframe title="map" width="100%" height="100%" frameBorder="0" src={`https://www.google.com/maps/embed/v1/place?key=REPLACEME&q=${encodeURIComponent(hotel.name + ' ' + hotel.location)}`} />
+             {import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? (
+               <iframe title="map" width="100%" height="100%" frameBorder="0" src={`https://www.google.com/maps/embed/v1/place?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&q=${encodeURIComponent(hotel.name + ' ' + hotel.location)}`} />
+             ) : (
+               <iframe title="map" width="100%" height="100%" frameBorder="0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" src={`https://maps.google.com/maps?q=${encodeURIComponent(hotel.name + ' ' + hotel.location)}&output=embed`} />
+             )}
              <div className="absolute inset-0 bg-natural-primary/5 pointer-events-none" />
           </div>
         </div>
@@ -801,7 +805,10 @@ const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, on
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-natural-dark/70 backdrop-blur-lg" />
-      
+      <button onClick={onClose} className="absolute top-5 left-5 z-20 p-3 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all shadow-lg">
+        <ArrowLeft className="w-5 h-5" />
+      </button>
+
       {isFormState ? (
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }} 
@@ -829,20 +836,17 @@ const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, on
             <div className="flex flex-col lg:flex-row w-full bg-natural-cream rounded-[24px] sm:rounded-[36px] md:rounded-[50px] overflow-hidden">
               <div className="lg:w-1/2 h-56 sm:h-72 lg:h-auto relative bg-natural-accent">
                 <Gallery parentId={item.id} fallbackImage={item.imageUrl} className="w-full h-full" />
-                <button onClick={onClose} className="absolute top-4 left-4 lg:hidden p-2 sm:p-3 bg-white/20 backdrop-blur-md rounded-full text-white"><ArrowLeft className="w-5 h-5"/></button>
               </div>
               <div className="lg:w-1/2 p-6 sm:p-10 md:p-16 flex flex-col selection:bg-natural-primary/20 bg-natural-cream">
-                <button onClick={onClose} className="hidden lg:flex self-end p-2 hover:bg-natural-bg rounded-full mb-4"><ArrowLeft className="w-6 h-6 text-natural-muted"/></button>
                 <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-primary mb-4 md:mb-6">{item.type} Portfolio</span>
                 <h2 className="font-serif text-fluid-h1 text-natural-dark italic mb-4 md:mb-8 tracking-tighter leading-tight">{item.name}</h2>
                 <div className="flex flex-wrap items-center gap-4 md:gap-6 mb-8 md:mb-10 pb-6 md:pb-8 border-b border-natural-accent">
-                   <div className="flex items-center gap-2 text-xs md:text-sm font-bold"><Star className="w-4 h-4 text-natural-primary" /> {item.rating}</div>
                    <div className="flex items-center gap-2 text-xs md:text-sm font-bold"><MapPin className="w-4 h-4 text-natural-primary" /> {item.location}</div>
                 </div>
                 <p className="text-fluid-body text-natural-muted font-light italic leading-relaxed mb-10 md:mb-12">{item.description}</p>
                 <div className="mt-auto flex items-center justify-between gap-4">
                   <div>
-                    <span className="text-3xl md:text-4xl font-bold font-serif italic text-natural-dark">${item.price}</span>
+                    <span className="text-3xl md:text-4xl font-bold font-serif italic text-natural-dark">LKR {item.price.toLocaleString()}</span>
                     <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-natural-muted ml-2 md:ml-4">/ night</span>
                   </div>
                   <button onClick={onStartBooking} className="bg-natural-primary text-white px-8 md:px-10 py-4 md:py-5 rounded-full font-bold uppercase tracking-[0.2em] shadow-xl hover:bg-natural-dark transition-all text-xs">Reserve</button>
@@ -851,8 +855,8 @@ const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, on
             </div>
           ) : (
             <div className="w-full p-8 sm:p-16 md:p-24 flex flex-col items-center text-center justify-center bg-natural-cream rounded-[32px] md:rounded-[50px] overflow-hidden">
-              <div className="w-16 h-16 md:w-20 md:h-20 bg-green-50 rounded-full flex items-center justify-center mb-6 md:mb-10"><Star className="w-8 h-8 md:w-10 md:h-10 text-green-600"/></div>
-              <h2 className="font-serif text-fluid-h1 italic text-natural-dark mb-4 md:mb-6 tracking-tighter text-center leading-tight">Sanctuary Requested.</h2>
+              <div className="w-16 h-16 md:w-20 md:h-20 bg-green-50 rounded-full flex items-center justify-center mb-6 md:mb-10"><Check className="w-8 h-8 md:w-10 md:h-10 text-green-600"/></div>
+              <h2 className="font-serif text-fluid-h1 italic text-natural-dark mb-4 md:mb-6 tracking-tighter text-center leading-tight">Booking Requested.</h2>
               <p className="text-fluid-body text-natural-muted max-w-md font-light italic leading-relaxed mb-12 text-center">Our concierge will contact you within the hour to finalize your tropical escape.</p>
               <button onClick={onClose} className="bg-natural-primary text-white px-12 py-5 rounded-full font-bold uppercase tracking-[0.2em] shadow-xl text-sm">Complete</button>
             </div>

@@ -1,18 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
-import { dbService } from '../services/db';
-import { Hotel, Accommodation, Booking, FilterState } from '../types';
-import { EVENTS } from '../constants';
+import { useState, useMemo } from 'react';
+import { FilterState } from '../types';
+import { queryClient, queryKeys } from '../lib/queryClient';
+import { useHotelsQuery, useRoomsQuery } from './queries';
 
 export const useAccommodations = () => {
-  const [accommodations, setAccommodations] = useState<Accommodation[]>([]);
-  const [hotels, setHotels] = useState<Hotel[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>({
     type: 'All',
-    priceRange: [0, 5000],
+    priceRange: [0, 10000000],
     minRating: 0,
     location: 'All',
     checkIn: '',
@@ -20,38 +14,17 @@ export const useAccommodations = () => {
     hotelId: 'All',
   });
 
-  const fetchData = async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+  const hotelsQuery = useHotelsQuery();
+  const roomsQuery = useRoomsQuery();
 
-    try {
-      const [h, r] = await Promise.all([
-        dbService.getHotels(isRefresh),
-        dbService.getRooms(undefined, isRefresh)
-      ]);
-      setHotels(h || []);
-      setAccommodations(r || []);
-      setError(null);
-    } catch (err: any) {
-      console.error('Error fetching data:', err);
-      setError(err.message || 'Failed to fetch data');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  const hotels = hotelsQuery.data ?? [];
+  const accommodations = roomsQuery.data ?? [];
 
-  useEffect(() => {
-    fetchData();
-
-    // Listen for data refresh events from anywhere in the app
-    const handleRefresh = () => {
-      fetchData(true);
-    };
-
-    window.addEventListener(EVENTS.DATA_REFRESH, handleRefresh);
-    return () => window.removeEventListener(EVENTS.DATA_REFRESH, handleRefresh);
-  }, []);
+  // First-paint loading vs. background re-fetch (e.g. after a mutation).
+  const loading = hotelsQuery.isLoading || roomsQuery.isLoading;
+  const refreshing = (hotelsQuery.isFetching || roomsQuery.isFetching) && !loading;
+  const queryError = hotelsQuery.error || roomsQuery.error;
+  const error = queryError ? (queryError as Error).message : null;
 
   const filteredItems = useMemo(() => {
     return accommodations.filter(item => {
@@ -64,24 +37,26 @@ export const useAccommodations = () => {
       const itemLocation = item.location || hotels.find(h => h.id === item.hotelId)?.location || '';
       const matchesLocation = filters.location === 'All' || itemLocation.toLowerCase() === filters.location.toLowerCase();
       const matchesHotel = !filters.hotelId || filters.hotelId === 'All' || item.hotelId === filters.hotelId;
-      
-      // Basic check: if checkIn/checkOut is set, find if there are conflicting reservations
-      const matchesAvailability = true; // For now simplified, could check against 'bookings'
-      
-      return matchesType && matchesPrice && matchesRating && matchesLocation && matchesHotel && matchesAvailability;
+
+      return matchesType && matchesPrice && matchesRating && matchesLocation && matchesHotel;
     });
-  }, [accommodations, filters]);
+  }, [accommodations, hotels, filters]);
+
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.hotels });
+    queryClient.invalidateQueries({ queryKey: queryKeys.rooms });
+  };
 
   return {
     hotels,
     accommodations,
-    bookings,
+    bookings: [],
     loading,
     refreshing,
     error,
     filters,
     filteredItems,
     setFilters,
-    refresh: () => fetchData(true)
+    refresh,
   };
 };

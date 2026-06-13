@@ -25,12 +25,12 @@
 
 @theme {
   --color-natural-bg: #FFFFFF;
-  --color-natural-cream: #F5F2ED;
-  --color-natural-text: #2D2D2D;
-  --color-natural-primary: #5A5A40;
-  --color-natural-accent: #E5DCCF;
-  --color-natural-muted: #A59D84;
-  --color-natural-dark: #3E3E2E;
+  --color-natural-cream: #EFF6FF;
+  --color-natural-text: #0F172A;
+  --color-natural-primary: #1D4ED8;
+  --color-natural-accent: #BFDBFE;
+  --color-natural-muted: #64748B;
+  --color-natural-dark: #0F172A;
 
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Playfair Display", ui-serif, Georgia, serif;

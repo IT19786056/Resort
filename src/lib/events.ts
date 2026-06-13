@@ -1,5 +1,8 @@
-import { EVENTS } from '../constants';
+import { queryClient, queryKeys } from './queryClient';
 
+// Invalidate the shared catalogue cache so every component reading hotels/rooms
+// refetches. Call sites (admin mutations, cart checkout) stay unchanged.
 export const triggerDataRefresh = () => {
-  window.dispatchEvent(new CustomEvent(EVENTS.DATA_REFRESH));
+  queryClient.invalidateQueries({ queryKey: queryKeys.hotels });
+  queryClient.invalidateQueries({ queryKey: queryKeys.rooms });
 };

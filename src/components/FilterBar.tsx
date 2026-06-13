@@ -1,19 +1,22 @@
-import React from 'react';
-import { Search, MapPin, Calendar, RotateCcw } from 'lucide-react';
-import { FilterState, Hotel } from '../types';
+import React, { useMemo } from 'react';
+import { Search, MapPin, RotateCcw, Building2 } from 'lucide-react';
+import { FilterState, Hotel, Accommodation } from '../types';
+import { DatePickerInput } from './ui/DatePickerInput';
 
 interface FilterBarProps {
   onFilterChange: (f: Partial<FilterState>) => void;
   currentFilter: FilterState;
   hotels: Hotel[];
+  accommodations?: Accommodation[];
   onSearch?: () => void;
   onReset?: () => void;
 }
 
-export const FilterBar = ({ 
-  onFilterChange, 
+export const FilterBar = ({
+  onFilterChange,
   currentFilter,
   hotels,
+  accommodations,
   onSearch,
   onReset
 }: FilterBarProps) => {
@@ -21,110 +24,117 @@ export const FilterBar = ({
     const now = new Date();
     const tenAM = new Date();
     tenAM.setHours(10, 0, 0, 0);
-    
     const minDate = new Date();
     if (now.getTime() >= tenAM.getTime()) {
       minDate.setDate(now.getDate() + 1);
     }
-    
-    const year = minDate.getFullYear();
-    const month = String(minDate.getMonth() + 1).padStart(2, '0');
-    const day = String(minDate.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return `${minDate.getFullYear()}-${String(minDate.getMonth() + 1).padStart(2, '0')}-${String(minDate.getDate()).padStart(2, '0')}`;
   };
 
   const getMinCheckOutDate = (checkInStr: string) => {
-    const checkInDate = checkInStr ? new Date(checkInStr) : new Date(getMinCheckInDate());
-    checkInDate.setDate(checkInDate.getDate() + 1);
-    const year = checkInDate.getFullYear();
-    const month = String(checkInDate.getMonth() + 1).padStart(2, '0');
-    const day = String(checkInDate.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const base = checkInStr.split('T')[0] || getMinCheckInDate();
+    const d = new Date(base + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
+  const availableTypes = useMemo(() => {
+    const types = new Set<string>();
+    (accommodations || []).forEach(a => { if (a.type) types.add(a.type); });
+    return ['All', ...Array.from(types).sort()];
+  }, [accommodations]);
+
   const minCheckIn = getMinCheckInDate();
+  const checkInVal = currentFilter.checkIn.split('T')[0];
+  const checkOutVal = currentFilter.checkOut.split('T')[0];
+  const activeHotelId = currentFilter.hotelId || 'All';
+
+  const hasActiveFilters =
+    (activeHotelId !== 'All') ||
+    currentFilter.type !== 'All' ||
+    checkInVal !== '' ||
+    checkOutVal !== '';
 
   return (
     <div id="filter-section" className="py-4 md:py-8 bg-transparent relative z-20">
       <div className="max-w-6xl mx-auto px-4 md:px-6">
         <div className="bg-natural-cream rounded-3xl md:rounded-full p-2 shadow-sm border border-natural-accent flex flex-col xl:flex-row items-center justify-between gap-2 md:gap-4">
           <div className="flex flex-col md:grid md:grid-cols-2 lg:flex lg:flex-row flex-1 lg:divide-x divide-natural-accent w-full">
+
+            {/* Destination — hotel names */}
             <div className="px-6 md:px-8 py-2 md:py-3 flex flex-col flex-1">
               <span className="text-[10px] uppercase font-bold text-natural-muted mb-1 flex items-center tracking-widest">
                 <MapPin className="w-3 h-3 mr-2 text-natural-primary" /> Destination
               </span>
-              <select 
-                className="bg-transparent outline-none text-sm font-bold w-full text-natural-dark"
-                value={currentFilter.location}
-                onChange={(e) => onFilterChange({ location: e.target.value })}
+              <select
+                className="bg-transparent outline-none text-sm font-bold w-full text-natural-dark cursor-pointer"
+                value={activeHotelId}
+                onChange={(e) => onFilterChange({ hotelId: e.target.value })}
               >
-                <option value="All">All Locations</option>
-                {Array.from(new Set(hotels.map(h => h.location))).filter(Boolean).map(loc => (
-                  <option key={loc} value={loc}>{loc}</option>
+                <option value="All">All Hotels</option>
+                {hotels.map(h => (
+                  <option key={h.id} value={h.id}>{h.name}</option>
                 ))}
               </select>
             </div>
-            
-            <div className="px-8 py-3 flex flex-col flex-1">
-              <span className="text-[10px] uppercase font-bold text-natural-muted mb-1 flex items-center tracking-widest">
-                <Calendar className="w-3 h-3 mr-2 text-natural-primary" /> Check-In
-              </span>
-              <input 
-                type="date" 
+
+            {/* Check-In */}
+            <div className="px-8 py-3 flex flex-col flex-1 relative overflow-visible">
+              <DatePickerInput
+                label="Check-In"
+                value={checkInVal}
                 min={minCheckIn}
-                className="bg-transparent outline-none text-sm font-bold w-full focus:text-natural-primary"
-                value={currentFilter.checkIn.split('T')[0]}
-                onChange={(e) => {
-                  const newCheckIn = e.target.value;
-                  const nextMinCheckOut = getMinCheckOutDate(newCheckIn);
-                  const updates: Partial<FilterState> = { checkIn: newCheckIn };
-                  if (currentFilter.checkOut <= newCheckIn) {
-                    updates.checkOut = nextMinCheckOut;
+                onChange={(v) => {
+                  const updates: Partial<FilterState> = { checkIn: v };
+                  if (v && checkOutVal && checkOutVal <= v) {
+                    updates.checkOut = getMinCheckOutDate(v);
                   }
                   onFilterChange(updates);
                 }}
               />
             </div>
 
-            <div className="px-8 py-3 flex flex-col flex-1">
-              <span className="text-[10px] uppercase font-bold text-natural-muted mb-1 flex items-center tracking-widest">
-                <Calendar className="w-3 h-3 mr-2 text-natural-primary" /> Check-Out
-              </span>
-              <input 
-                type="date" 
-                min={getMinCheckOutDate(currentFilter.checkIn)}
-                className="bg-transparent outline-none text-sm font-bold w-full focus:text-natural-primary"
-                value={currentFilter.checkOut.split('T')[0]}
-                onChange={(e) => onFilterChange({ checkOut: e.target.value })}
+            {/* Check-Out */}
+            <div className="px-8 py-3 flex flex-col flex-1 relative overflow-visible">
+              <DatePickerInput
+                label="Check-Out"
+                value={checkOutVal}
+                min={checkInVal ? getMinCheckOutDate(checkInVal) : getMinCheckOutDate('')}
+                onChange={(v) => onFilterChange({ checkOut: v })}
               />
             </div>
 
+            {/* Unit Type — dynamic */}
             <div className="px-8 py-3 flex flex-col flex-1">
-              <span className="text-[10px] uppercase font-bold text-natural-muted mb-1 tracking-widest">Type</span>
-              <select 
-                className="bg-transparent outline-none text-sm font-bold w-full"
+              <span className="text-[10px] uppercase font-bold text-natural-muted mb-1 flex items-center tracking-widest">
+                <Building2 className="w-3 h-3 mr-2 text-natural-primary" /> Type
+              </span>
+              <select
+                className="bg-transparent outline-none text-sm font-bold w-full cursor-pointer"
                 value={currentFilter.type}
                 onChange={(e) => onFilterChange({ type: e.target.value })}
               >
-                {['All', 'Villa', 'Suite', 'Room'].map(t => <option key={t} value={t}>{t === 'All' ? 'All Units' : t + 's'}</option>)}
+                {availableTypes.map(t => (
+                  <option key={t} value={t}>
+                    {t === 'All' ? 'All Units' : t + 's'}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-3 pr-2 select-none">
-            {(currentFilter.location !== 'All' || currentFilter.type !== 'All' || currentFilter.checkIn !== '' || currentFilter.checkOut !== '') && (
-              <button 
+            {hasActiveFilters && (
+              <button
                 type="button"
-                onClick={() => {
-                  if (onReset) onReset();
-                }}
+                onClick={() => { if (onReset) onReset(); }}
                 className="h-12 px-6 bg-natural-accent/50 hover:bg-natural-accent rounded-full text-natural-primary font-bold text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 border border-natural-accent"
               >
-                <RotateCcw className="w-3.5 h-3.5 animate-pulse" />
+                <RotateCcw className="w-3.5 h-3.5" />
                 Reset
               </button>
             )}
-            <button 
+            <button
               onClick={() => {
                 if (onSearch) onSearch();
                 const section = document.getElementById('stays-list');

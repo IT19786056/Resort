@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Mail, Phone, MapPin, Send, MessageSquare, Building2 } from 'lucide-react';
 import { SectionLabel, Input } from './admin/Shared';
-import { dbService } from '../services/db';
-import { Hotel } from '../types';
+import { useHotelsQuery } from '../hooks/queries';
 
 export const ContactUs = () => {
-  const [hotels, setHotels] = useState<Hotel[]>([]);
+  const { data: hotels = [] } = useHotelsQuery();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -14,10 +13,6 @@ export const ContactUs = () => {
     message: ''
   });
   const [submitted, setSubmitted] = useState(false);
-
-  useEffect(() => {
-    dbService.getHotels().then(setHotels).catch(console.error);
-  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { dbService } from '../../services/db';
+import { cld, isVideoUrl } from '../../lib/cloudinary';
+import { useMediaQuery } from '../../hooks/queries';
 
 interface GalleryProps {
   parentId: string;
@@ -10,31 +11,15 @@ interface GalleryProps {
 }
 
 export const Gallery = ({ parentId, fallbackImage, className = "" }: GalleryProps) => {
-  const [images, setImages] = useState<string[]>([]);
   const [index, setIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const { data: media = [], isLoading } = useMediaQuery(parentId);
 
-  useEffect(() => {
-    const fetchImages = async () => {
-      try {
-        const data = await dbService.getMedia(parentId);
-        const fetchedImages = data.map(m => m.data);
-        if (fetchedImages.length > 0) {
-          setImages(fetchedImages);
-        } else if (fallbackImage) {
-          setImages([fallbackImage]);
-        }
-      } catch (e) {
-        console.error(e);
-        if (fallbackImage) setImages([fallbackImage]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchImages();
-  }, [parentId, fallbackImage]);
+  const fetchedImages = media.map(m => m.data);
+  const images = fetchedImages.length > 0
+    ? fetchedImages
+    : (fallbackImage ? [fallbackImage] : []);
 
-  if (loading && !fallbackImage) {
+  if (isLoading && !fallbackImage) {
     return <div className={`animate-pulse bg-natural-accent/20 ${className}`} />;
   }
 
@@ -48,33 +33,58 @@ export const Gallery = ({ parentId, fallbackImage, className = "" }: GalleryProp
   return (
     <div className={`relative group overflow-hidden ${className}`}>
       <AnimatePresence mode="wait">
-        <motion.img
-          key={index}
-          src={displayImages[index]}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.4 }}
-          className="w-full h-full object-cover"
-        />
+        {isVideoUrl(displayImages[index]) ? (
+          <motion.video
+            key={index}
+            src={displayImages[index]}
+            autoPlay
+            loop
+            muted
+            playsInline
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.4 }}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <motion.img
+            key={index}
+            src={cld(displayImages[index], 'f_auto,q_auto,w_1600')}
+            loading="lazy"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.4 }}
+            className="w-full h-full object-cover"
+          />
+        )}
       </AnimatePresence>
 
       {displayImages.length > 1 && (
         <>
-          <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 flex justify-between opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={prev} className="w-10 h-10 bg-white/50 backdrop-blur-md rounded-full flex items-center justify-center text-natural-dark hover:bg-white">
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-            <button onClick={next} className="w-10 h-10 bg-white/50 backdrop-blur-md rounded-full flex items-center justify-center text-natural-dark hover:bg-white">
-              <ChevronRight className="w-6 h-6" />
-            </button>
-          </div>
-          
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 px-3 py-1.5 bg-black/20 backdrop-blur-md rounded-full">
+          <button
+            onClick={prev}
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-transparent hover:bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-transparent hover:text-white transition-all shadow-lg z-10"
+            aria-label="Previous image"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button
+            onClick={next}
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-transparent hover:bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-transparent hover:text-white transition-all shadow-lg z-10"
+            aria-label="Next image"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 px-3 py-1.5 bg-black/20 backdrop-blur-md rounded-full z-10">
             {displayImages.map((_, i) => (
-              <div 
-                key={i} 
-                className={`w-1.5 h-1.5 rounded-full transition-all ${i === index ? 'bg-white w-4' : 'bg-white/40'}`} 
+              <button
+                key={i}
+                onClick={() => setIndex(i)}
+                className={`h-1.5 rounded-full transition-all ${i === index ? 'bg-white w-4' : 'bg-white/40 w-1.5'}`}
+                aria-label={`Go to image ${i + 1}`}
               />
             ))}
           </div>

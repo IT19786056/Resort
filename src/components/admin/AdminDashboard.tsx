@@ -22,7 +22,7 @@ import {
   LayoutGrid,
   Table
 } from 'lucide-react';
-import { compressImage, fileToBase64 } from '../../lib/imageUtils';
+import { uploadToCloudinary, isCloudinaryConfigured } from '../../lib/cloudinary';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar } from './Sidebar';
 import { UsersList } from './UsersList';
@@ -31,6 +31,7 @@ import { LoadingPlane } from '../ui/LoadingPlane';
 import { Toast } from '../ui/Toast';
 import { Modal, Input, SectionLabel } from './Shared';
 import { ImageGalleryUpload } from './ImageGalleryUpload';
+import { HeroMediaManager } from './HeroMediaManager';
 
 const generateUUID = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -44,7 +45,7 @@ const generateUUID = () => {
 };
 import { triggerDataRefresh } from '../../lib/events';
 
-type AdminTab = 'hotels' | 'rooms' | 'bookings' | 'past_bookings' | 'users' | 'logs';
+type AdminTab = 'hotels' | 'rooms' | 'bookings' | 'past_bookings' | 'users' | 'logs' | 'hero_media';
 
 export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>(profile.role === 'admin' ? 'bookings' : 'bookings');
@@ -236,6 +237,13 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
                   )}
                   {activeTab === 'logs' && profile.role === 'admin' && (
                     <AdminLogsList />
+                  )}
+                  {activeTab === 'hero_media' && (
+                    <HeroMediaManager
+                      onSuccess={(msg) => showToast(msg)}
+                      onError={(err) => showToast(err, 'error')}
+                      onProcessing={(msg) => showToast(msg, 'loading')}
+                    />
                   )}
                 </>
               )}
@@ -974,14 +982,17 @@ const HotelForm = ({ hotel, rooms = [], onClose, onSuccess, onError, onProcessin
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!isCloudinaryConfigured) {
+      alert('Image hosting is not configured. Set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET.');
+      return;
+    }
     setUploadingCover(true);
     try {
-      const base64 = await fileToBase64(file);
-      const compressed = await compressImage(base64);
-      setFormData(prev => ({ ...prev, imageUrl: compressed }));
+      const { url } = await uploadToCloudinary(file, { folder: 'covers' });
+      setFormData(prev => ({ ...prev, imageUrl: url }));
     } catch (err: any) {
       console.error(err);
-      alert('Failed to process image: ' + err.message);
+      alert('Failed to upload image: ' + err.message);
     } finally {
       setUploadingCover(false);
     }
@@ -1109,7 +1120,7 @@ const HotelForm = ({ hotel, rooms = [], onClose, onSuccess, onError, onProcessin
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Input 
-                label="Price per Night (USD)" 
+                label="Price per Night (LKR)"
                 type="number" 
                 value={formData.price} 
                 onChange={(v:any) => setFormData({...formData, price: v})} 
@@ -1189,7 +1200,7 @@ const HotelForm = ({ hotel, rooms = [], onClose, onSuccess, onError, onProcessin
             className="w-full bg-white border border-natural-accent rounded-3xl p-4 min-h-[120px] outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark placeholder:text-natural-muted/60 text-xs" 
             value={formData.description} 
             onChange={e => setFormData({...formData, description: e.target.value})} 
-            placeholder="Introduce this sanctuary's unique narrative and atmosphere..." 
+            placeholder="Describe this property's unique character and atmosphere..."
           />
         </div>
         <button 
@@ -1197,7 +1208,7 @@ const HotelForm = ({ hotel, rooms = [], onClose, onSuccess, onError, onProcessin
           type="submit" 
           className="w-full bg-natural-primary text-white py-5 rounded-full font-bold uppercase tracking-[0.2em] text-[11px] shadow-xl hover:bg-natural-dark transition-all disabled:opacity-50"
         >
-          {isSaving ? 'Processing Sanctuary...' : hotel ? 'Save Stay Profile' : 'Publish Stay Profile'}
+          {isSaving ? 'Saving...' : hotel ? 'Save Stay Profile' : 'Publish Stay Profile'}
         </button>
       </form>
     </Modal>
@@ -1278,7 +1289,7 @@ const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: a
         <Input label="Room Name / Title" value={formData.name} onChange={(v:any) => setFormData({...formData, name: v})} required placeholder="e.g. Presidential Water Villa" />
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Input label="Price/Night (USD)" type="number" value={formData.price} onChange={(v:any) => setFormData({...formData, price: v})} required />
+          <Input label="Price/Night (LKR)" type="number" value={formData.price} onChange={(v:any) => setFormData({...formData, price: v})} required />
           <Input label="Max Guests" type="number" value={formData.maxGuests} onChange={(v:any) => setFormData({...formData, maxGuests: v})} required />
           <Input label="Quantity (Supply)" type="number" value={formData.quantity} onChange={(v:any) => setFormData({...formData, quantity: v})} required min="1" />
         </div>

@@ -34,17 +34,53 @@ export const CartDrawer = ({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Pre-fill special requests from cart items whenever the cart changes
+  React.useEffect(() => {
+    if (cart.length === 0) return;
+    const combined = cart
+      .map((item: any) => (item.specialRequests || '').trim())
+      .filter(Boolean)
+      .join('\n');
+    if (combined) {
+      setFormData((prev: { fullName: string; email: string; phone: string; specialRequests: string }) => ({
+        ...prev,
+        // Only overwrite if the user hasn't manually edited the field yet
+        specialRequests: prev.specialRequests || combined
+      }));
+    }
+  }, [cart]);
+
   // Auto-sync logged-in user details if they authenticate while the cart is open
   React.useEffect(() => {
     if (user) {
-      setFormData(prev => ({
+      setFormData((prev: { fullName: string; email: string; phone: string; specialRequests: string }) => ({
         ...prev,
         fullName: user.user_metadata?.full_name || '',
         email: user.email || '',
         phone: user.user_metadata?.phone || ''
       }));
+      // Customer DB table is the authoritative source for phone — auth metadata may not have it
+      const profileLookup = user.id
+        ? dbService.getCustomerProfile(user.id)
+        : Promise.resolve(null);
+      profileLookup
+        .then(async (profile) => {
+          if (!profile && user.email) {
+            return dbService.getCustomerProfile(user.email);
+          }
+          return profile;
+        })
+        .then(profile => {
+          if (!profile) return;
+          setFormData((prev: { fullName: string; email: string; phone: string; specialRequests: string }) => ({
+            ...prev,
+            ...(profile.phone ? { phone: profile.phone } : {}),
+            ...(profile.displayName && !user.user_metadata?.full_name ? { fullName: profile.displayName } : {})
+          }));
+        })
+        .catch(e => console.warn('[CartDrawer] getCustomerProfile failed:', e));
     } else {
-      setFormData(prev => ({
+      setFormData((prev: { fullName: string; email: string; phone: string; specialRequests: string }) => ({
         ...prev,
         fullName: '',
         email: '',
@@ -100,7 +136,7 @@ export const CartDrawer = ({
           fullName: formData.fullName,
           email: formData.email,
           phone: formData.phone,
-          specialRequests: formData.specialRequests,
+          specialRequests: formData.specialRequests || (item as any).specialRequests || '',
           checkIn: checkInDate.toISOString(),
           checkOut: checkOutDate.toISOString(),
           roomId: item.accommodation.id,
@@ -152,7 +188,7 @@ export const CartDrawer = ({
             {/* Drawer Header */}
             <div className="p-8 border-b border-natural-accent flex justify-between items-center bg-natural-cream">
               <div>
-                <h3 className="font-serif text-2xl font-bold tracking-tight text-natural-dark italic">Sanctuary Cart</h3>
+                <h3 className="font-serif text-2xl font-bold tracking-tight text-natural-dark italic">Booking Details</h3>
                 <p className="text-[10px] uppercase tracking-widest text-natural-muted font-mono mt-1">Your Selected Journeys</p>
               </div>
               <button onClick={onClose} className="p-2 hover:bg-natural-bg rounded-full transition-colors border border-natural-accent bg-white">
@@ -204,11 +240,11 @@ export const CartDrawer = ({
                                     <span className="text-natural-muted">{item.roomCount} unit(s) x {nights} night(s):</span>
                                   </span>
                                   <span className="font-bold text-natural-primary">
-                                    ${subTotal}
+                                    LKR {subTotal.toLocaleString()}
                                   </span>
                                 </div>
                                 <div className="text-[9px] text-natural-muted font-light italic mt-1">
-                                  Price per night per unit: ${item.accommodation.price}
+                                  Price per night per unit: LKR {item.accommodation.price.toLocaleString()}
                                 </div>
                               </div>
                             </div>
@@ -289,8 +325,8 @@ export const CartDrawer = ({
 
                           <div className="pt-6 border-t border-natural-accent">
                             <div className="flex justify-between items-baseline mb-6">
-                              <span className="text-xs font-bold text-natural-muted uppercase font-mono tracking-widest">Selected Esoteric Escapes:</span>
-                              <span className="text-2xl font-serif font-bold text-natural-dark">${grandTotal}</span>
+                              <span className="text-xs font-bold text-natural-muted uppercase font-mono tracking-widest">Total Amount</span>
+                              <span className="text-2xl font-serif font-bold text-natural-dark">LKR {grandTotal.toLocaleString()}</span>
                             </div>
 
                             <button
@@ -298,7 +334,7 @@ export const CartDrawer = ({
                               type="submit"
                               className="w-full bg-natural-primary text-white py-5 rounded-full font-bold uppercase tracking-[0.2em] shadow-xl hover:bg-natural-dark disabled:opacity-50 text-[10px]"
                             >
-                              {isSubmitting ? 'Requesting Escapes...' : 'Confirm Cart Escapes'}
+                              {isSubmitting ? 'Processing...' : 'Confirm Booking'}
                             </button>
                           </div>
                         </form>

@@ -319,6 +319,8 @@ async function initDb() {
 
       -- Add dynamic scheme-level support columns if they don't exist
       ALTER TABLE hotels ADD COLUMN IF NOT EXISTS "type" TEXT DEFAULT 'Hotel';
+      ALTER TABLE hotels ADD COLUMN IF NOT EXISTS email TEXT;
+      ALTER TABLE hotels ADD COLUMN IF NOT EXISTS phone TEXT;
       ALTER TABLE rooms ADD COLUMN IF NOT EXISTS "quantity" INTEGER DEFAULT 1;
       UPDATE rooms SET quantity = 1 WHERE quantity IS NULL;
       ALTER TABLE rooms ALTER COLUMN quantity SET DEFAULT 1;
@@ -475,9 +477,9 @@ app.get('/api/db-status', (req, res) => {
 });
 
 // Customers
-app.get('/api/customers', async (req, res) => {
+app.get('/api/customers', requireAdmin, async (req, res) => {
   try {
-    const result = await query('SELECT * FROM customers ORDER BY "createdAt" DESC');
+    const result = await query('SELECT id, email, "displayName", "photoURL", phone, "createdAt" FROM customers ORDER BY "createdAt" DESC');
     res.json(result.rows);
   } catch (err: any) {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message });
@@ -487,8 +489,33 @@ app.get('/api/customers', async (req, res) => {
 app.get('/api/customers/:uid', async (req, res) => {
   try {
     const { uid } = req.params;
-    const result = await query('SELECT * FROM customers WHERE id = $1', [uid]);
-    res.json(result.rows[0] || null);
+
+    // Try by id first
+    let result = await query('SELECT * FROM customers WHERE id = $1', [uid]);
+    let customer = result.rows[0] || null;
+
+    // Fallback: if uid looks like an email and id lookup missed, try by email
+    if (!customer && uid.includes('@')) {
+      const emailResult = await query('SELECT * FROM customers WHERE LOWER(email) = LOWER($1)', [uid]);
+      customer = emailResult.rows[0] || null;
+    }
+
+    // If customer has no phone, backfill from their most recent booking
+    if (customer && !customer.phone) {
+      try {
+        const bResult = await query(
+          `SELECT phone FROM bookings WHERE "userId" = $1 AND phone IS NOT NULL AND phone != '' ORDER BY "createdAt" DESC LIMIT 1`,
+          [customer.id]
+        );
+        if (bResult.rows[0]?.phone) {
+          customer.phone = bResult.rows[0].phone;
+          await query('UPDATE customers SET phone = $1 WHERE id = $2', [customer.phone, customer.id]);
+        }
+      } catch (_) { /* non-fatal */ }
+    }
+
+    if (customer) delete customer.password;
+    res.json(customer);
   } catch (err: any) {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message });
   }
@@ -498,43 +525,76 @@ app.post('/api/customers/:uid', async (req, res) => {
   try {
     const { uid } = req.params;
     const { email, displayName, photoURL, phone } = req.body;
-    const result = await query(
+
+    // Normalise: treat empty-string phone as null so COALESCE can preserve an existing value
+    const phoneVal = (phone && phone.trim()) ? phone.trim() : null;
+
+    let result = await query(
       `INSERT INTO customers (id, email, "displayName", "photoURL", "phone")
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (email) DO UPDATE SET
          "displayName" = EXCLUDED."displayName",
-         "photoURL" = EXCLUDED."photoURL",
-         "phone" = COALESCE(EXCLUDED."phone", customers."phone")
+         "photoURL"    = EXCLUDED."photoURL",
+         "phone"       = COALESCE(EXCLUDED."phone", customers."phone")
        RETURNING *`,
-      [uid, email, displayName, photoURL, phone]
+      [uid, email, displayName, photoURL, phoneVal]
     );
+
+    // If ON CONFLICT (email) left the row with a different primary key, the above may
+    // have thrown a PK violation instead. Catch that with a direct UPDATE by email.
+    if (!result.rows[0]) {
+      result = await query(
+        `UPDATE customers SET "displayName" = $1, "photoURL" = $2,
+           "phone" = COALESCE($3, "phone")
+         WHERE LOWER(email) = LOWER($4) RETURNING *`,
+        [displayName, photoURL, phoneVal, email]
+      );
+    }
+
+    if (result.rows[0]) delete result.rows[0].password;
     res.json(result.rows[0]);
   } catch (err: any) {
+    // PK violation: a row with this id already exists under a different email — update by email instead
+    if ((err as any).code === '23505' && (err as any).constraint === 'customers_pkey') {
+      try {
+        const phoneVal2 = (req.body.phone && req.body.phone.trim()) ? req.body.phone.trim() : null;
+        const fallback = await query(
+          `UPDATE customers SET "displayName" = $1, "photoURL" = $2,
+             "phone" = COALESCE($3, "phone")
+           WHERE LOWER(email) = LOWER($4) RETURNING *`,
+          [req.body.displayName, req.body.photoURL, phoneVal2, req.body.email]
+        );
+        if (fallback.rows[0]) delete fallback.rows[0].password;
+        return res.json(fallback.rows[0] || null);
+      } catch (inner: any) {
+        return res.status(500).json({ error: inner.message });
+      }
+    }
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message });
   }
 });
 
 // Admins
-app.get('/api/admins', async (req, res) => {
+app.get('/api/admins', requireAdmin, async (req, res) => {
   try {
-    const result = await query('SELECT * FROM admins ORDER BY "createdAt" DESC');
+    const result = await query('SELECT id, email, role, "displayName", "requiresPasswordChange", "createdAt" FROM admins ORDER BY "createdAt" DESC');
     res.json(result.rows);
   } catch (err: any) {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message });
   }
 });
 
-app.get('/api/admins/:uid', async (req, res) => {
+app.get('/api/admins/:uid', requireAdmin, async (req, res) => {
   try {
     const { uid } = req.params;
-    const result = await query('SELECT * FROM admins WHERE id = $1', [uid]);
+    const result = await query('SELECT id, email, role, "displayName", "requiresPasswordChange", "createdAt" FROM admins WHERE id = $1', [uid]);
     res.json(result.rows[0] || null);
   } catch (err: any) {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message });
   }
 });
 
-app.post('/api/admins/:uid', async (req, res) => {
+app.post('/api/admins/:uid', requireAdmin, async (req, res) => {
   try {
     const { uid } = req.params;
     const { email, role, displayName } = req.body;
@@ -547,6 +607,7 @@ app.post('/api/admins/:uid', async (req, res) => {
         'UPDATE admins SET id = $1, role = $2, "displayName" = $3 WHERE LOWER(email) = LOWER($4) RETURNING *',
         [uid, role || 'admin', displayName, email]
       );
+      if (result.rows[0]) delete result.rows[0].password;
       return res.json(result.rows[0]);
     }
 
@@ -555,13 +616,14 @@ app.post('/api/admins/:uid', async (req, res) => {
       'INSERT INTO admins (id, email, role, "displayName") VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, role = EXCLUDED.role, "displayName" = EXCLUDED."displayName" RETURNING *',
       [uid, email, role || 'admin', displayName]
     );
+    if (result.rows[0]) delete result.rows[0].password;
     res.json(result.rows[0]);
   } catch (err: any) {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message });
   }
 });
 
-app.delete('/api/admins/:id', async (req, res) => {
+app.delete('/api/admins/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     await query('DELETE FROM admins WHERE id = $1', [id]);
@@ -578,12 +640,35 @@ let cachedRooms: any[] | null = null;
 let cachedRoomsTime = 0;
 const CACHE_TTL = 5000; // 5-second transient cache for fast UI tab switching without locking actual DB updates
 
+// Extract and verify the signed session JWT from the Authorization header.
+// Returns the decoded payload ({ id, email, role, exp }) or null.
+function getVerifiedToken(req: express.Request): any | null {
+  const header = req.headers['authorization'];
+  if (!header || Array.isArray(header) || !header.startsWith('Bearer ')) return null;
+  return verifyJwt(header.slice(7));
+}
+
+// Authorization middleware: only allow requests carrying a valid admin JWT.
+// Identity/role come exclusively from the cryptographically verified token —
+// the x-admin-* headers are never trusted for access control.
+function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const payload = getVerifiedToken(req);
+  if (!payload || payload.role !== 'admin') {
+    return res.status(403).json({ error: 'Administrator authentication required.' });
+  }
+  (req as any).admin = payload;
+  next();
+}
+
 const getAdminInfo = (req: express.Request) => {
+  const verified = (req as any).admin || getVerifiedToken(req);
   return {
-    id: req.headers['x-admin-id'] as string || null,
-    email: req.headers['x-admin-email'] as string || null,
+    // Identity + role are taken from the verified token; the display name is
+    // a non-security UI hint that may come from a header.
+    id: verified?.id || (req.headers['x-admin-id'] as string) || null,
+    email: verified?.email || (req.headers['x-admin-email'] as string) || null,
     name: req.headers['x-admin-name'] as string || null,
-    role: req.headers['x-admin-role'] as string || null,
+    role: verified?.role || null,
   };
 };
 
@@ -607,14 +692,9 @@ async function logAdminAction(dbQuery: any, adminInfo: any, action: string, targ
   }
 }
 
-app.get('/api/admin/logs', async (req, res) => {
+app.get('/api/admin/logs', requireAdmin, async (req, res) => {
   if (!pool) {
     return res.json([]);
-  }
-  
-  const adminInfo = getAdminInfo(req);
-  if (!adminInfo.email || adminInfo.role !== 'admin') {
-    return res.status(403).json({ error: 'Access denied. Administrator privileges required.' });
   }
 
   try {
@@ -674,7 +754,7 @@ app.get('/api/hotels', async (req, res) => {
   }
 });
 
-app.post('/api/hotels', async (req, res) => {
+app.post('/api/hotels', requireAdmin, async (req, res) => {
   if (!pool) {
     const { name, location, description, imageUrl, hasBanquetHall, email, phone, type } = req.body;
     const newHotel = {
@@ -712,12 +792,12 @@ app.post('/api/hotels', async (req, res) => {
   }
 });
 
-app.patch('/api/hotels/:id', async (req, res) => {
+app.patch('/api/hotels/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
-    const ALLOWED_HOTEL_FIELDS = new Set(['name', 'location', 'description', 'imageUrl', 'type', 'banquetHall']);
-    const keys = Object.keys(updates).filter(k => ALLOWED_HOTEL_FIELDS.has(k));
+    const ALLOWED_HOTEL_FIELDS = new Set(['name', 'location', 'description', 'imageUrl', 'type', 'hasBanquetHall', 'email', 'phone']);
+    const keys = Object.keys(updates).filter(k => ALLOWED_HOTEL_FIELDS.has(k) && updates[k] !== undefined);
     if (keys.length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
     const setClause = keys.map((key, i) => `"${key}" = $${i + 2}`).join(', ');
     const values = keys.map(key => updates[key]);
@@ -740,7 +820,7 @@ app.patch('/api/hotels/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/hotels/:id', async (req, res) => {
+app.delete('/api/hotels/:id', requireAdmin, async (req, res) => {
   try {
     const adminInfo = getAdminInfo(req);
     let hotelName = 'Hotel';
@@ -825,7 +905,7 @@ app.get('/api/rooms', async (req, res) => {
   }
 });
 
-app.post('/api/rooms', async (req, res) => {
+app.post('/api/rooms', requireAdmin, async (req, res) => {
   if (!pool) {
     const { 
       hotelId, name, type, description, price, rating, imageUrl, amenities, maxGuests, 
@@ -875,7 +955,7 @@ app.post('/api/rooms', async (req, res) => {
   }
 });
 
-app.patch('/api/rooms/:id', async (req, res) => {
+app.patch('/api/rooms/:id', requireAdmin, async (req, res) => {
   if (!pool) {
     const { id } = req.params;
     const updates = req.body;
@@ -913,7 +993,7 @@ app.patch('/api/rooms/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/rooms/:id', async (req, res) => {
+app.delete('/api/rooms/:id', requireAdmin, async (req, res) => {
   try {
     const adminInfo = getAdminInfo(req);
     let roomName = 'Accommodation';
@@ -1004,6 +1084,16 @@ app.get('/api/rooms/:id/availability', async (req, res) => {
 app.get('/api/bookings', async (req, res) => {
   try {
     const { userId, limit, offset } = req.query;
+
+    // Fetching the full bookings list (no userId filter) is an admin-only
+    // operation. Customers may only request their own bookings via ?userId=.
+    if (!userId) {
+      const payload = getVerifiedToken(req);
+      if (!payload || payload.role !== 'admin') {
+        return res.status(403).json({ error: 'Administrator authentication required to list all bookings.' });
+      }
+    }
+
     let queryText = 'SELECT * FROM bookings';
     const params = [];
     let paramIndex = 1;
@@ -1097,7 +1187,7 @@ app.post('/api/bookings', async (req, res) => {
     
     // Lock the room categories to serialize booking confirmations of this card type
     const roomCheck = await client.query(
-      'SELECT quantity, name, "imageUrl" FROM rooms WHERE id = $1 FOR UPDATE',
+      'SELECT quantity, name, "imageUrl", price FROM rooms WHERE id = $1 FOR UPDATE',
       [roomId]
     );
 
@@ -1169,7 +1259,9 @@ app.post('/api/bookings', async (req, res) => {
       checkOut: booking.checkOut,
       guests: booking.guests,
       specialRequests: booking.specialRequests,
-      placedAt: booking.createdAt
+      placedAt: booking.createdAt,
+      price: roomCheck.rows[0].price ? Number(roomCheck.rows[0].price) : undefined,
+      roomCount: booking.roomCount || 1
     });
 
     await client.query('COMMIT');
@@ -1191,7 +1283,7 @@ app.post('/api/bookings', async (req, res) => {
   }
 });
 
-app.patch('/api/bookings/:id', async (req, res) => {
+app.patch('/api/bookings/:id', requireAdmin, async (req, res) => {
   if (!pool) {
     const { id } = req.params;
     const { status, ...updates } = req.body;
@@ -1258,6 +1350,8 @@ app.patch('/api/bookings/:id', async (req, res) => {
              b."createdAt",
              r.name AS "roomName",
              r."imageUrl" AS "roomImageUrl",
+             r.price AS "roomPrice",
+             b."roomCount",
              h.name AS "hotelName"
            FROM bookings b
            JOIN rooms r ON b."roomId" = r.id
@@ -1294,7 +1388,9 @@ app.patch('/api/bookings/:id', async (req, res) => {
             checkOut: det.checkOut,
             guests: det.guests,
             specialRequests: det.specialRequests || undefined,
-            placedAt: det.createdAt
+            placedAt: det.createdAt,
+            price: det.roomPrice ? Number(det.roomPrice) : undefined,
+            roomCount: det.roomCount || 1
           };
 
           if (status === 'confirmed') {
@@ -1356,7 +1452,7 @@ app.get('/api/media/:parentId', async (req, res) => {
   }
 });
 
-app.post('/api/media', async (req, res) => {
+app.post('/api/media', requireAdmin, async (req, res) => {
   try {
     const { parentId, parentType, data, order = 0 } = req.body;
     if (!isValidUUID(parentId)) {
@@ -1373,7 +1469,7 @@ app.post('/api/media', async (req, res) => {
   }
 });
 
-app.post('/api/media/reparent', async (req, res) => {
+app.post('/api/media/reparent', requireAdmin, async (req, res) => {
   try {
     const { oldParentId, newParentId } = req.body;
     if (!isValidUUID(oldParentId) || !isValidUUID(newParentId)) {
@@ -1390,7 +1486,7 @@ app.post('/api/media/reparent', async (req, res) => {
   }
 });
 
-app.delete('/api/media/parent/:parentId', async (req, res) => {
+app.delete('/api/media/parent/:parentId', requireAdmin, async (req, res) => {
   try {
     const { parentId } = req.params;
     if (!isValidUUID(parentId)) {
@@ -1404,7 +1500,7 @@ app.delete('/api/media/parent/:parentId', async (req, res) => {
   }
 });
 
-app.delete('/api/media/:id', async (req, res) => {
+app.delete('/api/media/:id', requireAdmin, async (req, res) => {
   try {
     await query('DELETE FROM media WHERE id = $1', [req.params.id]);
     clearCache();
@@ -1935,7 +2031,7 @@ app.post('/api/auth/signup-admin', async (req, res) => {
 });
 
 // Send 6-digit OTP to invite prospective admin limit check
-app.post('/api/auth/send-admin-otp', async (req, res) => {
+app.post('/api/auth/send-admin-otp', requireAdmin, async (req, res) => {
   const { email } = req.body;
   if (!email) {
     return res.status(400).json({ error: 'Email is required' });
@@ -2027,7 +2123,7 @@ app.post('/api/auth/send-admin-otp', async (req, res) => {
 });
 
 // Verify Admin OTP and automatically generate a Temporary Password for them
-app.post('/api/auth/verify-admin-otp', async (req, res) => {
+app.post('/api/auth/verify-admin-otp', requireAdmin, async (req, res) => {
   const { email, otp, role } = req.body;
   if (!email || !otp) {
     return res.status(400).json({ error: 'Email and OTP code are required' });

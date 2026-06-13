@@ -1,13 +1,14 @@
 import React from 'react';
-import { 
-  Building2, 
-  BedDouble, 
-  CalendarCheck, 
-  Clock, 
+import {
+  Building2,
+  BedDouble,
+  CalendarCheck,
+  Clock,
   LogOut,
   Users,
   Activity,
-  X
+  X,
+  ImagePlay
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -70,11 +71,17 @@ export const Sidebar = ({
           icon={<Building2 className="w-5 h-5" />}
           label="Manage Stays"
         />
-        <SidebarButton 
-          active={activeTab === 'rooms'} 
+        <SidebarButton
+          active={activeTab === 'rooms'}
           onClick={() => { setActiveTab('rooms'); onClose?.(); }}
           icon={<BedDouble className="w-5 h-5" />}
           label="Hotel Guest Rooms"
+        />
+        <SidebarButton
+          active={activeTab === 'hero_media'}
+          onClick={() => { setActiveTab('hero_media'); onClose?.(); }}
+          icon={<ImagePlay className="w-5 h-5" />}
+          label="Hero Media"
         />
         {isAdmin && (
           <>

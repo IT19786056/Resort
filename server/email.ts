@@ -7,12 +7,14 @@ export interface BookingDetails {
   hotelName: string;
   roomName: string;
   roomImageUrl?: string;
-  checkIn: string | Date;  // Update this line
-  checkOut: string | Date; // Update this line
+  checkIn: string | Date;
+  checkOut: string | Date;
   guests: number;
   id: string;
   specialRequests?: string;
-  placedAt?: string | Date; // Update this line too just in case!
+  placedAt?: string | Date;
+  price?: number;
+  roomCount?: number;
 }
 
 const createTransporter = () => {
@@ -50,6 +52,13 @@ const getEmailTemplate = (details: BookingDetails, type: 'initial' | 'confirmed'
   const formatDate = (dateStr: string | Date) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+  };
+
+  const calculateNights = (inDate: string | Date, outDate: string | Date) => {
+    const d1 = new Date(inDate);
+    const d2 = new Date(outDate);
+    const diff = Math.ceil(Math.abs(d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
+    return isNaN(diff) || diff === 0 ? 1 : diff;
   };
 
   const formatTime = (dateVal: string | Date, defaultTime: string) => {
@@ -206,6 +215,38 @@ const getEmailTemplate = (details: BookingDetails, type: 'initial' | 'confirmed'
                 </tr>
               </table>
               
+              ${details.price ? (() => {
+                const nights = calculateNights(details.checkIn, details.checkOut);
+                const rooms = details.roomCount || 1;
+                const total = details.price * nights * rooms;
+                return `
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 30px; background-color: ${lightBg}; border-radius: 16px; overflow: hidden;">
+                <tr>
+                  <td style="padding: 25px;">
+                    <div class="section-label" style="margin-bottom: 16px;">Pricing Summary</div>
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">Price per night</td>
+                        <td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">LKR ${details.price.toLocaleString()}</td>
+                      </tr>
+                      <tr>
+                        <td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">Rooms / Units</td>
+                        <td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">${rooms}</td>
+                      </tr>
+                      <tr>
+                        <td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 16px;">Nights</td>
+                        <td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 16px;">${nights}</td>
+                      </tr>
+                      <tr style="border-top: 1px solid ${accentColor};">
+                        <td style="font-size: 15px; font-weight: 700; color: ${textColor}; padding-top: 14px;">Total Amount</td>
+                        <td style="font-size: 18px; font-weight: 700; color: ${primaryColor}; text-align: right; padding-top: 14px;">LKR ${total.toLocaleString()}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>`;
+              })() : ''}
+
               <div style="text-align: center; margin-top: 20px;">
                 <p style="font-size: 14px; color: ${mutedColor}; line-height: 1.6;">${bottomMessage}</p>
               </div>

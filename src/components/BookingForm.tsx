@@ -4,6 +4,7 @@ import { dbService } from '../services/db';
 import { supabase } from '../lib/supabase';
 import { Accommodation } from '../types';
 import { PhoneInputField } from './PhoneInputField';
+import { DatePickerInput } from './ui/DatePickerInput';
 
 interface BookingFormProps {
   accommodation: Accommodation;
@@ -79,12 +80,34 @@ export const BookingForm = ({
 
   useEffect(() => {
     if (user) {
+      // Fill immediately from auth metadata (zero latency)
       setVisitorDetails(prev => ({
         ...prev,
         fullName: user.user_metadata?.full_name || '',
         email: user.email || '',
         phone: user.user_metadata?.phone || ''
       }));
+      // Customer DB table is the authoritative source for phone — auth metadata may not have it
+      const profileLookup = user.id
+        ? dbService.getCustomerProfile(user.id)
+        : Promise.resolve(null);
+      profileLookup
+        .then(async (profile) => {
+          // If ID-based lookup found nothing, retry with email
+          if (!profile && user.email) {
+            return dbService.getCustomerProfile(user.email);
+          }
+          return profile;
+        })
+        .then(profile => {
+          if (!profile) return;
+          setVisitorDetails((prev: { fullName: string; email: string; phone: string; specialRequests: string }) => ({
+            ...prev,
+            ...(profile.phone ? { phone: profile.phone } : {}),
+            ...(profile.displayName && !user.user_metadata?.full_name ? { fullName: profile.displayName } : {})
+          }));
+        })
+        .catch(e => console.warn('[BookingForm] getCustomerProfile failed:', e));
     } else {
       setVisitorDetails(prev => ({
         ...prev,
@@ -109,9 +132,6 @@ export const BookingForm = ({
         );
         if (active) {
           setAvailableCount(result.remainingQuantity);
-          if (result.remainingQuantity > 0 && roomCount > result.remainingQuantity) {
-            setRoomCount(1);
-          }
         }
       } catch (err) {
         console.error('Failed to check room availability:', err);
@@ -125,10 +145,30 @@ export const BookingForm = ({
     return () => { active = false; };
   }, [formData.checkIn, formData.checkOut, accommodation.id]);
 
+  const maxGuests = (accommodation.maxGuests || 2) * roomCount;
+
+  const handleRoomCountChange = (delta: number) => {
+    const next = Math.max(1, roomCount + delta);
+    setRoomCount(next);
+    // Auto-clamp guests to new max
+    setFormData((prev: { checkIn: string; checkOut: string; guests: number }) => ({
+      ...prev,
+      guests: Math.min(prev.guests, (accommodation.maxGuests || 2) * next)
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (availableCount === 0 || roomCount > (availableCount || 1)) {
-      alert('Selected quantity is not available for these dates.');
+    if (!formData.checkIn || !formData.checkOut) {
+      alert('Please select check-in and check-out dates.');
+      return;
+    }
+    if (availableCount === 0) {
+      alert('This accommodation is fully booked for the selected dates.');
+      return;
+    }
+    if (availableCount !== null && roomCount > availableCount) {
+      alert(`Only ${availableCount} room${availableCount === 1 ? '' : 's'} available for the selected dates. Please reduce the room count and try again.`);
       return;
     }
 
@@ -167,16 +207,18 @@ export const BookingForm = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-[10px] uppercase font-bold text-natural-muted mb-2 tracking-widest ml-4 font-mono">Check-In</label>
-            <input 
-              required
-              type="date" 
+            <DatePickerInput
+              fieldStyle
+              label="Check-In"
+              value={formData.checkIn}
               min={minCheckIn}
-              className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-3.5 outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark"
-              value={formData.checkIn.split('T')[0]}
-              onChange={e => {
-                const newCheckIn = e.target.value;
+              onChange={newCheckIn => {
+                if (!newCheckIn) {
+                  setFormData((prev: { checkIn: string; checkOut: string; guests: number }) => ({ ...prev, checkIn: '', checkOut: '' }));
+                  return;
+                }
                 const nextMinCheckOut = getMinCheckOutDate(newCheckIn);
-                setFormData(prev => ({
+                setFormData((prev: { checkIn: string; checkOut: string; guests: number }) => ({
                   ...prev,
                   checkIn: newCheckIn,
                   checkOut: prev.checkOut <= newCheckIn ? nextMinCheckOut : prev.checkOut
@@ -186,57 +228,70 @@ export const BookingForm = ({
           </div>
           <div>
             <label className="block text-[10px] uppercase font-bold text-natural-muted mb-2 tracking-widest ml-4 font-mono">Check-Out</label>
-            <input 
-              required
-              type="date" 
+            <DatePickerInput
+              fieldStyle
+              label="Check-Out"
+              value={formData.checkOut}
               min={getMinCheckOutDate(formData.checkIn)}
-              className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-3.5 outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark"
-              value={formData.checkOut.split('T')[0]}
-              onChange={e => setFormData({...formData, checkOut: e.target.value})}
+              onChange={val => setFormData((prev: { checkIn: string; checkOut: string; guests: number }) => ({ ...prev, checkOut: val }))}
             />
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4">
+          {/* Rooms stepper */}
+          <div>
+            <label className="block text-[10px] uppercase font-bold text-natural-muted mb-2 tracking-widest ml-4 font-mono">Rooms / Units</label>
+            <div className="flex items-center justify-between bg-natural-bg border border-natural-accent rounded-full px-2 py-2">
+              <button
+                type="button"
+                onClick={() => handleRoomCountChange(-1)}
+                disabled={roomCount <= 1}
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-white border border-natural-accent text-natural-dark hover:border-natural-primary hover:text-natural-primary transition-all font-bold text-base disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                −
+              </button>
+              <span className="font-bold text-natural-dark text-sm min-w-[2rem] text-center">{roomCount}</span>
+              <button
+                type="button"
+                onClick={() => handleRoomCountChange(1)}
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-natural-primary text-white hover:bg-natural-dark transition-all font-bold text-base"
+              >
+                +
+              </button>
+            </div>
+            {availableCount === 0 && (
+              <p className="text-[9px] text-red-500 font-bold mt-1.5 ml-4 leading-tight">
+                Fully booked for selected dates
+              </p>
+            )}
+          </div>
+
+          {/* Guests stepper */}
           <div>
             <label className="block text-[10px] uppercase font-bold text-natural-muted mb-2 tracking-widest ml-4 font-mono">Guests</label>
-            <select 
-              className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-3.5 outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark appearance-none"
-              value={formData.guests}
-              onChange={e => setFormData({...formData, guests: parseInt(e.target.value)})}
-            >
-              {[1,2,3,4,5,6,8,10,12].map(n => <option key={n} value={n}>{n} {n === 1 ? 'Guest' : 'Guests'}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] uppercase font-bold text-natural-muted mb-2 tracking-widest ml-4 font-mono">
-              Rooms / Units Count
-            </label>
-            {checkingAvailability ? (
-              <div className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-3.5 text-xs italic text-natural-muted">
-                Checking availability...
-              </div>
-            ) : availableCount === null ? (
-              <div className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-3.5 text-xs italic text-natural-muted">
-                Select dates first
-              </div>
-            ) : availableCount === 0 ? (
-              <div className="w-full bg-red-50 text-red-600 border border-red-200 rounded-full px-6 py-3.5 text-xs font-bold text-center">
-                Fully Booked
-              </div>
-            ) : (
-              <select 
-                className="w-full bg-natural-bg border border-natural-accent rounded-full px-6 py-3.5 outline-none focus:ring-2 focus:ring-natural-primary/20 transition-all font-medium text-natural-dark appearance-none"
-                value={roomCount}
-                onChange={e => setRoomCount(parseInt(e.target.value))}
+            <div className="flex items-center justify-between bg-natural-bg border border-natural-accent rounded-full px-2 py-2">
+              <button
+                type="button"
+                onClick={() => setFormData((prev: { checkIn: string; checkOut: string; guests: number }) => ({ ...prev, guests: Math.max(1, prev.guests - 1) }))}
+                disabled={formData.guests <= 1}
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-white border border-natural-accent text-natural-dark hover:border-natural-primary hover:text-natural-primary transition-all font-bold text-base disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {Array.from({ length: availableCount }, (_, i) => i + 1).map(n => (
-                  <option key={n} value={n}>
-                    {n} {n === 1 ? 'Room / Unit' : 'Rooms / Units'} (Max: {availableCount})
-                  </option>
-                ))}
-              </select>
-            )}
+                −
+              </button>
+              <span className="font-bold text-natural-dark text-sm min-w-[2rem] text-center">{formData.guests}</span>
+              <button
+                type="button"
+                onClick={() => setFormData((prev: { checkIn: string; checkOut: string; guests: number }) => ({ ...prev, guests: Math.min(prev.guests + 1, maxGuests) }))}
+                disabled={formData.guests >= maxGuests}
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-natural-primary text-white hover:bg-natural-dark transition-all font-bold text-base disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                +
+              </button>
+            </div>
+            <p className="text-[9px] text-natural-muted mt-1.5 ml-4 leading-tight">
+              Max {maxGuests} guests ({accommodation.maxGuests || 2} per room)
+            </p>
           </div>
         </div>
 
@@ -297,7 +352,7 @@ export const BookingForm = ({
           type="submit" 
           className="w-full bg-natural-primary text-white py-4.5 rounded-full font-bold uppercase tracking-widest hover:bg-natural-dark transition-all shadow-xl shadow-natural-primary/20 disabled:opacity-50 text-[10px] mt-2 cursor-pointer"
         >
-          {availableCount === 0 ? 'Fully Booked for Selected Dates' : 'Add to Sanctuary Cart'}
+          {availableCount === 0 ? 'Fully Booked for Selected Dates' : 'Add to Booking Cart'}
         </button>
       </form>
       </div>

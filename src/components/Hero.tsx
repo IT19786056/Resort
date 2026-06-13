@@ -1,66 +1,50 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
+import { cld, isVideoUrl } from '../lib/cloudinary';
+
+const HERO_MEDIA_PARENT_ID = '00000000-0000-4000-8000-000000000001';
+const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1544644181-1484b3fdfc62?q=80&w=2070&auto=format&fit=crop';
 
 export const Hero = () => {
+  const [heroMedia, setHeroMedia] = useState<{ id: string; data: string } | null>(null);
+  const [mediaFetched, setMediaFetched] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/media/${HERO_MEDIA_PARENT_ID}`)
+      .then(r => r.json())
+      .then((items: any[]) => {
+        if (items && items.length > 0) setHeroMedia(items[0]);
+      })
+      .catch(() => {})
+      .finally(() => setMediaFetched(true));
+  }, []);
+
+  const isVideo = isVideoUrl(heroMedia?.data);
+
   return (
-    <section className="relative h-[100vh] min-h-[600px] w-full overflow-hidden">
-      {/* Background Image Wrapper */}
-      <div className="absolute inset-0 z-0">
-        <motion.img 
-          initial={{ scale: 1.1, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 2 }}
-          src="https://images.unsplash.com/photo-1544644181-1484b3fdfc62?q=80&w=2070&auto=format&fit=crop" 
-          alt="Luxury Sanctuary" 
-          className="w-full h-full object-cover"
-          referrerPolicy="no-referrer"
-        />
-        <div className="absolute inset-0 bg-natural-dark/40 backdrop-blur-[2px]" />
-      </div>
-
-      <div className="relative z-10 h-full max-w-7xl mx-auto px-6 md:px-10 flex items-center pt-24 md:pt-32 pb-12">
-        <div className="max-w-3xl">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1, delay: 0.5 }}
-          >
-            <div className="flex items-center gap-4 text-white/70 text-fluid-eyebrow uppercase font-bold tracking-[0.6em] mb-4 sm:mb-6 md:mb-8 lg:mb-12">
-              <span className="w-12 h-[1px] bg-white/40"></span>
-              Welcome to Amadiya Reserves
-            </div>
-
-            <h1 className="font-serif text-fluid-hero italic text-white leading-[0.85] tracking-tighter mb-4 sm:mb-5 md:mb-8 lg:mb-10 drop-shadow-2xl">
-              Sanctuary <br /> of Soul.
-            </h1>
-            
-            <p className="text-white/90 font-light text-fluid-card-title leading-relaxed italic max-w-xl mb-6 sm:mb-8 md:mb-10 lg:mb-12 drop-shadow-lg">
-              Experience curated luxury where architecture meets nature's raw beauty. Every moment is a crafted escape into the extraordinary.
-            </p>
-            
-            <div className="flex flex-col md:flex-row items-center gap-8">
-              <button 
-                onClick={() => document.getElementById('stays')?.scrollIntoView({ behavior: 'smooth' })}
-                className="w-full md:w-auto bg-white text-natural-dark px-12 py-6 rounded-full font-bold uppercase text-[11px] tracking-[0.3em] shadow-2xl hover:bg-natural-primary hover:text-white transition-all active:scale-95 whitespace-nowrap"
-              >
-                Explore Stays
-              </button>
-              
-              <div className="flex items-center gap-4 text-white/60 text-[10px] uppercase font-bold tracking-widest hidden md:flex">
-                <span className="w-8 h-[1px] bg-white/20"></span>
-                Tropical Paradise & Wellness
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </div>
-
-      {/* Decorative element */}
-      <div className="absolute bottom-12 right-12 hidden lg:block">
-        <div className="w-32 h-32 border border-white/20 rounded-full flex items-center justify-center p-4">
-          <div className="w-full h-full border border-white/40 rounded-full animate-spin-slow"></div>
-        </div>
-      </div>
+    <section className="relative h-[100vh] min-h-[600px] w-full overflow-hidden bg-natural-dark">
+      {mediaFetched && (
+        isVideo ? (
+          <video
+            src={heroMedia!.data}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <motion.img
+            initial={{ scale: 1.1, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 2 }}
+            src={cld(heroMedia?.data, 'f_auto,q_auto,w_2000') || DEFAULT_IMAGE}
+            alt="Luxury Resort"
+            className="absolute inset-0 w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        )
+      )}
     </section>
   );
 };

@@ -214,7 +214,7 @@ export const UserAuth = ({
                 : isLogin 
                   ? 'Welcome Back' 
                   : isModalMode === 'booking-signup' 
-                    ? 'Secure Sanctuary Access' 
+                    ? 'Complete Your Booking'
                     : 'Create Account'}
             </h2>
             <p className="text-natural-muted text-sm px-4">

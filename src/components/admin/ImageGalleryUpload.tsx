@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, X, Plus, Image } from 'lucide-react';
 import { dbService } from '../../services/db';
-import { compressImage, fileToBase64 } from '../../lib/imageUtils';
+import { uploadToCloudinary, isCloudinaryConfigured, cld } from '../../lib/cloudinary';
 
 interface MediaItem {
   id: string;
@@ -44,31 +44,35 @@ export const ImageGalleryUpload = ({ parentId, parentType }: ImageGalleryUploadP
       return;
     }
 
+    if (!isCloudinaryConfigured) {
+      alert('Image hosting is not configured. Set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET.');
+      return;
+    }
+
     setUploading(true);
     try {
       const uploadPromises = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         if (!file.type.startsWith('image/')) continue;
-        
+
         const processAndUpload = async (index: number) => {
-          const base64 = await fileToBase64(file);
-          const compressed = await compressImage(base64);
+          const { url } = await uploadToCloudinary(file, { folder: `${parentType}s/${parentId}` });
           await dbService.addMedia({
             parentId,
             parentType,
-            data: compressed,
+            data: url,
             order: media.length + index
           });
         };
         uploadPromises.push(processAndUpload(i));
       }
-      
+
       await Promise.all(uploadPromises);
       fetchMedia();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert('Failed to upload images');
+      alert(e.message || 'Failed to upload images');
     } finally {
       setUploading(false);
     }
@@ -147,7 +151,7 @@ export const ImageGalleryUpload = ({ parentId, parentType }: ImageGalleryUploadP
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {media.map((item) => (
           <div key={item.id} className="relative aspect-square rounded-2xl overflow-hidden group border border-natural-accent bg-natural-bg shadow-sm">
-            <img src={item.data} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+            <img src={cld(item.data, 'f_auto,q_auto,w_400')} loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
             <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <button 
                 type="button"
