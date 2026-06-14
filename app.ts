@@ -329,6 +329,8 @@ async function initDb() {
       ALTER TABLE rooms ALTER COLUMN quantity SET DEFAULT 1;
       ALTER TABLE rooms ALTER COLUMN quantity SET NOT NULL;
       ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "roomCount" INTEGER DEFAULT 1;
+      ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "paymentSlipUrl" TEXT;
+      ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "paidAt" TIMESTAMP WITH TIME ZONE;
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS "password" TEXT;
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS "phone" TEXT;
       ALTER TABLE admins ADD COLUMN IF NOT EXISTS "password" TEXT;
@@ -1292,6 +1294,9 @@ app.patch('/api/bookings/:id', requireAdmin, async (req, res) => {
     const { status, ...updates } = req.body;
     const booking = MOCK_BOOKINGS.find(b => b.id === id);
     if (booking) {
+      if (status === 'confirmed' && !(booking as any).paymentSlipUrl) {
+        return res.status(409).json({ error: 'Cannot confirm: no payment slip has been uploaded for this booking.' });
+      }
       if (status !== undefined) booking.status = status;
       Object.assign(booking, updates);
       return res.json(booking);
@@ -1306,16 +1311,26 @@ app.patch('/api/bookings/:id', requireAdmin, async (req, res) => {
     
     await client.query('BEGIN');
     
-    // Get the current booking to know the roomId
-    const currentBooking = await client.query('SELECT "roomId" FROM bookings WHERE id = $1 FOR UPDATE', [id]);
+    // Get the current booking to know the roomId / payment slip
+    const currentBooking = await client.query('SELECT "roomId", "paymentSlipUrl" FROM bookings WHERE id = $1 FOR UPDATE', [id]);
     const roomId = currentBooking.rows[0]?.roomId;
 
     if (!currentBooking.rows[0]) {
       throw new Error('Booking not found');
     }
 
-    const ALLOWED_BOOKING_FIELDS = new Set(['status', 'specialRequests', 'fullName', 'phone', 'guests', 'roomCount', 'checkIn', 'checkOut']);
-    const allUpdates = { status, ...updates };
+    // Guard: a booking can never be confirmed without a payment slip on record.
+    if (status === 'confirmed' && !currentBooking.rows[0].paymentSlipUrl) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Cannot confirm: no payment slip has been uploaded for this booking.' });
+    }
+
+    const ALLOWED_BOOKING_FIELDS = new Set(['status', 'specialRequests', 'fullName', 'phone', 'guests', 'roomCount', 'checkIn', 'checkOut', 'paymentSlipUrl', 'paidAt']);
+    const allUpdates: any = { status, ...updates };
+    // Stamp the verification time automatically when staff confirm a booking.
+    if (status === 'confirmed' && allUpdates.paidAt === undefined) {
+      allUpdates.paidAt = new Date().toISOString();
+    }
     const keys = Object.keys(allUpdates).filter(k => ALLOWED_BOOKING_FIELDS.has(k));
     if (keys.length > 0) {
       const setClause = keys.map((key, i) => `"${key}" = $${i + 2}`).join(', ');
@@ -1430,6 +1445,56 @@ app.patch('/api/bookings/:id', requireAdmin, async (req, res) => {
     res.status(err.isConfigError ? 403 : 500).json({ error: err.message || 'Failed to update booking' });
   } finally {
     client.release();
+  }
+});
+
+// Customer payment-slip upload: a guest attaches the bank-transfer slip to their
+// own booking. Auth is the customer JWT (NOT admin); ownership is verified by
+// matching the booking's userId/email to the verified token.
+app.post('/api/bookings/:id/slip', async (req, res) => {
+  const { id } = req.params;
+  const { slipUrl } = req.body;
+
+  const payload = getVerifiedToken(req);
+  if (!payload || payload.role !== 'customer') {
+    return res.status(403).json({ error: 'Please sign in to upload your payment slip.' });
+  }
+  if (!slipUrl || typeof slipUrl !== 'string') {
+    return res.status(400).json({ error: 'A payment slip file is required.' });
+  }
+
+  if (!pool) {
+    const booking = MOCK_BOOKINGS.find(b => b.id === id);
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    (booking as any).paymentSlipUrl = slipUrl;
+    if (booking.status === 'pending' || booking.status === 'payment_review') {
+      booking.status = 'payment_review';
+    }
+    return res.json(booking);
+  }
+
+  try {
+    // Only let the owner of the booking attach a slip to it.
+    const ownerCheck = await query('SELECT "userId", email, status FROM bookings WHERE id = $1', [id]);
+    const row = ownerCheck.rows[0];
+    if (!row) return res.status(404).json({ error: 'Booking not found' });
+
+    const ownsBooking = (row.userId && row.userId === payload.id) ||
+      (row.email && payload.email && row.email.toLowerCase() === String(payload.email).toLowerCase());
+    if (!ownsBooking) {
+      return res.status(403).json({ error: 'You can only upload a slip for your own booking.' });
+    }
+
+    // Don't reopen already-finalized bookings.
+    const nextStatus = (row.status === 'pending' || row.status === 'payment_review') ? 'payment_review' : row.status;
+
+    const result = await query(
+      'UPDATE bookings SET "paymentSlipUrl" = $1, status = $2 WHERE id = $3 RETURNING *',
+      [slipUrl, nextStatus, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err: any) {
+    res.status(err.isConfigError ? 403 : 500).json({ error: err.message || 'Failed to attach payment slip' });
   }
 });
 

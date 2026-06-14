@@ -14,6 +14,7 @@ import { Hero } from './components/Hero';
 import { FilterBar } from './components/FilterBar';
 import { Footer } from './components/Footer';
 import { Newsletter } from './components/Newsletter';
+import { BANK_DETAILS } from './constants';
 import { BookingForm } from './components/BookingForm';
 import { MyBookings } from './components/MyBookings';
 import { AboutUs } from './components/AboutUs';
@@ -640,9 +641,27 @@ export default function App() {
               </div>
 
               <h4 className="font-serif text-3xl italic text-natural-dark mb-4">Escape Requested.</h4>
-              <p className="text-sm text-natural-muted font-light italic leading-relaxed max-w-sm mb-8 select-none">
-                Your bespoke travels have been registered. Our concierge service will reach out to verify and process your booking.
+              <p className="text-sm text-natural-muted font-light italic leading-relaxed max-w-sm mb-6 select-none">
+                Your booking request has been registered and a confirmation email is on its way. To secure your reservation,
+                please complete a bank transfer and upload your payment slip.
               </p>
+
+              <div className="w-full bg-natural-bg rounded-2xl p-5 text-left space-y-2 mb-6">
+                {[
+                  ['Bank', BANK_DETAILS.bankName],
+                  ['Account Name', BANK_DETAILS.accountName],
+                  ['Account Number', BANK_DETAILS.accountNumber],
+                  ['Branch', BANK_DETAILS.branch],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between gap-3 text-xs">
+                    <span className="text-natural-muted">{label}</span>
+                    <span className="font-bold text-natural-dark text-right">{value}</span>
+                  </div>
+                ))}
+                <p className="text-[11px] text-natural-muted pt-2 border-t border-natural-accent mt-2">
+                  Upload your slip anytime from <strong>My Bookings</strong>. Our team will verify it and confirm your stay.
+                </p>
+              </div>
 
               <button
                 onClick={() => setShowCartSuccess(false)}

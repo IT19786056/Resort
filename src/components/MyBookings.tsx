@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/db';
 import { supabase } from '../lib/supabase';
 import { Booking } from '../types';
+import { BANK_DETAILS } from '../constants';
+import { uploadToCloudinary, isCloudinaryConfigured } from '../lib/cloudinary';
 import { motion, AnimatePresence } from 'motion/react';
-import { Calendar, Users, MapPin, Clock, XCircle, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Calendar, Users, MapPin, Clock, XCircle, AlertCircle, CheckCircle2, Upload, Landmark, FileCheck2 } from 'lucide-react';
 
 export const MyBookings = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -11,6 +13,8 @@ export const MyBookings = () => {
   const [cancelModalId, setCancelModalId] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBookings();
@@ -75,13 +79,36 @@ export const MyBookings = () => {
     }
   };
 
+  const handleSlipUpload = async (bookingId: string, file: File) => {
+    setUploadError(null);
+    if (!isCloudinaryConfigured) {
+      setUploadError('File uploads are not configured. Please reply to your booking email with the slip instead.');
+      return;
+    }
+    setUploadingId(bookingId);
+    try {
+      const { url } = await uploadToCloudinary(file, { folder: 'payment-slips' });
+      const updated = await dbService.uploadPaymentSlip(bookingId, url);
+      setBookings(prev => prev.map(b => (b.id === bookingId ? { ...b, ...updated } : b)));
+    } catch (err: any) {
+      console.error('Slip upload failed:', err);
+      setUploadError(err.message || 'Failed to upload payment slip. Please try again.');
+    } finally {
+      setUploadingId(null);
+    }
+  };
+
   const getStatusStyle = (status: Booking['status']) => {
     switch (status) {
       case 'confirmed': return 'bg-green-50 text-green-600 border-green-100';
       case 'cancelled': return 'bg-red-50 text-red-600 border-red-100';
+      case 'payment_review': return 'bg-indigo-50 text-indigo-600 border-indigo-100';
       default: return 'bg-amber-50 text-amber-600 border-amber-100';
     }
   };
+
+  const getStatusLabel = (status: Booking['status']) =>
+    status === 'payment_review' ? 'Payment Review' : status;
 
   if (loading) {
     return (
@@ -125,7 +152,7 @@ export const MyBookings = () => {
                 <div className="space-y-4 flex-1">
                   <div className="flex items-center gap-3">
                     <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${getStatusStyle(booking.status)}`}>
-                      {booking.status}
+                      {getStatusLabel(booking.status)}
                     </span>
                     <span className="text-xs text-natural-muted">
                       Booked on {new Date(booking.createdAt).toLocaleDateString()}
@@ -176,6 +203,67 @@ export const MyBookings = () => {
                     <p className="text-[10px] font-bold uppercase tracking-widest text-red-400 mb-1">Cancellation Reason</p>
                     <p className="text-sm text-natural-dark italic">"{booking.cancellationReason}"</p>
                   </div>
+                </div>
+              )}
+
+              {/* Bank-transfer payment section — shown until the booking is confirmed/cancelled */}
+              {(booking.status === 'pending' || booking.status === 'payment_review') && (
+                <div className="mt-6 pt-6 border-t border-natural-bg">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Landmark className="w-4 h-4 text-natural-primary" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-natural-dark">Complete Your Payment</p>
+                  </div>
+
+                  <div className="bg-natural-bg rounded-2xl p-5 grid sm:grid-cols-2 gap-x-6 gap-y-2 mb-4">
+                    {[
+                      ['Bank', BANK_DETAILS.bankName],
+                      ['Account Name', BANK_DETAILS.accountName],
+                      ['Account Number', BANK_DETAILS.accountNumber],
+                      ['Branch', BANK_DETAILS.branch],
+                      ['SWIFT', BANK_DETAILS.swift],
+                      ['Payment Reference', booking.id.slice(0, 8).toUpperCase()],
+                    ].map(([label, value]) => (
+                      <div key={label} className="flex justify-between gap-3 text-sm">
+                        <span className="text-natural-muted">{label}</span>
+                        <span className="font-bold text-natural-dark text-right">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="text-xs text-natural-muted mb-4 leading-relaxed">
+                    Transfer the amount using the <strong>Payment Reference</strong> above, then upload your bank slip here.
+                    Our team will verify it and send your confirmation.
+                  </p>
+
+                  {booking.status === 'payment_review' && booking.paymentSlipUrl && (
+                    <div className="flex items-center gap-2 text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-2xl px-4 py-3 mb-4 text-xs font-bold">
+                      <FileCheck2 className="w-4 h-4 shrink-0" />
+                      <span>Slip received — under review.</span>
+                      <a href={booking.paymentSlipUrl} target="_blank" rel="noreferrer" className="ml-auto underline">View slip</a>
+                    </div>
+                  )}
+
+                  <label className={`inline-flex items-center justify-center gap-2 cursor-pointer bg-natural-primary text-white px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-natural-dark transition-all ${uploadingId === booking.id ? 'opacity-60 pointer-events-none' : ''}`}>
+                    <Upload className="w-4 h-4" />
+                    {uploadingId === booking.id
+                      ? 'Uploading...'
+                      : booking.paymentSlipUrl ? 'Replace Slip' : 'Upload Payment Slip'}
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      disabled={uploadingId === booking.id}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleSlipUpload(booking.id, file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+
+                  {uploadError && uploadingId === null && (
+                    <p className="text-xs text-red-500 mt-3">{uploadError}</p>
+                  )}
                 </div>
               )}
             </motion.div>

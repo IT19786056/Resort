@@ -422,10 +422,12 @@ const AdminBookingsList = ({ bookings, setBookings, rooms, hotels, onUpdate, typ
 
   const totalPages = Math.ceil(filteredBookings.length / itemsPerPage);
 
-  const handleStatusUpdate = async (id: string, status: 'confirmed' | 'cancelled', reason?: string) => {
+  const handleStatusUpdate = async (id: string, status: 'pending' | 'confirmed' | 'cancelled', reason?: string) => {
     if (isUpdating) return;
     const booking = selectedBooking || bookings.find((b: any) => b.id === id);
     if (!booking) return;
+
+    const isReject = status === 'pending'; // staff rejected the uploaded slip
 
     // Save previous state for potential rollback
     const originalBookings = [...bookings];
@@ -436,7 +438,8 @@ const AdminBookingsList = ({ bookings, setBookings, rooms, hotels, onUpdate, typ
         return {
           ...b,
           status,
-          cancellationReason: reason || b.cancellationReason
+          cancellationReason: reason || b.cancellationReason,
+          paymentSlipUrl: isReject ? undefined : b.paymentSlipUrl
         };
       }
       return b;
@@ -448,17 +451,18 @@ const AdminBookingsList = ({ bookings, setBookings, rooms, hotels, onUpdate, typ
     setSelectedBooking(null);
     setShowCancelDialog(false);
     setCancelReason('');
-    
-    onProcessing?.(status === 'confirmed' ? 'Confirming reservation...' : 'Cancelling booking...');
+
+    onProcessing?.(status === 'confirmed' ? 'Confirming reservation...' : isReject ? 'Rejecting payment slip...' : 'Cancelling booking...');
     setIsUpdating(true);
     try {
       const updateData: any = { status };
       if (reason) updateData.cancellationReason = reason;
-      
+      if (isReject) updateData.paymentSlipUrl = null; // clear so the guest re-uploads
+
       await dbService.updateBooking(id, updateData);
       onUpdate(true); // Silent background refresh to coordinate with DB
       triggerDataRefresh();
-      onSuccess?.(status === 'confirmed' ? 'Reservation confirmed' : 'Booking cancelled');
+      onSuccess?.(status === 'confirmed' ? 'Reservation confirmed' : isReject ? 'Payment slip rejected' : 'Booking cancelled');
     } catch (error: any) {
       console.error(error);
       // Rollback state in case of server failure
@@ -653,13 +657,15 @@ const AdminBookingsList = ({ bookings, setBookings, rooms, hotels, onUpdate, typ
                           </td>
                           <td className="py-5 px-6 whitespace-nowrap">
                             <span className={`inline-flex px-3 py-1 text-[8px] uppercase font-bold tracking-widest rounded-full border ${
-                              booking.status === 'confirmed' 
-                                ? 'bg-green-50 text-green-700 border-green-100' 
-                                : booking.status === 'cancelled' 
-                                ? 'bg-red-50 text-red-700 border-red-100' 
+                              booking.status === 'confirmed'
+                                ? 'bg-green-50 text-green-700 border-green-100'
+                                : booking.status === 'cancelled'
+                                ? 'bg-red-50 text-red-700 border-red-100'
+                                : booking.status === 'payment_review'
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
                                 : 'bg-amber-50 text-amber-700 border-amber-100'
                             }`}>
-                              {booking.status}
+                              {booking.status === 'payment_review' ? 'Payment Review' : booking.status}
                             </span>
                           </td>
                           <td className="py-5 px-6 whitespace-nowrap text-center">
@@ -715,13 +721,15 @@ const AdminBookingsList = ({ bookings, setBookings, rooms, hotels, onUpdate, typ
                       
                       <div className="absolute bottom-4 left-6 right-6 flex items-end justify-between">
                         <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-widest block shadow-lg ${
-                          booking.status === 'confirmed' 
-                            ? 'bg-green-600 text-white' 
-                            : booking.status === 'cancelled' 
-                            ? 'bg-red-600 text-white' 
+                          booking.status === 'confirmed'
+                            ? 'bg-green-600 text-white'
+                            : booking.status === 'cancelled'
+                            ? 'bg-red-600 text-white'
+                            : booking.status === 'payment_review'
+                            ? 'bg-indigo-600 text-white'
                             : 'bg-amber-500 text-white'
                         }`}>
-                          {booking.status}
+                          {booking.status === 'payment_review' ? 'Payment Review' : booking.status}
                         </span>
                         
                         <span className="text-[10px] text-white font-mono font-bold uppercase tracking-wider backdrop-blur-md bg-black/40 px-3 py-1 rounded-lg">
@@ -1330,6 +1338,12 @@ const BookingDetailsModal = ({ booking, hotels, rooms, onClose, showCancelDialog
   const hotel = hotels.find((h: any) => h.id === booking.hotelId);
   const room = rooms.find((r: any) => r.id === booking.roomId);
 
+  // A booking can only be confirmed after staff have uploaded-to-record AND
+  // actually opened the payment slip. Reset the "viewed" flag per booking.
+  const [slipViewed, setSlipViewed] = useState(false);
+  useEffect(() => { setSlipViewed(false); }, [booking.id]);
+  const canConfirm = Boolean(booking.paymentSlipUrl) && slipViewed;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-natural-dark/40 backdrop-blur-sm" onClick={onClose} />
@@ -1423,18 +1437,71 @@ const BookingDetailsModal = ({ booking, hotels, rooms, onClose, showCancelDialog
                 </div>
               </div>
 
+              {/* Payment slip — verify the bank transfer before confirming */}
+              {booking.status !== 'cancelled' && (
+                <div className="mb-10">
+                  <SectionLabel label="Payment Verification" />
+                  {booking.paymentSlipUrl ? (
+                    <div className="bg-natural-bg p-6 rounded-3xl mt-4 flex flex-col sm:flex-row sm:items-center gap-5">
+                      <a href={booking.paymentSlipUrl} target="_blank" rel="noreferrer" onClick={() => setSlipViewed(true)} className="block w-full sm:w-40 h-40 rounded-2xl overflow-hidden bg-white border border-natural-accent shrink-0">
+                        {/\.pdf($|\?)/i.test(booking.paymentSlipUrl) ? (
+                          <div className="w-full h-full flex items-center justify-center text-xs font-bold text-natural-primary uppercase tracking-widest">View PDF</div>
+                        ) : (
+                          <img src={booking.paymentSlipUrl} className="w-full h-full object-cover" alt="Payment slip" />
+                        )}
+                      </a>
+                      <div className="flex-1">
+                        <p className="text-xs text-natural-muted leading-relaxed mb-2">
+                          The guest has uploaded a bank-transfer slip. Open and review it to confirm the funds were received before accepting the reservation.
+                        </p>
+                        <a href={booking.paymentSlipUrl} target="_blank" rel="noreferrer" onClick={() => setSlipViewed(true)} className="text-[10px] font-bold uppercase tracking-widest text-natural-primary border-b border-natural-primary pb-0.5">
+                          Open full slip
+                        </a>
+                        {slipViewed && (
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-green-600 mt-3 flex items-center gap-1.5">
+                            <CheckCircle className="w-3.5 h-3.5" /> Slip reviewed
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-amber-50 border border-amber-100 p-6 rounded-3xl mt-4">
+                      <p className="text-xs text-amber-700 italic">No payment slip uploaded yet. The guest still needs to transfer and upload their slip — this reservation cannot be confirmed until a slip is received and reviewed.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex gap-4 pt-8 border-t border-natural-accent">
-                {booking.status === 'pending' && (
-                  <button 
-                    onClick={() => onStatusUpdate(booking.id, 'confirmed')} 
-                    className="flex-1 bg-green-600 text-white py-5 rounded-full font-bold uppercase text-[10px] tracking-widest hover:bg-green-700 transition-all shadow-lg"
+                {(booking.status === 'pending' || booking.status === 'payment_review') && (
+                  <button
+                    onClick={() => canConfirm && onStatusUpdate(booking.id, 'confirmed')}
+                    disabled={!canConfirm}
+                    title={!booking.paymentSlipUrl
+                      ? 'A payment slip must be uploaded before confirming.'
+                      : !slipViewed
+                      ? 'Open and review the payment slip before confirming.'
+                      : ''}
+                    className="flex-1 bg-green-600 text-white py-5 rounded-full font-bold uppercase text-[10px] tracking-widest hover:bg-green-700 transition-all shadow-lg disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-green-600"
                   >
-                    Confirm Reservation
+                    {!booking.paymentSlipUrl
+                      ? 'Awaiting Payment Slip'
+                      : !slipViewed
+                      ? 'Review Slip to Confirm'
+                      : 'Verify & Confirm'}
+                  </button>
+                )}
+                {booking.status === 'payment_review' && (
+                  <button
+                    onClick={() => onStatusUpdate(booking.id, 'pending')}
+                    className="flex-1 bg-white border border-amber-200 text-amber-700 py-5 rounded-full font-bold uppercase text-[10px] tracking-widest hover:bg-amber-50 transition-all"
+                  >
+                    Reject Slip
                   </button>
                 )}
                 {booking.status !== 'cancelled' && (
-                  <button 
-                    onClick={() => setShowCancelDialog(true)} 
+                  <button
+                    onClick={() => setShowCancelDialog(true)}
                     className="flex-1 bg-white border border-red-200 text-red-600 py-5 rounded-full font-bold uppercase text-[10px] tracking-widest hover:bg-red-50 transition-all"
                   >
                     Cancel Booking

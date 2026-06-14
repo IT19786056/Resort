@@ -185,6 +185,13 @@ export const dbService = {
     });
   },
 
+  async uploadPaymentSlip(id: string, slipUrl: string) {
+    return apiFetch<Booking>(`/api/bookings/${id}/slip`, {
+      method: 'POST',
+      body: JSON.stringify({ slipUrl }),
+    });
+  },
+
   // Media
   async getMedia(parentId: string) {
     return apiFetch<any[]>(`/api/media/${parentId}`);

@@ -1,5 +1,15 @@
 import nodemailer from 'nodemailer';
 
+// Bank-transfer details shown to the guest in the initial booking email.
+// Override via env vars in production; the fallbacks mirror src/constants.ts.
+const BANK_DETAILS = {
+  bankName: process.env.BANK_NAME || 'Bank of Ceylon',
+  accountName: process.env.BANK_ACCOUNT_NAME || 'Amadiya Leisure (Pvt) Ltd',
+  accountNumber: process.env.BANK_ACCOUNT_NUMBER || '0000 1234 5678 90',
+  branch: process.env.BANK_BRANCH || 'Colombo Main Branch',
+  swift: process.env.BANK_SWIFT || 'BCEYLKLX',
+};
+
 export interface BookingDetails {
   fullName: string;
   email: string;
@@ -164,7 +174,7 @@ const getEmailTemplate = (details: BookingDetails, type: 'initial' | 'confirmed'
   }) : formatDate(new Date().toISOString());
 
   let headerTitle = 'Reservation Details';
-  let bottomMessage = 'Your reservation is confirmed. We look forward to welcoming you to Amadiya Leisure.';
+  let bottomMessage = 'We have received your booking request. To secure your reservation, please complete a bank transfer using the details below and reply to this email with your payment slip. Our team will call you to confirm and verify your payment.';
 
   if (type === 'confirmed') {
     headerTitle = 'Reservation Confirmed';
@@ -330,6 +340,24 @@ const getEmailTemplate = (details: BookingDetails, type: 'initial' | 'confirmed'
                 </tr>
               </table>`;
               })() : ''}
+
+              ${type === 'initial' ? `
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 30px; background-color: ${lightBg}; border-radius: 16px; overflow: hidden;">
+                <tr>
+                  <td style="padding: 25px;">
+                    <div class="section-label" style="margin-bottom: 16px;">Bank Transfer Details</div>
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr><td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">Bank</td><td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">${BANK_DETAILS.bankName}</td></tr>
+                      <tr><td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">Account Name</td><td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">${BANK_DETAILS.accountName}</td></tr>
+                      <tr><td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">Account Number</td><td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">${BANK_DETAILS.accountNumber}</td></tr>
+                      <tr><td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">Branch</td><td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">${BANK_DETAILS.branch}</td></tr>
+                      <tr><td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">SWIFT</td><td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">${BANK_DETAILS.swift}</td></tr>
+                      <tr style="border-top: 1px solid ${accentColor};"><td style="font-size: 13px; font-weight: 700; color: ${textColor}; padding-top: 14px;">Payment Reference</td><td style="font-size: 13px; font-weight: 700; color: ${primaryColor}; text-align: right; padding-top: 14px;">${details.id.slice(0, 8).toUpperCase()}</td></tr>
+                    </table>
+                    <p style="font-size: 11px; color: ${mutedColor}; margin: 16px 0 0 0; line-height: 1.5;">Please use the Payment Reference above as the transfer reference so we can match your payment, then reply to this email with your payment slip.</p>
+                  </td>
+                </tr>
+              </table>` : ''}
 
               <div style="text-align: center; margin-top: 20px;">
                 <p style="font-size: 14px; color: ${mutedColor}; line-height: 1.6;">${bottomMessage}</p>
