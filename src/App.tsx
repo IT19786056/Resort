@@ -13,6 +13,7 @@ import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { FilterBar } from './components/FilterBar';
 import { Footer } from './components/Footer';
+import { Newsletter } from './components/Newsletter';
 import { BookingForm } from './components/BookingForm';
 import { MyBookings } from './components/MyBookings';
 import { AboutUs } from './components/AboutUs';
@@ -441,6 +442,8 @@ export default function App() {
                       )}
                     </section>
                   </main>
+
+                  <Newsletter />
                 </motion.div>
               ) : activeTab === 'accommodation' ? (
                 <motion.div
