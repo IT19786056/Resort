@@ -192,7 +192,7 @@ export const AboutUs = () => {
       {/* Wave divider white → blue */}
       <div className="bg-white" style={{ marginBottom: '-1px' }}>
         <svg viewBox="0 0 1440 80" className="w-full block" preserveAspectRatio="none">
-          <path fill="#1D4ED8" d="M0,40 C360,0 1080,80 1440,40 L1440,80 L0,80 Z" />
+          <path fill="#1B1D36" d="M0,40 C360,0 1080,80 1440,40 L1440,80 L0,80 Z" />
         </svg>
       </div>
 
