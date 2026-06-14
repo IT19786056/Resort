@@ -1,0 +1,23 @@
+# Keep the build context small and never leak local files into the image.
+node_modules
+dist
+build
+coverage
+
+# Secrets — these must come from Railway env vars, never the image.
+.env
+.env.*
+!.env.example
+
+# VCS / tooling / editor noise
+.git
+.github
+.gitignore
+*.log
+.DS_Store
+.vscode
+.idea
+
+# Docs / local-only
+README.md
+*.md

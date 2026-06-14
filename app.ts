@@ -1,6 +1,5 @@
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import pg from 'pg';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
@@ -19,11 +18,10 @@ if (_missingVars.length > 0) {
 }
 const ADMIN_MASTER_PASSWORD = process.env.ADMIN_MASTER_PASSWORD as string;
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 export const app = express();
-const PORT = 3000;
+// Railway (and most PaaS) inject the port to bind via process.env.PORT.
+// Fall back to 3000 for local development.
+const PORT = Number(process.env.PORT) || 3000;
 
 const _allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
