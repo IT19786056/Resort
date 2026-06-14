@@ -653,7 +653,7 @@ const AdminBookingsList = ({ bookings, setBookings, rooms, hotels, onUpdate, typ
                             </div>
                           </td>
                           <td className="py-5 px-6 whitespace-nowrap text-xs font-bold text-natural-primary">
-                            ${((room?.price || 0) * (booking.roomCount || 1)).toLocaleString()}
+                            LKR {((room?.price || 0) * (booking.roomCount || 1)).toLocaleString()}
                           </td>
                           <td className="py-5 px-6 whitespace-nowrap">
                             <span className={`inline-flex px-3 py-1 text-[8px] uppercase font-bold tracking-widest rounded-full border ${
@@ -762,7 +762,7 @@ const AdminBookingsList = ({ bookings, setBookings, rooms, hotels, onUpdate, typ
                           {booking.guests} Guests
                         </div>
                         <div className="text-natural-primary font-bold tracking-tight text-right">
-                          ${((room?.price || 0) * (booking.roomCount || 1)).toLocaleString()}
+                          LKR {((room?.price || 0) * (booking.roomCount || 1)).toLocaleString()}
                         </div>
                       </div>
                     </div>
