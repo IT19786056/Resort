@@ -2258,6 +2258,61 @@ app.post('/api/auth/change-admin-password', async (req, res) => {
   }
 });
 
+// ─── Demo Environment Password Gate ─────────────────────────────────────────
+// POST /api/demo-auth  — verify password, return a signed JWT
+// GET  /api/demo-auth  — verify an existing JWT is still valid
+// The ADMIN_MASTER_PASSWORD never leaves the server. The React client only
+// ever sees the opaque JWT that it stores in localStorage for 1 hour.
+
+const demoGateBruteForce = new Map<string, { attempts: number; lockoutUntil: number }>();
+
+app.post('/api/demo-auth', (req, res) => {
+  // Use the real IP when behind Vercel / a reverse proxy
+  const ip =
+    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+    req.socket.remoteAddress ||
+    'unknown';
+
+  const tracker = demoGateBruteForce.get(ip);
+  if (tracker && Date.now() < tracker.lockoutUntil) {
+    const mins = Math.ceil((tracker.lockoutUntil - Date.now()) / 60000);
+    return res.status(429).json({ error: `Too many attempts. Try again in ${mins} minute${mins !== 1 ? 's' : ''}.` });
+  }
+
+  const { password } = req.body;
+  if (!password || typeof password !== 'string') {
+    return res.status(400).json({ error: 'Password is required.' });
+  }
+
+  // Timing-safe comparison — hash both sides with HMAC so lengths always match
+  // and no early-exit branching reveals whether characters are correct.
+  const expected = crypto.createHmac('sha256', JWT_SECRET).update(ADMIN_MASTER_PASSWORD).digest();
+  const submitted = crypto.createHmac('sha256', JWT_SECRET).update(password).digest();
+  const isCorrect = crypto.timingSafeEqual(expected, submitted);
+
+  if (!isCorrect) {
+    const attempts = (tracker?.attempts || 0) + 1;
+    const lockoutUntil = attempts >= 5 ? Date.now() + 15 * 60 * 1000 : 0;
+    demoGateBruteForce.set(ip, { attempts, lockoutUntil });
+    return res.status(401).json({ error: 'Incorrect password.' });
+  }
+
+  demoGateBruteForce.delete(ip);
+  const now = Math.floor(Date.now() / 1000);
+  const token = signJwt({ role: 'demo', iat: now, exp: now + 3600 });
+  return res.json({ token, issuedAt: Date.now() });
+});
+
+app.get('/api/demo-auth', (req, res) => {
+  const { token } = req.query;
+  if (!token || typeof token !== 'string') {
+    return res.json({ valid: false });
+  }
+  const payload = verifyJwt(token);
+  return res.json({ valid: payload?.role === 'demo' });
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Vite Setup
 async function startServer() {
   await initDb();
