@@ -2,10 +2,9 @@ import express from 'express';
 import path from 'path';
 import pg from 'pg';
 import dotenv from 'dotenv';
-import nodemailer from 'nodemailer';
 import crypto from 'crypto';
 import cors from 'cors';
-import { queueBookingConfirmation, queueBookingAcceptance, queueBookingCancellation, processEmailQueue } from './server/email.js';
+import { queueBookingConfirmation, queueBookingAcceptance, queueBookingCancellation, processEmailQueue, sendEmail } from './server/email.js';
 
 if (!process.env.VERCEL) {
   dotenv.config();
@@ -1629,10 +1628,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
   }
 
   // Send the OTP via email
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const port = parseInt(process.env.SMTP_PORT || '587');
+  const emailConfigured = !!process.env.BREVO_API_KEY || !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 
   const subject = `${otp} is your Amadiya Leisure Verification Code`;
   const html = `
@@ -1653,26 +1649,15 @@ app.post('/api/auth/send-otp', async (req, res) => {
     </div>
   `;
 
-  if (host && user && pass) {
+  if (emailConfigured) {
     try {
-      const transporter = nodemailer.createTransport({
-        host,
-        port,
-        secure: port === 465,
-        auth: { user, pass }
-      });
-      await transporter.sendMail({
-        from: `"Amadiya Leisure" <${user}>`,
-        to: email,
-        subject,
-        html
-      });
-      console.log(`?? SMTP OTP email successfully sent to ${email}`);
+      await sendEmail({ to: email, subject, html });
+      console.log(`OTP email successfully sent to ${email}`);
     } catch (mailErr: any) {
-      console.error('SMTP OTP email sending failed:', mailErr);
+      console.error('OTP email sending failed:', mailErr);
     }
   } else {
-    console.warn(`?? SMTP not configured. OTP EMAIL NOT SENT. [OTP PIN IS: ${otp}]`);
+    console.warn(`Email not configured. OTP EMAIL NOT SENT. [OTP PIN IS: ${otp}]`);
   }
 
   return res.json({ success: true, message: 'OTP sent successfully' });
@@ -2076,10 +2061,7 @@ app.post('/api/auth/send-admin-otp', requireAdmin, async (req, res) => {
   }
 
   // Send the OTP via email
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const port = parseInt(process.env.SMTP_PORT || '587');
+  const emailConfigured = !!process.env.BREVO_API_KEY || !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 
   const subject = `${otp} is your Amadiya Staff Promotion Verification Code`;
   const html = `
@@ -2101,26 +2083,15 @@ app.post('/api/auth/send-admin-otp', requireAdmin, async (req, res) => {
     </div>
   `;
 
-  if (host && user && pass) {
+  if (emailConfigured) {
     try {
-      const transporter = nodemailer.createTransport({
-        host,
-        port,
-        secure: port === 465,
-        auth: { user, pass }
-      });
-      await transporter.sendMail({
-        from: `"Amadiya Leisure" <${user}>`,
-        to: emailKey,
-        subject,
-        html
-      });
-      console.log(`?? SMTP Admin OTP email successfully sent to ${emailKey}`);
+      await sendEmail({ to: emailKey, subject, html });
+      console.log(`Admin OTP email successfully sent to ${emailKey}`);
     } catch (mailErr: any) {
-      console.error('SMTP OTP email sending failed:', mailErr);
+      console.error('Admin OTP email sending failed:', mailErr);
     }
   } else {
-    console.warn(`?? SMTP not configured. OTP EMAIL NOT SENT. [OTP PIN IS: ${otp}]`);
+    console.warn(`Email not configured. OTP EMAIL NOT SENT. [OTP PIN IS: ${otp}]`);
   }
 
   return res.json({ success: true, message: 'OTP sent successfully' });

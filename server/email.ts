@@ -41,6 +41,90 @@ const createTransporter = () => {
   });
 };
 
+// The "From" identity, in "Name <email>" form. With Brevo's free plan you don't
+// need a domain — just verify this sender email in the Brevo dashboard first.
+const FROM_ADDRESS = process.env.EMAIL_FROM || 'Amadiya Leisure <no-reply@example.com>';
+
+// Splits "Name <email@host>" into its parts. Falls back to treating the whole
+// string as the email if it isn't in that form.
+const parseFrom = (raw: string): { name?: string; email: string } => {
+  const match = raw.match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
+  if (match) return { name: match[1] || undefined, email: match[2].trim() };
+  return { email: raw.trim() };
+};
+
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  cid?: string;
+}
+
+export interface SendEmailOptions {
+  to: string;
+  subject: string;
+  html: string;
+  attachments?: EmailAttachment[];
+}
+
+/**
+ * Sends a single email. Uses Brevo's HTTP API when BREVO_API_KEY is set
+ * (works on hosts like Railway that block outbound SMTP ports); otherwise
+ * falls back to SMTP via nodemailer for local development.
+ * Throws on failure so callers can decide how to handle/retry.
+ */
+export const sendEmail = async (opts: SendEmailOptions): Promise<void> => {
+  const brevoKey = process.env.BREVO_API_KEY;
+
+  if (brevoKey) {
+    const sender = parseFrom(FROM_ADDRESS);
+    const body: Record<string, unknown> = {
+      sender,
+      to: [{ email: opts.to }],
+      subject: opts.subject,
+      htmlContent: opts.html,
+    };
+    if (opts.attachments?.length) {
+      body.attachment = opts.attachments.map((a) => ({
+        name: a.filename,
+        content: a.content.toString('base64'),
+      }));
+    }
+
+    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'api-key': brevoKey,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`Brevo error ${resp.status}: ${text}`);
+    }
+    return;
+  }
+
+  // Fallback: SMTP for local dev
+  const transporter = createTransporter();
+  if (!transporter) {
+    throw new Error('No email provider configured (set BREVO_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS).');
+  }
+  await transporter.sendMail({
+    from: FROM_ADDRESS,
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    attachments: opts.attachments?.map((a) => ({
+      filename: a.filename,
+      content: a.content,
+      cid: a.cid,
+    })),
+  });
+};
+
 const getEmailTemplate = (details: BookingDetails, type: 'initial' | 'confirmed' | 'cancelled' = 'initial') => {
   const primaryColor = '#8D7B68';
   const bgColor = '#FDFCFB';
@@ -308,22 +392,27 @@ export const queueBookingCancellation = async (dbQuery: any, details: BookingDet
 };
 
 export const processEmailQueue = async (pool: any) => {
-  const transporter = createTransporter();
-  if (!transporter) {
+  const hasBrevo = !!process.env.BREVO_API_KEY;
+  const transporter = hasBrevo ? null : createTransporter();
+
+  if (!hasBrevo && !transporter) {
     // Only log once to avoid spamming
     if (!(global as any)._smtp_warn_logged) {
-      console.warn('Email worker: SMTP transporter not configured (missing env vars). Skipping queue processing.');
+      console.warn('Email worker: no email provider configured (set BREVO_API_KEY or SMTP_* vars). Skipping queue processing.');
       (global as any)._smtp_warn_logged = true;
     }
     return;
   }
 
-  // Verify connection once at start of each run to catch credential issues early
-  try {
-    await transporter.verify();
-  } catch (verifyErr) {
-    console.error('SMTP Connection Verification Failed:', verifyErr);
-    return;
+  // For SMTP, verify connection once per run to catch credential/egress issues
+  // early. Brevo uses HTTPS, so no pre-flight verification is needed.
+  if (transporter) {
+    try {
+      await transporter.verify();
+    } catch (verifyErr) {
+      console.error('SMTP Connection Verification Failed:', verifyErr);
+      return;
+    }
   }
 
   let client;
@@ -352,14 +441,14 @@ export const processEmailQueue = async (pool: any) => {
       try {
         console.log(`Sending email to ${email.recipient} (Subject: ${email.subject})...`);
         
-        const attachments: any[] = [];
+        const attachments: EmailAttachment[] = [];
         let htmlBody = email.body;
 
         // Custom base64 image extractor to attach images properly for email clients (Gmail)
         const base64Regex = /src="data:(image\/[^;]+);base64,([^"]+)"/g;
         let cidCounter = 1;
 
-        htmlBody = htmlBody.replace(base64Regex, (match: string, mimeType: string, base64Data: string) => {
+        htmlBody = htmlBody.replace(base64Regex, (_match: string, mimeType: string, base64Data: string) => {
           const cid = `embedded_img_${cidCounter++}`;
           const extension = mimeType.split('/')[1] || 'png';
           attachments.push({
@@ -370,8 +459,7 @@ export const processEmailQueue = async (pool: any) => {
           return `src="cid:${cid}"`;
         });
 
-        await transporter.sendMail({
-          from: `"Amadiya Leisure" <${process.env.SMTP_USER}>`,
+        await sendEmail({
           to: email.recipient,
           subject: email.subject,
           html: htmlBody,
