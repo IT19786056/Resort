@@ -116,7 +116,7 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
             </div>
 
             {/* Desktop Menu */}
-            <div className="hidden md:flex items-center space-x-3 lg:space-x-7 xl:space-x-10 text-[9px] lg:text-[10px] font-bold uppercase tracking-[0.2em] lg:tracking-[0.3em] text-natural-dark">
+            <div className="hidden md:flex items-center space-x-3 lg:space-x-6 xl:space-x-9 text-[11px] lg:text-[13px] font-bold uppercase tracking-[0.15em] lg:tracking-[0.22em] text-natural-dark">
               {navLinks.map(link => (
                 <button
                   key={link.id}
@@ -194,7 +194,7 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
               {/* Book Now — always visible */}
               <button
                 onClick={handleBookNow}
-                className="bg-natural-primary text-white px-8 py-3 rounded-full font-bold text-[9px] uppercase tracking-widest hover:opacity-90 transition-all shadow-lg active:scale-95"
+                className="bg-natural-primary text-white px-8 py-3 rounded-full font-bold text-[11px] uppercase tracking-widest hover:opacity-90 transition-all shadow-lg active:scale-95"
               >
                 Book Now
               </button>
