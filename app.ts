@@ -45,12 +45,22 @@ if (!isDbConfigured) {
   console.log('⚠️ DATABASE_URL not set. Running in mock mode.');
 }
 
-const pool = isDbConfigured 
+// TLS policy for the database connection.
+// Railway's private network (*.railway.internal) and local Postgres speak plain
+// TCP with no TLS, whereas external managed Postgres (Supabase, Railway's public
+// proxy) requires it. Auto-detect from the host; override with DATABASE_SSL=true|false.
+const dbSsl: false | { rejectUnauthorized: boolean } = (() => {
+  if (process.env.DATABASE_SSL === 'false') return false;
+  if (process.env.DATABASE_SSL === 'true') return { rejectUnauthorized: false };
+  if (!dbUrl) return false;
+  if (/\.railway\.internal|localhost|127\.0\.0\.1/.test(dbUrl)) return false;
+  return { rejectUnauthorized: false };
+})();
+
+const pool = isDbConfigured
   ? new pg.Pool({
       connectionString: dbUrl,
-      ssl: {
-        rejectUnauthorized: false
-      },
+      ssl: dbSsl,
       connectionTimeoutMillis: 10000,
       max: 10,
       idleTimeoutMillis: 30000, // Keep database connections warm for up to 30 seconds of inactivity to support fast loading
@@ -64,9 +74,7 @@ if (pool && process.env.VERCEL) {
     console.log('🔌 [Serverless] Opening direct database connection...');
     const client = new pg.Client({
       connectionString: dbUrl,
-      ssl: {
-        rejectUnauthorized: false
-      }
+      ssl: dbSsl
     });
     await client.connect();
     
@@ -84,9 +92,7 @@ if (pool && process.env.VERCEL) {
     console.log('🔌 [Serverless] Executing direct query...');
     const client = new pg.Client({
       connectionString: dbUrl,
-      ssl: {
-        rejectUnauthorized: false
-      }
+      ssl: dbSsl
     });
     await client.connect();
     try {
