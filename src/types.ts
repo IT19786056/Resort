@@ -40,10 +40,12 @@ export interface Booking {
   checkOut: string;
   guests: number;
   specialRequests?: string;
-  status: 'pending' | 'confirmed' | 'cancelled';
+  status: 'pending' | 'payment_review' | 'confirmed' | 'cancelled';
   cancellationReason?: string;
   createdAt: string;
   roomCount?: number;
+  paymentSlipUrl?: string; // Cloudinary URL of the uploaded bank transfer slip
+  paidAt?: string; // Set when staff verify the payment and confirm the booking
 }
 
 export interface CustomerProfile {
