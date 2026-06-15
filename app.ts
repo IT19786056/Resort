@@ -1,6 +1,6 @@
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from 'fs';
 import pg from 'pg';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
@@ -712,6 +712,7 @@ const clearCache = () => {
   cachedRooms = null;
   cachedHotelsTime = 0;
   cachedRoomsTime = 0;
+  _heroCache = null;
 };
 
 // Hotels
@@ -2378,6 +2379,57 @@ app.get('/api/demo-auth', (req, res) => {
 });
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Hero media is fetched client-side by <Hero/>, which means a fresh device
+// shows the default image until JS loads + the API round-trip completes. To
+// kill that flash we inject the current hero media into the HTML on the server
+// so the browser knows the real URL on first paint (and can preload it).
+const HERO_MEDIA_PARENT_ID = '00000000-0000-4000-8000-000000000001';
+
+// Short in-memory cache so we don't hit the DB on every page load. Admin edits
+// still show immediately in-session via <Hero/>'s background re-fetch; this
+// only affects the very first paint on a fresh device, so a small TTL is fine.
+let _heroCache: { media: any | null; at: number } | null = null;
+const HERO_CACHE_TTL_MS = 60_000;
+
+async function getHeroMedia(): Promise<any | null> {
+  if (_heroCache && Date.now() - _heroCache.at < HERO_CACHE_TTL_MS) {
+    return _heroCache.media;
+  }
+  try {
+    const result = await query(
+      'SELECT * FROM media WHERE "parentId" = $1 ORDER BY "order" ASC LIMIT 1',
+      [HERO_MEDIA_PARENT_ID],
+    );
+    const media = result.rows[0] || null;
+    _heroCache = { media, at: Date.now() };
+    return media;
+  } catch {
+    // DB unavailable — fall back to the client-side fetch (no injection).
+    return null;
+  }
+}
+
+async function injectHeroMedia(html: string): Promise<string> {
+  const media = await getHeroMedia();
+  if (!media?.data) return html;
+
+  const isVideo =
+    media.data.includes('/video/upload/') ||
+    /\.(mp4|webm|mov|m4v|ogv)(\?|$)/i.test(media.data);
+
+  // Escape "<" so the JSON can't break out of the <script> tag.
+  const payload = JSON.stringify(media).replace(/</g, '\\u003c');
+  const seed = `<script>window.__HERO_MEDIA__=${payload}</script>`;
+
+  // Preload the image so it downloads in parallel with the JS bundle. Videos
+  // stream and use a poster frame, so a preload hint isn't worthwhile there.
+  const preload = isVideo
+    ? ''
+    : `<link rel="preload" as="image" href="${media.data.replace(/"/g, '&quot;')}">`;
+
+  return html.replace('</head>', `${preload}${seed}</head>`);
+}
+
 // Vite Setup
 async function startServer() {
   await initDb();
@@ -2407,7 +2459,6 @@ async function startServer() {
     });
     app.use(vite.middlewares);
 
-    const fs = await import('fs');
     app.get('*', async (req, res, next) => {
       // Exclude API requests and paths with file extensions
       if (req.originalUrl.startsWith('/api') || req.originalUrl.includes('.')) {
@@ -2416,7 +2467,8 @@ async function startServer() {
       try {
         const url = req.originalUrl;
         const indexHtml = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
-        const html = await vite.transformIndexHtml(url, indexHtml);
+        const transformed = await vite.transformIndexHtml(url, indexHtml);
+        const html = await injectHeroMedia(transformed);
         res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
       } catch (e) {
         next(e);
@@ -2424,9 +2476,17 @@ async function startServer() {
     });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
+    const indexHtmlPath = path.join(distPath, 'index.html');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.get('*', async (req, res) => {
+      try {
+        const indexHtml = fs.readFileSync(indexHtmlPath, 'utf-8');
+        const html = await injectHeroMedia(indexHtml);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      } catch (e) {
+        // If injection fails for any reason, still serve the app.
+        res.sendFile(indexHtmlPath);
+      }
     });
   }
 
