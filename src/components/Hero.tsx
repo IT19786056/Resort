@@ -33,9 +33,15 @@ function videoPoster(url: string): string | undefined {
 }
 
 export const Hero = () => {
-  // Initialise from sessionStorage so the media renders on the first paint
-  // instead of waiting for the API round-trip.
-  const [heroMedia, setHeroMedia] = useState<{ id: string; data: string } | null>(readCache);
+  // Render the real media on the very first paint. The server injects the
+  // current hero media into the HTML (window.__HERO_MEDIA__) so even a brand
+  // new device skips the default-image flash; sessionStorage covers repeat
+  // visits if the injection is ever unavailable.
+  const [heroMedia, setHeroMedia] = useState<{ id: string; data: string } | null>(() => {
+    const injected = (window as any).__HERO_MEDIA__;
+    if (injected?.data) return injected;
+    return readCache();
+  });
 
   useEffect(() => {
     // Always re-fetch in the background to pick up admin changes, but don't
@@ -55,10 +61,15 @@ export const Hero = () => {
   const imageSrc = cld(heroMedia?.data, 'f_auto,q_auto,w_2000') || DEFAULT_IMAGE;
 
   return (
-    <section className="relative h-[100vh] min-h-[600px] w-full overflow-hidden bg-natural-dark">
+    <section
+      className="relative w-full overflow-hidden bg-natural-dark"
+      // Sit the hero *below* the fixed navbar (whose measured height is exposed
+      // as --nav-h) so the opaque header never hides the top of the media.
+      style={{ height: 'calc(100dvh - var(--nav-h, 0px))', minHeight: '600px', marginTop: 'var(--nav-h, 0px)' }}
+    >
       {isVideo ? (
         <video
-          src={heroMedia!.data}
+          src={cld(heroMedia!.data, 'q_auto,w_1600')}
           autoPlay
           loop
           muted

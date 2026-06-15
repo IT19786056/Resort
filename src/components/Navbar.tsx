@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Menu, User as UserIcon, LogOut, Briefcase, Shield, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
@@ -19,6 +19,24 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
   const [user, setUser] = useState<User | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isAdminUser, setIsAdminUser] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Publish the fixed header's real height as a CSS variable so the Hero (and
+  // any other full-bleed section) can offset itself and never sit underneath it.
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const setVar = () =>
+      document.documentElement.style.setProperty('--nav-h', `${el.offsetHeight}px`);
+    setVar();
+    const ro = new ResizeObserver(setVar);
+    ro.observe(el);
+    window.addEventListener('resize', setVar);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', setVar);
+    };
+  }, []);
 
   const checkAdminStatus = async (uid: string) => {
     try {
@@ -96,7 +114,7 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
       </button>
 
       {/* Fixed wrapper: announcement bar + nav */}
-      <div className="fixed top-0 left-0 right-0 z-50">
+      <div ref={wrapperRef} className="fixed top-0 left-0 right-0 z-50">
         {/* Blue announcement bar */}
         <div className="bg-natural-primary text-white py-2 px-4 text-center text-[11px] font-semibold tracking-wide flex items-center justify-center gap-2">
           <Phone className="w-3 h-3 shrink-0" />
