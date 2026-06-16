@@ -1224,6 +1224,59 @@ app.get('/api/rooms/:id/calendar', async (req, res) => {
   }
 });
 
+// Batch availability for the storefront search: remaining units per room for a
+// date range, in a single query. Returns a { [roomId]: remainingQuantity } map.
+// A manually closed room reports 0. This is what the front-end uses to hide
+// rooms that are sold out *for the chosen dates* (not via the dateless flag).
+app.get('/api/availability', async (req, res) => {
+  const { checkIn, checkOut } = req.query;
+
+  if (!checkIn || !checkOut) {
+    return res.status(400).json({ error: 'checkIn and checkOut dates are required' });
+  }
+
+  if (!pool) {
+    const reqIn = new Date(checkIn as string);
+    const reqOut = new Date(checkOut as string);
+    const map: Record<string, number> = {};
+    for (const room of MOCK_ROOMS) {
+      let booked = 0;
+      for (const b of MOCK_BOOKINGS) {
+        if (b.roomId === room.id && b.status !== 'cancelled') {
+          if (new Date(b.checkIn) < reqOut && new Date(b.checkOut) > reqIn) {
+            booked += (b.roomCount || 1);
+          }
+        }
+      }
+      map[room.id] = (room as any).manualStopSell ? 0 : Math.max(0, (room.quantity || 1) - booked);
+    }
+    return res.json(map);
+  }
+
+  try {
+    const result = await query(
+      `SELECT r.id, r.quantity, r."manualStopSell", COALESCE(b.booked, 0) AS booked
+       FROM rooms r
+       LEFT JOIN (
+         SELECT "roomId", SUM(COALESCE("roomCount", 1)) AS booked
+         FROM bookings
+         WHERE status != 'cancelled' AND "checkIn" < $2 AND "checkOut" > $1
+         GROUP BY "roomId"
+       ) b ON b."roomId" = r.id`,
+      [checkIn, checkOut]
+    );
+    const map: Record<string, number> = {};
+    for (const row of result.rows) {
+      map[row.id] = row.manualStopSell === true
+        ? 0
+        : Math.max(0, parseInt(row.quantity) - parseInt(row.booked));
+    }
+    res.json(map);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch availability' });
+  }
+});
+
 // Bookings
 app.get('/api/bookings', async (req, res) => {
   try {

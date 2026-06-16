@@ -22,3 +22,12 @@ export const useMediaQuery = (parentId: string | undefined, enabled = true) =>
     queryFn: () => dbService.getMedia(parentId as string),
     enabled: enabled && !!parentId,
   });
+
+// Per-room remaining units for the selected dates. Only runs once BOTH dates are
+// set; the storefront uses it to hide rooms sold out for those specific dates.
+export const useAvailabilityQuery = (checkIn?: string, checkOut?: string) =>
+  useQuery<Record<string, number>>({
+    queryKey: queryKeys.availability(checkIn || '', checkOut || ''),
+    queryFn: () => dbService.getBatchAvailability(checkIn as string, checkOut as string),
+    enabled: !!checkIn && !!checkOut,
+  });

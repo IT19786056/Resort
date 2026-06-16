@@ -156,6 +156,11 @@ export const dbService = {
     return apiFetch<{ remainingQuantity: number }>(`/api/rooms/${id}/availability?checkIn=${encodeURIComponent(checkIn)}&checkOut=${encodeURIComponent(checkOut)}`);
   },
 
+  // Remaining units per room for a date range: { [roomId]: remainingQuantity }.
+  async getBatchAvailability(checkIn: string, checkOut: string) {
+    return apiFetch<Record<string, number>>(`/api/availability?checkIn=${encodeURIComponent(checkIn)}&checkOut=${encodeURIComponent(checkOut)}`);
+  },
+
   // Bookings
   async getBookings(limit?: number, offset?: number) {
     let url = '/api/bookings';

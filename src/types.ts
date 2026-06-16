@@ -25,6 +25,7 @@ export interface Accommodation {
   amenities: string[];
   maxGuests: number;
   isAvailable?: boolean;
+  manualStopSell?: boolean;
   quantity?: number;
 }
 

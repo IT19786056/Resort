@@ -20,4 +20,5 @@ export const queryKeys = {
   hotels: ['hotels'] as const,
   rooms: ['rooms'] as const,
   media: (parentId: string) => ['media', parentId] as const,
+  availability: (checkIn: string, checkOut: string) => ['availability', checkIn, checkOut] as const,
 };
