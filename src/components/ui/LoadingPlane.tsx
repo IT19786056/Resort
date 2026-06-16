@@ -1,6 +1,4 @@
-import React from 'react';
 import { motion } from 'motion/react';
-import { Plane } from 'lucide-react';
 
 interface LoadingPlaneProps {
   label?: string;
@@ -10,61 +8,19 @@ interface LoadingPlaneProps {
 export const LoadingPlane = ({ label = "Synchronizing Your Stay", fullScreen = true }: LoadingPlaneProps) => {
   return (
     <div className={`${fullScreen ? 'fixed inset-0 z-[100] bg-natural-bg' : 'w-full py-20'} flex flex-col items-center justify-center overflow-hidden`}>
-      <div className="relative w-32 h-32 flex items-center justify-center">
-        {/* Sky Circle */}
-        <motion.div 
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="absolute inset-0 bg-natural-primary/5 rounded-full border border-natural-primary/10"
-        />
-        
-        {/* Clouds Animation */}
-        {[...Array(3)].map((_, i) => (
-          <motion.div
-            key={i}
-            initial={{ x: 60, opacity: 0 }}
-            animate={{ 
-              x: -60, 
-              opacity: [0, 1, 1, 0],
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              delay: i * 0.7,
-              ease: "linear"
-            }}
-            className="absolute h-1 bg-white rounded-full"
-            style={{ 
-              top: `${30 + (i * 20)}%`,
-              width: `${20 + (i * 10)}px`
-            }}
-          />
-        ))}
-
-        {/* Orbiting Plane */}
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{
-            duration: 4,
-            repeat: Infinity,
-            ease: "linear"
-          }}
-          className="absolute inset-0 p-4"
-        >
-          <div className="w-full h-full relative">
-            <motion.div 
-              animate={{ y: [0, -4, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute -top-4 left-1/2 -translate-x-1/2 text-natural-primary"
-            >
-              <Plane className="w-6 h-6 rotate-90" />
-            </motion.div>
-          </div>
-        </motion.div>
-
-        {/* Center Dot */}
-        <div className="w-2 h-2 bg-natural-primary rounded-full animate-pulse" />
-      </div>
+      {/* Breathing Monogram */}
+      <motion.img
+        src="/amadiya-mark.png"
+        alt="Amadiya"
+        animate={{ opacity: [0.25, 1, 0.25], scale: [0.96, 1, 0.96] }}
+        transition={{
+          duration: 2.4,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+        className="w-28 h-auto select-none"
+        draggable={false}
+      />
 
       <motion.div
         initial={{ opacity: 0, y: 10 }}
