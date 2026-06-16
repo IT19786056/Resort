@@ -109,3 +109,17 @@ export function cld(url?: string | null, transform = 'f_auto,q_auto'): string {
 
   return `${head}/upload/${transform}/${tail}`;
 }
+
+/**
+ * Build a responsive `srcset` from a Cloudinary URL at the given widths so each
+ * device downloads an appropriately-sized image instead of one fixed (large)
+ * size. Returns undefined for non-Cloudinary URLs, where resizing isn't possible
+ * and a srcset would just repeat the same file.
+ *
+ *   cldSrcSet(url, [400, 800]) -> ".../w_400/... 400w, .../w_800/... 800w"
+ */
+export function cldSrcSet(url?: string | null, widths: number[] = [], base = 'f_auto,q_auto'): string | undefined {
+  if (!url || widths.length === 0) return undefined;
+  if (!url.includes('res.cloudinary.com') || !url.includes('/upload/')) return undefined;
+  return widths.map(w => `${cld(url, `${base},w_${w}`)} ${w}w`).join(', ');
+}

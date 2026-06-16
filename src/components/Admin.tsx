@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { auth, type User } from '../lib/auth';
 import { dbService } from '../services/db';
 import { AdminProfile } from '../types';
 import { AdminLogin } from './admin/AdminLogin';
 import { AdminDashboard } from './admin/AdminDashboard';
-import { User } from '@supabase/supabase-js';
 
 import { LoadingPlane } from './ui/LoadingPlane';
 
@@ -15,11 +14,11 @@ export const Admin = () => {
 
   useEffect(() => {
     // Initial check
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    auth.getUser().then(({ data: { user } }) => {
       handleUser(user);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = auth.onAuthStateChange(async (_event, session) => {
       handleUser(session?.user ?? null);
     });
 

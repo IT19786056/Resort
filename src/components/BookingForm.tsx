@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { dbService } from '../services/db';
-import { supabase } from '../lib/supabase';
+import { auth } from '../lib/auth';
 import { Accommodation } from '../types';
 import { PhoneInputField } from './PhoneInputField';
 import { DatePickerInput } from './ui/DatePickerInput';
@@ -73,7 +73,7 @@ export const BookingForm = ({
   });
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    auth.getUser().then(({ data: { user } }) => {
       setUser(user);
     });
   }, []);

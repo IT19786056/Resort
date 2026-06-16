@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { cld, isVideoUrl } from '../../lib/cloudinary';
+import { cld, cldSrcSet, isVideoUrl } from '../../lib/cloudinary';
 import { useMediaQuery } from '../../hooks/queries';
 
 interface GalleryProps {
@@ -51,6 +51,8 @@ export const Gallery = ({ parentId, fallbackImage, className = "" }: GalleryProp
           <motion.img
             key={index}
             src={cld(displayImages[index], 'f_auto,q_auto,w_1600')}
+            srcSet={cldSrcSet(displayImages[index], [640, 1024, 1600])}
+            sizes="(max-width: 1024px) 90vw, 50vw"
             loading="lazy"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}

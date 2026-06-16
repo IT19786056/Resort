@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { auth } from '../lib/auth';
 import { dbService } from '../services/db';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Mail, Lock, User, LogIn, UserPlus, Shield, Key, Check, Phone } from 'lucide-react';
@@ -56,13 +56,13 @@ export const UserAuth = ({
     try {
       if (isLogin) {
         // Standard user password login
-        const { error: loginErr } = await supabase.auth.signInWithPassword({
+        const { error: loginErr } = await auth.signInWithPassword({
           email,
           password,
         });
         if (loginErr) throw loginErr;
         
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await auth.getUser();
         if (user && !user.user_metadata?.role) {
           await dbService.saveCustomerProfile(user.id, {
             email: email,

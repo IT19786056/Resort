@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { auth } from '../../lib/auth';
 import { dbService } from '../../services/db';
 import { motion } from 'motion/react';
 import { Building2, Mail, Lock, LogIn } from 'lucide-react';
@@ -18,7 +18,7 @@ export const AdminLogin = () => {
     setError('');
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { error } = await auth.signInWithPassword({
           email,
           password,
         });
@@ -28,7 +28,7 @@ export const AdminLogin = () => {
         if (email !== 'jasonlawrene23@gmail.com' && !email.endsWith('@ahsellresorts.com')) {
           throw new Error('Only authorized staff emails can register here.');
         }
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error } = await auth.signUp({
           email,
           password,
         });

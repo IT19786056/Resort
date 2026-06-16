@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Menu, User as UserIcon, LogOut, Briefcase, Shield, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { supabase } from '../lib/supabase';
+import { auth, type User } from '../lib/auth';
 import { UserAuth } from './UserAuth';
-import { User } from '@supabase/supabase-js';
 import { dbService } from '../services/db';
 
 interface NavbarProps {
@@ -48,12 +47,12 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) checkAdminStatus(session.user.id);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         checkAdminStatus(session.user.id);
@@ -86,7 +85,7 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
+      await auth.signOut();
       setIsProfileOpen(false);
       handleNavClick('home');
     } catch (error) {

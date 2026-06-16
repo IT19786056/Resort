@@ -1,9 +1,14 @@
 import React, { useState, lazy, Suspense, useEffect, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapPin, ChevronRight, ArrowLeft, Search, Trash2, ShoppingCart, ShieldCheck, X, Check } from 'lucide-react';
-import { supabase } from './lib/supabase';
+import { auth } from './lib/auth';
 import { dbService } from './services/db';
-import { cld } from './lib/cloudinary';
+import { cld, cldSrcSet } from './lib/cloudinary';
+
+// Cards sit in a 1 / 2 / 3-column grid (mobile / md / lg), so they span roughly
+// the full width on phones and a third of it on desktop. This `sizes` hint lets
+// the browser pick the right srcset candidate per device.
+const CARD_IMAGE_SIZES = '(max-width: 768px) 90vw, (max-width: 1024px) 45vw, 33vw';
 
 // Hooks
 import { useAccommodations } from './hooks/useAccommodations';
@@ -57,10 +62,10 @@ export default function App() {
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'booking-signup'>('login');
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
     return () => subscription.unsubscribe();
@@ -144,7 +149,7 @@ export default function App() {
 
   const [isSearched, setIsSearched] = useState(false);
 
-  // Database and Supabase status state for debugging
+  // Database status state for debugging
   const [dbStatus, setDbStatus] = useState<any>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
@@ -286,7 +291,7 @@ export default function App() {
                         </p>
                         {dbStatus.mode === 'mock' && (
                           <button 
-                            onClick={() => window.alert('Please go to Settings -> Secrets and add your Supabase DATABASE_URL.')}
+                            onClick={() => window.alert('Please go to Settings -> Secrets and add your Railway Postgres DATABASE_URL.')}
                             className="text-[9px] font-bold uppercase tracking-widest text-natural-primary border-b border-natural-primary pb-1 hover:opacity-60"
                           >
                             Setup Guide
@@ -710,6 +715,8 @@ const AccommodationCard = memo(({ item, index, onSelect, onBook, disabled }: any
     <div className="w-full aspect-[16/10] bg-natural-accent overflow-hidden relative">
       <img
         src={cld(item.imageUrl, 'f_auto,q_auto,w_800')}
+        srcSet={cldSrcSet(item.imageUrl, [400, 640, 800])}
+        sizes={CARD_IMAGE_SIZES}
         alt={item.name}
         loading="lazy"
         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
@@ -761,6 +768,8 @@ const HotelCard = memo(({ hotel, index, onSelect }: any) => (
     <div className="w-full aspect-[16/10] bg-natural-accent overflow-hidden relative">
       <img
         src={cld(hotel.imageUrl, 'f_auto,q_auto,w_900')}
+        srcSet={cldSrcSet(hotel.imageUrl, [400, 640, 900])}
+        sizes={CARD_IMAGE_SIZES}
         className="w-full h-full object-cover group-hover:scale-110 transition-all duration-[2000ms]"
         alt={hotel.name}
         loading="lazy"

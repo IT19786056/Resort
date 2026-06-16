@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { cld, isVideoUrl } from '../lib/cloudinary';
+import { cld, cldSrcSet, isVideoUrl } from '../lib/cloudinary';
 
 const HERO_MEDIA_PARENT_ID = '00000000-0000-4000-8000-000000000001';
 const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1544644181-1484b3fdfc62?q=80&w=2070&auto=format&fit=crop';
@@ -59,6 +59,8 @@ export const Hero = () => {
 
   const isVideo = isVideoUrl(heroMedia?.data);
   const imageSrc = cld(heroMedia?.data, 'f_auto,q_auto,w_2000') || DEFAULT_IMAGE;
+  // Responsive candidates so a phone doesn't download a 2000px-wide hero.
+  const imageSrcSet = cldSrcSet(heroMedia?.data, [640, 1024, 1600, 2000]);
 
   return (
     <section
@@ -84,6 +86,8 @@ export const Hero = () => {
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 2 }}
           src={imageSrc}
+          srcSet={imageSrcSet}
+          sizes="100vw"
           alt="Luxury Resort"
           className="absolute inset-0 w-full h-full object-cover"
           referrerPolicy="no-referrer"

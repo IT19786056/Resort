@@ -1,47 +1,20 @@
-import { createClient } from '@supabase/supabase-js';
+// Client-side auth for Amadiya Leisure.
+//
+// Auth is fully self-hosted: it talks to this app's own /api/auth/* endpoints
+// (backed by Railway Postgres) and keeps the session in localStorage. There is
+// no third-party auth provider — this module is the single source of truth.
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || (typeof process !== 'undefined' ? process.env.SUPABASE_URL : undefined);
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || (typeof process !== 'undefined' ? process.env.SUPABASE_ANON_KEY : undefined);
+// Minimal shape of the logged-in user returned by /api/auth/*. Kept permissive
+// because the backend owns the exact payload.
+export interface User {
+  id: string;
+  email?: string;
+  displayName?: string;
+  user_metadata?: Record<string, any>;
+  [key: string]: any;
+}
 
-const isConfigured = Boolean(
-  supabaseUrl && 
-  supabaseAnonKey && 
-  supabaseUrl !== 'https://your-project-id.supabase.co' &&
-  !supabaseUrl.includes('your-project-id')
-);
-
-const baseSupabase = isConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-    })
-  : new Proxy({} as any, {
-      get(_, prop) {
-        if (prop === 'auth') {
-          return {
-            onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-            getSession: async () => ({ data: { session: null } }),
-            getUser: async () => ({ data: { user: null } }),
-            signInWithPassword: async () => ({ error: new Error('Supabase not configured') }),
-            signUp: async () => ({ error: new Error('Supabase not configured') }),
-            signOut: async () => ({ error: new Error('Supabase not configured') }),
-          };
-        }
-        return () => {
-          return {
-            select: () => ({ order: () => ({ limit: () => ({ data: [], error: null }) }) }),
-            insert: () => ({ select: () => ({ single: () => ({ data: null, error: null }) }) }),
-            update: () => ({ eq: () => ({ data: null, error: null }) }),
-            delete: () => ({ eq: () => ({ data: null, error: null }) }),
-          };
-        };
-      }
-    });
-
-// Custom JWT payload decoder using client-side base64 decryption (atob)
+// Decode a JWT payload client-side (base64url) — used only to read expiry.
 const decodeJwtPayload = (token: string) => {
   try {
     const parts = token.split('.');
@@ -56,17 +29,17 @@ const decodeJwtPayload = (token: string) => {
       return JSON.parse(payloadJson);
     }
   } catch (e) {
-    console.error('Error decoding custom JWT:', e);
+    console.error('Error decoding JWT:', e);
   }
   return null;
 };
 
-// Custom handlers for storing/reading custom customer user session (completely bypassing Supabase's mandatory auth email verification triggers)
+// Read the current session from localStorage, dropping it if the token expired.
 const getCustomSession = () => {
   try {
     const saved = localStorage.getItem('amadiya_customer_user');
     const token = localStorage.getItem('amadiya_customer_token');
-    
+
     if (saved && token) {
       const payload = decodeJwtPayload(token);
       if (payload && payload.exp && payload.exp * 1000 > Date.now()) {
@@ -86,16 +59,16 @@ const getCustomSession = () => {
       }
     }
   } catch (e) {
-    console.error('Error parsing custom user session from localStorage:', e);
+    console.error('Error parsing user session from localStorage:', e);
   }
   return null;
 };
 
-// Listeners for custom authentication events
-const customAuthListeners = new Set<(event: string, session: any) => void>();
+// Listeners for auth events
+const authListeners = new Set<(event: string, session: any) => void>();
 
-const notifyCustomAuthChange = (event: string, session: any) => {
-  customAuthListeners.forEach((listener) => {
+const notifyAuthChange = (event: string, session: any) => {
+  authListeners.forEach((listener) => {
     try {
       listener(event, session);
     } catch (e) {
@@ -110,12 +83,12 @@ const notifyCustomAuthChange = (event: string, session: any) => {
 // Global listener to sync login/logout state correctly across components
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', () => {
-    const activeCustom = getCustomSession();
-    notifyCustomAuthChange(activeCustom ? 'SIGNED_IN' : 'SIGNED_OUT', activeCustom?.session || null);
+    const activeSession = getCustomSession();
+    notifyAuthChange(activeSession ? 'SIGNED_IN' : 'SIGNED_OUT', activeSession?.session || null);
   });
   window.addEventListener('amadiya_auth_state_change', (e: any) => {
     const detail = e.detail;
-    customAuthListeners.forEach((listener) => {
+    authListeners.forEach((listener) => {
       try {
         listener(detail.event, detail.session);
       } catch (err) {}
@@ -123,8 +96,10 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// Custom wrapper for Supabase Auth object to bypass the unconfirmed email validations and fallback to local DB sessions
-const customAuth = {
+// The app's auth client. Same method surface the components already use
+// (getSession / getUser / signInWithPassword / signUp / signOut /
+// onAuthStateChange), implemented against /api/auth/* + localStorage.
+export const auth = {
   async getSession() {
     const custom = getCustomSession();
     if (custom) {
@@ -156,13 +131,13 @@ const customAuth = {
           localStorage.setItem('amadiya_customer_token', data.token);
         }
         const custom = getCustomSession();
-        notifyCustomAuthChange('SIGNED_IN', custom?.session || null);
+        notifyAuthChange('SIGNED_IN', custom?.session || null);
         return { data: { user: data.user, session: custom?.session }, error: null };
       } else if (!response.ok) {
         return { data: { session: null, user: null }, error: new Error(data.error || 'Invalid credentials') };
       }
     } catch (err: any) {
-      console.warn('Custom backend sign-in error:', err);
+      console.warn('Sign-in error:', err);
     }
     return { data: { session: null, user: null }, error: new Error('Invalid email or password.') };
   },
@@ -184,7 +159,7 @@ const customAuth = {
             localStorage.setItem('amadiya_customer_token', data.token);
           }
           const custom = getCustomSession();
-          notifyCustomAuthChange('SIGNED_IN', custom?.session || null);
+          notifyAuthChange('SIGNED_IN', custom?.session || null);
           return { data: { user: data.user, session: custom?.session }, error: null };
         } else {
           return { data: { user: null }, error: new Error(data.error || 'Failed to register admin profile.') };
@@ -193,38 +168,29 @@ const customAuth = {
         return { data: { user: null }, error: err };
       }
     }
-    return { 
-      data: { user: null }, 
-      error: new Error('Amadiya Leisure requires confirming signups via custom 6-digit email OTP verify code.') 
+    return {
+      data: { user: null },
+      error: new Error('Amadiya Leisure requires confirming signups via custom 6-digit email OTP verify code.')
     };
   },
 
   async signOut() {
     localStorage.removeItem('amadiya_customer_user');
     localStorage.removeItem('amadiya_customer_token');
-    notifyCustomAuthChange('SIGNED_OUT', null);
+    notifyAuthChange('SIGNED_OUT', null);
     return { error: null };
   },
 
   onAuthStateChange(callback: any) {
-    customAuthListeners.add(callback);
+    authListeners.add(callback);
     return {
       data: {
         subscription: {
           unsubscribe() {
-            customAuthListeners.delete(callback);
+            authListeners.delete(callback);
           },
         },
       },
     };
   },
 };
-
-export const supabase = new Proxy(baseSupabase as any, {
-  get(target, prop) {
-    if (prop === 'auth') {
-      return customAuth;
-    }
-    return Reflect.get(target, prop);
-  },
-});

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/db';
-import { supabase } from '../lib/supabase';
+import { auth } from '../lib/auth';
 import { Booking } from '../types';
 import { BANK_DETAILS } from '../constants';
 import { uploadToCloudinary, isCloudinaryConfigured } from '../lib/cloudinary';
@@ -21,7 +21,7 @@ export const MyBookings = () => {
   }, []);
 
   const fetchBookings = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await auth.getUser();
     if (!user) return;
     setLoading(true);
     try {
@@ -66,7 +66,7 @@ export const MyBookings = () => {
       });
       
       // Quiet background refresh to secure exact DB state correlation
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await auth.getUser();
       if (user) {
         const data = await dbService.getUserBookings(user.id);
         setBookings(data || []);

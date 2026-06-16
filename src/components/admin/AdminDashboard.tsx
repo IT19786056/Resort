@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { dbService } from '../../services/db';
-import { supabase } from '../../lib/supabase';
+import { auth } from '../../lib/auth';
 import { Hotel, Accommodation, Booking, AdminProfile } from '../../types';
 import { 
   Building2, 
@@ -95,7 +95,7 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
     }
   };
 
-  const handleLogout = () => supabase.auth.signOut();
+  const handleLogout = () => auth.signOut();
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);

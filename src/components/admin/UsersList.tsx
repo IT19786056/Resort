@@ -3,8 +3,7 @@ import { dbService } from '../../services/db';
 import { AdminProfile } from '../../types';
 import { Trash2, UserPlus, Shield, User as UserIcon } from 'lucide-react';
 import { SectionLabel, Input, Modal } from './Shared';
-import { supabase } from '../../lib/supabase';
-import { User } from '@supabase/supabase-js';
+import { auth, type User } from '../../lib/auth';
 
 interface UsersListProps {
   onUpdate: () => void;
@@ -21,7 +20,7 @@ export const UsersList = ({ onUpdate, onSuccess, onError, onProcessing }: UsersL
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setCurrentUser(user));
+    auth.getUser().then(({ data: { user } }) => setCurrentUser(user));
     fetchUsers();
   }, []);
 

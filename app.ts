@@ -5,6 +5,7 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 import cors from 'cors';
+import compression from 'compression';
 import { queueBookingConfirmation, queueBookingAcceptance, queueBookingCancellation, processEmailQueue, sendEmail } from './server/email.js';
 
 if (!process.env.VERCEL) {
@@ -34,6 +35,11 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-id', 'x-admin-email', 'x-admin-name', 'x-admin-role'],
 }));
 
+// Gzip/brotli all responses (HTML, JS, CSS, JSON). The biggest single transfer
+// win — the public JS bundle compresses ~70%. compression skips already-tiny
+// or pre-compressed payloads automatically.
+app.use(compression());
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -47,7 +53,7 @@ if (!isDbConfigured) {
 
 // TLS policy for the database connection.
 // Railway's private network (*.railway.internal) and local Postgres speak plain
-// TCP with no TLS, whereas external managed Postgres (Supabase, Railway's public
+// TCP with no TLS, whereas external managed Postgres (e.g. Railway's public
 // proxy) requires it. Auto-detect from the host; override with DATABASE_SSL=true|false.
 const dbSsl: false | { rejectUnauthorized: boolean } = (() => {
   if (process.env.DATABASE_SSL === 'false') return false;
@@ -219,7 +225,7 @@ app.get('/api/health', (req, res) => {
 // Helper for queries to handle missing DB
 async function query(text: string, params?: any[]) {
   if (!pool) {
-    const err = new Error('Database not configured. Please set DATABASE_URL (e.g. from Supabase) in Settings -> Secrets.');
+    const err = new Error('Database not configured. Please set DATABASE_URL (your Railway Postgres connection string) in Settings -> Secrets.');
     (err as any).isConfigError = true;
     throw err;
   }
@@ -320,7 +326,7 @@ async function initDb() {
       );
 
       CREATE TABLE IF NOT EXISTS customers (
-        id TEXT PRIMARY KEY, -- Supabase UID
+        id TEXT PRIMARY KEY, -- app-generated user UID
         email TEXT UNIQUE NOT NULL,
         "displayName" TEXT,
         "photoURL" TEXT,
@@ -328,7 +334,7 @@ async function initDb() {
       );
 
       CREATE TABLE IF NOT EXISTS admins (
-        id TEXT PRIMARY KEY, -- Supabase UID
+        id TEXT PRIMARY KEY, -- app-generated user UID
         email TEXT UNIQUE NOT NULL,
         role TEXT NOT NULL DEFAULT 'admin',
         "displayName" TEXT,
@@ -2051,7 +2057,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
 // Brute force protection state map (persists in-memory during continuous app execution)
 const loginBruteForceTracker = new Map<string, { attempts: number, lockoutUntil: number }>();
 
-// Custom customer and admin credentials login endpoint (completely bypassing Supabase unconfirmed emails error)
+// Customer and admin credentials login endpoint (self-hosted auth against Postgres)
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -2193,7 +2199,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Custom admin creator / registration endpoint (completely bypassing Supabase Auth)
+// Admin creator / registration endpoint (self-hosted auth against Postgres)
 app.post('/api/auth/signup-admin', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -2590,11 +2596,33 @@ async function injectHeroMedia(html: string): Promise<string> {
   const payload = JSON.stringify(media).replace(/</g, '\\u003c');
   const seed = `<script>window.__HERO_MEDIA__=${payload}</script>`;
 
-  // Preload the image so it downloads in parallel with the JS bundle. Videos
-  // stream and use a poster frame, so a preload hint isn't worthwhile there.
-  const preload = isVideo
-    ? ''
-    : `<link rel="preload" as="image" href="${media.data.replace(/"/g, '&quot;')}">`;
+  // Apply a Cloudinary delivery transform server-side (mirrors src/lib/cloudinary
+  // cld()) so the preload requests the exact same URLs the Hero <img> will render.
+  const cldUrl = (url: string, transform: string): string => {
+    if (!url.includes('res.cloudinary.com') || !url.includes('/upload/')) return url;
+    const [head, tail] = url.split('/upload/');
+    if (tail === undefined) return url;
+    if (/(^|,)[a-z]{1,4}_/.test(tail.split('/')[0])) return url; // already transformed
+    return `${head}/upload/${transform}/${tail}`;
+  };
+  const esc = (s: string) => s.replace(/"/g, '&quot;');
+
+  // Preload the image so it downloads in parallel with the JS bundle. We mirror
+  // the Hero's responsive srcset + sizes here so the browser preloads the right
+  // device-sized candidate (not a 2000px image on a phone) and the <img> reuses
+  // it. Videos stream with a poster frame, so a preload hint isn't worthwhile.
+  let preload = '';
+  if (!isVideo) {
+    const isCld = media.data.includes('res.cloudinary.com') && media.data.includes('/upload/');
+    if (isCld) {
+      const srcset = [640, 1024, 1600, 2000]
+        .map(w => `${cldUrl(media.data, `f_auto,q_auto,w_${w}`)} ${w}w`)
+        .join(', ');
+      preload = `<link rel="preload" as="image" href="${esc(cldUrl(media.data, 'f_auto,q_auto,w_2000'))}" imagesrcset="${esc(srcset)}" imagesizes="100vw">`;
+    } else {
+      preload = `<link rel="preload" as="image" href="${esc(media.data)}">`;
+    }
+  }
 
   return html.replace('</head>', `${preload}${seed}</head>`);
 }
@@ -2646,14 +2674,29 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     const indexHtmlPath = path.join(distPath, 'index.html');
-    app.use(express.static(distPath));
+    // Vite gives every JS/CSS file a content hash in its name, so the bytes for a
+    // given URL never change — cache them for a year. index.html is the pointer to
+    // those hashed files and is served fresh via the '*' route below, so a new
+    // deploy is always picked up immediately. `index: false` stops this middleware
+    // from serving index.html itself (we render it with hero injection instead).
+    app.use(express.static(distPath, {
+      maxAge: '1y',
+      immutable: true,
+      index: false,
+    }));
     app.get('*', async (req, res) => {
       try {
         const indexHtml = fs.readFileSync(indexHtmlPath, 'utf-8');
         const html = await injectHeroMedia(indexHtml);
-        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+        // Never cache the HTML shell: it must always reflect the latest asset
+        // hashes and the freshly-injected hero media.
+        res.status(200).set({
+          'Content-Type': 'text/html',
+          'Cache-Control': 'no-cache',
+        }).end(html);
       } catch (e) {
         // If injection fails for any reason, still serve the app.
+        res.set('Cache-Control', 'no-cache');
         res.sendFile(indexHtmlPath);
       }
     });
