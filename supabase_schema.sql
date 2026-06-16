@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS rooms (
     price DECIMAL(10,2) NOT NULL,
     "maxGuests" INTEGER NOT NULL DEFAULT 2,
     "isAvailable" BOOLEAN DEFAULT true,
+    "manualStopSell" BOOLEAN DEFAULT false, -- staff close-out switch, independent of bookings
     description TEXT,
     "imageUrl" TEXT,
     amenities TEXT[],
@@ -65,6 +66,9 @@ CREATE TABLE IF NOT EXISTS bookings (
     guests INTEGER NOT NULL,
     "specialRequests" TEXT,
     status TEXT NOT NULL DEFAULT 'confirmed', -- 'confirmed', 'cancelled', 'completed'
+    "source" TEXT DEFAULT 'direct', -- 'direct', 'booking_com', 'agoda', ... (channel-manager readiness)
+    "channelId" UUID, -- set for OTA-sourced bookings once a channel manager is integrated
+    "externalRef" TEXT, -- the channel's reservation id (idempotency key for inbound webhooks)
     "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -75,6 +79,18 @@ CREATE TABLE IF NOT EXISTS media (
     "parentType" TEXT NOT NULL, -- 'hotel' or 'room'
     "data" TEXT NOT NULL, -- Base64 data (compressed)
     "order" INTEGER DEFAULT 0,
+    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Inventory Sync Queue (channel-manager readiness; dormant until OTA integration)
+-- Records that a room's availability changed over a date window so a future sync
+-- worker can push the delta to the channel manager.
+CREATE TABLE IF NOT EXISTS inventory_sync_queue (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "roomId" UUID,
+    "fromDate" DATE,
+    "toDate" DATE,
+    status TEXT DEFAULT 'pending', -- pending, processing, sent, failed
     "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

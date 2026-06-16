@@ -245,6 +245,37 @@ async function query(text: string, params?: any[]) {
   }
 }
 
+// Single source of truth for the "how many units are taken" calculation used by
+// the availability endpoint, the calendar, and the booking transaction. Counts
+// every non-cancelled booking (incl. pending holds) that overlaps [checkIn, checkOut).
+// `dbQuery` may be the pooled `query` helper or a transaction client's query fn.
+async function getBookedCount(dbQuery: any, roomId: string, checkIn: string, checkOut: string): Promise<number> {
+  const bookingsRes = await dbQuery(
+    `SELECT COALESCE(SUM(COALESCE("roomCount", 1)), 0) as booked_count
+     FROM bookings
+     WHERE "roomId" = $1
+       AND status != 'cancelled'
+       AND "checkIn" < $3
+       AND "checkOut" > $2`,
+    [roomId, checkIn, checkOut]
+  );
+  return parseInt(bookingsRes.rows[0].booked_count);
+}
+
+// Records that a room's availability changed over a date window so a future
+// channel-manager worker can push the delta. Non-fatal — never blocks a booking.
+async function enqueueInventorySync(dbQuery: any, roomId: string, fromDate: any, toDate: any): Promise<void> {
+  if (!roomId) return;
+  try {
+    await dbQuery(
+      `INSERT INTO inventory_sync_queue ("roomId", "fromDate", "toDate") VALUES ($1, $2, $3)`,
+      [roomId, fromDate || null, toDate || null]
+    );
+  } catch (e: any) {
+    console.warn('Failed to enqueue inventory sync (non-fatal):', e?.message);
+  }
+}
+
 // Initialize Database Tables
 let initPromise: Promise<void> | null = null;
 async function initDb() {
@@ -337,6 +368,14 @@ async function initDb() {
       ALTER TABLE admins ADD COLUMN IF NOT EXISTS "password" TEXT;
       ALTER TABLE admins ADD COLUMN IF NOT EXISTS "requiresPasswordChange" BOOLEAN DEFAULT false;
 
+      -- Channel-manager readiness (additive; dormant until OTA integration).
+      -- Existing bookings default to source='direct'; no behavior change today.
+      ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "source" TEXT DEFAULT 'direct';
+      ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "channelId" UUID;
+      ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "externalRef" TEXT;
+      -- Manual close-out switch: lets staff stop-sell a room independent of bookings.
+      ALTER TABLE rooms ADD COLUMN IF NOT EXISTS "manualStopSell" BOOLEAN DEFAULT false;
+
       -- Robust cleanup of any existing foreign keys on bookings.userId
       DO $$
       DECLARE
@@ -373,6 +412,17 @@ async function initDb() {
         attempts INTEGER DEFAULT 0,
         "lastError" TEXT,
         "processedAt" TIMESTAMP WITH TIME ZONE,
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Records that a room's availability changed over a date window so a future
+      -- channel-manager sync worker can push the delta. Dormant until integration.
+      CREATE TABLE IF NOT EXISTS inventory_sync_queue (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "roomId" UUID,
+        "fromDate" DATE,
+        "toDate" DATE,
+        status TEXT DEFAULT 'pending', -- pending, processing, sent, failed
         "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -414,6 +464,9 @@ async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_rooms_availability ON rooms("isAvailable") WHERE "isAvailable" = true;
       CREATE INDEX IF NOT EXISTS idx_media_parent_id ON media("parentId");
       CREATE INDEX IF NOT EXISTS idx_admin_logs_createdAt ON admin_logs("createdAt" DESC);
+      CREATE INDEX IF NOT EXISTS idx_inventory_sync_status ON inventory_sync_queue(status) WHERE status = 'pending';
+      -- Idempotency guard for inbound OTA reservations (dormant until integration).
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_external ON bookings("channelId", "externalRef") WHERE "externalRef" IS NOT NULL;
     `);
     console.log('Database tables initialized');
 
@@ -976,9 +1029,33 @@ app.patch('/api/rooms/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
-    const ALLOWED_ROOM_FIELDS = new Set(['name', 'type', 'description', 'price', 'rating', 'imageUrl', 'amenities', 'maxGuests', 'isAvailable', 'location', 'quantity']);
+    const ALLOWED_ROOM_FIELDS = new Set(['name', 'type', 'description', 'price', 'rating', 'imageUrl', 'amenities', 'maxGuests', 'isAvailable', 'location', 'quantity', 'manualStopSell']);
     const keys = Object.keys(updates).filter(k => ALLOWED_ROOM_FIELDS.has(k));
     if (keys.length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
+
+    // Guard: never let quantity drop below units already committed on overlapping
+    // dates, which would silently oversell. `peak` is the max concurrent booked count.
+    if (updates.quantity !== undefined) {
+      const newQty = parseInt(updates.quantity);
+      const peakRes = await query(
+        `SELECT COALESCE(MAX(concurrent), 0) AS peak FROM (
+           SELECT b1.id, SUM(COALESCE(b2."roomCount", 1)) AS concurrent
+           FROM bookings b1
+           JOIN bookings b2 ON b2."roomId" = b1."roomId"
+             AND b2.status != 'cancelled'
+             AND b2."checkIn" < b1."checkOut"
+             AND b2."checkOut" > b1."checkIn"
+           WHERE b1."roomId" = $1 AND b1.status != 'cancelled' AND b1."checkOut" > NOW()
+           GROUP BY b1.id
+         ) sub`,
+        [id]
+      );
+      const peak = parseInt(peakRes.rows[0].peak);
+      if (!Number.isNaN(newQty) && newQty < peak) {
+        return res.status(409).json({ error: `Cannot reduce quantity to ${newQty}: ${peak} unit(s) are already booked on overlapping dates.` });
+      }
+    }
+
     const setClause = keys.map((key, i) => `"${key}" = $${i + 2}`).join(', ');
     const values = keys.map(key => updates[key]);
 
@@ -1062,28 +1139,88 @@ app.get('/api/rooms/:id/availability', async (req, res) => {
   }
   
   try {
-    const roomRes = await query('SELECT quantity FROM rooms WHERE id = $1', [id]);
+    const roomRes = await query('SELECT quantity, "manualStopSell" FROM rooms WHERE id = $1', [id]);
+    if (!roomRes.rows[0]) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+    // A manually closed room is unavailable regardless of remaining stock.
+    if (roomRes.rows[0].manualStopSell === true) {
+      return res.json({ remainingQuantity: 0 });
+    }
+    const totalQty = parseInt(roomRes.rows[0].quantity);
+    const bookedCount = await getBookedCount(query, id, checkIn as string, checkOut as string);
+    const remainingQuantity = Math.max(0, totalQty - bookedCount);
+
+    res.json({ remainingQuantity });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch availability' });
+  }
+});
+
+// Per-date availability calendar over a window — the read shape a channel
+// manager pulls. Same availability rules as the single-date check above.
+app.get('/api/rooms/:id/calendar', async (req, res) => {
+  const { id } = req.params;
+  const { from, to } = req.query;
+
+  if (!from || !to) {
+    return res.status(400).json({ error: 'from and to dates are required' });
+  }
+
+  if (!pool) {
+    const room = MOCK_ROOMS.find(r => r.id === id);
+    if (!room) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+    const days: any[] = [];
+    const cur = new Date(from as string);
+    const end = new Date(to as string);
+    while (cur < end) {
+      const nextDay = new Date(cur);
+      nextDay.setDate(nextDay.getDate() + 1);
+      let booked = 0;
+      for (const b of MOCK_BOOKINGS) {
+        if (b.roomId === id && b.status !== 'cancelled') {
+          if (new Date(b.checkIn) < nextDay && new Date(b.checkOut) > cur) {
+            booked += (b.roomCount || 1);
+          }
+        }
+      }
+      days.push({ date: cur.toISOString().slice(0, 10), available: Math.max(0, (room.quantity || 1) - booked) });
+      cur.setDate(cur.getDate() + 1);
+    }
+    return res.json(days);
+  }
+
+  try {
+    const roomRes = await query('SELECT quantity, "manualStopSell" FROM rooms WHERE id = $1', [id]);
     if (!roomRes.rows[0]) {
       return res.status(404).json({ error: 'Room not found' });
     }
     const totalQty = parseInt(roomRes.rows[0].quantity);
-    
-    const bookingsRes = await query(
-      `SELECT COALESCE(SUM(COALESCE("roomCount", 1)), 0) as booked_count 
-       FROM bookings 
-       WHERE "roomId" = $1 
-         AND status != 'cancelled' 
-         AND "checkIn" < $3 
-         AND "checkOut" > $2`,
-      [id, checkIn, checkOut]
+    const stopSell = roomRes.rows[0].manualStopSell === true;
+
+    const calRes = await query(
+      `SELECT to_char(d, 'YYYY-MM-DD') AS date,
+              COALESCE(SUM(COALESCE(b."roomCount", 1)), 0) AS booked
+       FROM generate_series($2::date, $3::date - interval '1 day', interval '1 day') AS d
+       LEFT JOIN bookings b
+         ON b."roomId" = $1
+         AND b.status != 'cancelled'
+         AND b."checkIn" < d + interval '1 day'
+         AND b."checkOut" > d
+       GROUP BY d
+       ORDER BY d`,
+      [id, from, to]
     );
-    
-    const bookedCount = parseInt(bookingsRes.rows[0].booked_count);
-    const remainingQuantity = Math.max(0, totalQty - bookedCount);
-    
-    res.json({ remainingQuantity });
+
+    const days = calRes.rows.map((row: any) => ({
+      date: row.date,
+      available: stopSell ? 0 : Math.max(0, totalQty - parseInt(row.booked)),
+    }));
+    res.json(days);
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Failed to fetch availability' });
+    res.status(500).json({ error: err.message || 'Failed to fetch availability calendar' });
   }
 });
 
@@ -1194,7 +1331,7 @@ app.post('/api/bookings', async (req, res) => {
     
     // Lock the room categories to serialize booking confirmations of this card type
     const roomCheck = await client.query(
-      'SELECT quantity, name, "imageUrl", price FROM rooms WHERE id = $1 FOR UPDATE',
+      'SELECT quantity, name, "imageUrl", price, "manualStopSell" FROM rooms WHERE id = $1 FOR UPDATE',
       [roomId]
     );
 
@@ -1202,20 +1339,15 @@ app.post('/api/bookings', async (req, res) => {
       throw new Error('Accommodation not found');
     }
 
+    // A manually closed room cannot be booked, even if stock remains.
+    if (roomCheck.rows[0].manualStopSell === true) {
+      throw new Error('This accommodation is currently not available for booking.');
+    }
+
     const totalQty = parseInt(roomCheck.rows[0].quantity);
-    
-    // Query booked count for this room category in overlapping overlapping intervals
-    const bookingsRes = await client.query(
-      `SELECT COALESCE(SUM(COALESCE("roomCount", 1)), 0) as booked_count 
-       FROM bookings 
-       WHERE "roomId" = $1 
-         AND status != 'cancelled' 
-         AND "checkIn" < $3 
-         AND "checkOut" > $2`,
-      [roomId, checkIn, checkOut]
-    );
-    
-    const bookedCount = parseInt(bookingsRes.rows[0].booked_count);
+
+    // Booked count for this room category over the overlapping interval.
+    const bookedCount = await getBookedCount(client.query.bind(client), roomId, checkIn, checkOut);
     const remainingQuantity = Math.max(0, totalQty - bookedCount);
     
     if (requestedRoomCount > remainingQuantity) {
@@ -1237,6 +1369,9 @@ app.post('/api/bookings', async (req, res) => {
       ) WHERE id = $1`,
       [roomId]
     );
+
+    // Availability for this room/date-range changed — record it for future OTA sync.
+    await enqueueInventorySync(client.query.bind(client), roomId, checkIn, checkOut);
 
     const booking = result.rows[0];
     const hotelResult = await client.query('SELECT name FROM hotels WHERE id = $1', [hotelId]);
@@ -1353,6 +1488,11 @@ app.patch('/api/bookings/:id', requireAdmin, async (req, res) => {
           ) WHERE id = $1`,
           [roomId]
         );
+      }
+
+      // Any status/date/roomCount edit can change availability — record for OTA sync.
+      if (roomId) {
+        await enqueueInventorySync(client.query.bind(client), roomId, result.rows[0]?.checkIn, result.rows[0]?.checkOut);
       }
 
       // Send status transition email if accepted (confirmed) or cancelled
