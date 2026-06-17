@@ -1,4 +1,4 @@
-import { Hotel, Accommodation, Booking, CustomerProfile, AdminProfile, AdminLog } from '../types';
+import { Hotel, Accommodation, Booking, CustomerProfile, AdminProfile, AdminLog, RoomCalendar } from '../types';
 
 let adminContext: { id: string; email: string; displayName?: string; role: 'admin' | 'staff' } | null = null;
 
@@ -159,6 +159,14 @@ export const dbService = {
   // Remaining units per room for a date range: { [roomId]: remainingQuantity }.
   async getBatchAvailability(checkIn: string, checkOut: string) {
     return apiFetch<Record<string, number>>(`/api/availability?checkIn=${encodeURIComponent(checkIn)}&checkOut=${encodeURIComponent(checkOut)}`);
+  },
+
+  // Admin occupancy calendar: per-room, per-night availability across [from, to).
+  // `to` is exclusive. Optionally scoped to one property.
+  async getCalendar(from: string, to: string, hotelId?: string) {
+    const params = new URLSearchParams({ from, to });
+    if (hotelId) params.append('hotelId', hotelId);
+    return apiFetch<RoomCalendar[]>(`/api/calendar?${params.toString()}`);
   },
 
   // Bookings

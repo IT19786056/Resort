@@ -3,6 +3,7 @@ import {
   Building2,
   BedDouble,
   CalendarCheck,
+  CalendarDays,
   Clock,
   LogOut,
   Users,
@@ -58,15 +59,21 @@ export const Sidebar = ({
           label="Bookings"
           count={bookingsCount}
         />
-        <SidebarButton 
-          active={activeTab === 'past_bookings'} 
+        <SidebarButton
+          active={activeTab === 'past_bookings'}
           onClick={() => { setActiveTab('past_bookings'); onClose?.(); }}
           icon={<Clock className="w-5 h-5" />}
           label="Past Bookings"
           count={pastBookingsCount}
         />
-        <SidebarButton 
-          active={activeTab === 'hotels'} 
+        <SidebarButton
+          active={activeTab === 'calendar'}
+          onClick={() => { setActiveTab('calendar'); onClose?.(); }}
+          icon={<CalendarDays className="w-5 h-5" />}
+          label="Calendar"
+        />
+        <SidebarButton
+          active={activeTab === 'hotels'}
           onClick={() => { setActiveTab('hotels'); onClose?.(); }}
           icon={<Building2 className="w-5 h-5" />}
           label="Manage Stays"

@@ -32,6 +32,7 @@ import { Toast } from '../ui/Toast';
 import { Modal, Input, SectionLabel } from './Shared';
 import { ImageGalleryUpload } from './ImageGalleryUpload';
 import { HeroMediaManager } from './HeroMediaManager';
+import { AvailabilityCalendar } from './AvailabilityCalendar';
 
 const generateUUID = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -45,7 +46,7 @@ const generateUUID = () => {
 };
 import { triggerDataRefresh } from '../../lib/events';
 
-type AdminTab = 'hotels' | 'rooms' | 'bookings' | 'past_bookings' | 'users' | 'logs' | 'hero_media';
+type AdminTab = 'hotels' | 'rooms' | 'bookings' | 'past_bookings' | 'users' | 'logs' | 'hero_media' | 'calendar';
 
 export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>(profile.role === 'admin' ? 'bookings' : 'bookings');
@@ -243,6 +244,12 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
                       onSuccess={(msg) => showToast(msg)}
                       onError={(err) => showToast(err, 'error')}
                       onProcessing={(msg) => showToast(msg, 'loading')}
+                    />
+                  )}
+                  {activeTab === 'calendar' && (
+                    <AvailabilityCalendar
+                      hotels={hotels}
+                      onError={(err) => showToast(err, 'error')}
                     />
                   )}
                 </>

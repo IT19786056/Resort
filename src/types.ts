@@ -98,3 +98,20 @@ export interface AdminLog {
   createdAt: string;
 }
 
+// Admin occupancy calendar — one entry per night of the requested window.
+export interface CalendarDay {
+  date: string;      // YYYY-MM-DD, the night being represented
+  booked: number;    // units sold that night (non-cancelled bookings)
+  available: number; // units still bookable that night
+}
+
+// Per-room availability across a date window, used by the admin calendar grid.
+export interface RoomCalendar {
+  roomId: string;
+  name: string;
+  hotelId: string;
+  quantity: number;
+  manualStopSell: boolean;
+  days: CalendarDay[];
+}
+

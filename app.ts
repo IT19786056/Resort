@@ -1283,6 +1283,110 @@ app.get('/api/availability', async (req, res) => {
   }
 });
 
+// Admin occupancy calendar: per-room, per-night availability over a window.
+// Read-only and uses the exact same overlap rule as the storefront availability
+// so the two can never disagree. `to` is exclusive. The window is capped to keep
+// the rooms × days expansion bounded. Admin/staff only.
+app.get('/api/calendar', requireAdmin, async (req, res) => {
+  const { from, to, hotelId } = req.query as { from?: string; to?: string; hotelId?: string };
+
+  if (!from || !to) {
+    return res.status(400).json({ error: 'from and to dates are required' });
+  }
+
+  const fromDate = new Date(from + 'T00:00:00Z');
+  const toDate = new Date(to + 'T00:00:00Z');
+  if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime()) || toDate <= fromDate) {
+    return res.status(400).json({ error: 'Invalid date range' });
+  }
+  const MAX_DAYS = 92;
+  const dayCount = Math.round((toDate.getTime() - fromDate.getTime()) / 86400000);
+  if (dayCount > MAX_DAYS) {
+    return res.status(400).json({ error: `Date range too large (max ${MAX_DAYS} days)` });
+  }
+
+  if (!pool) {
+    const mockRooms = hotelId ? MOCK_ROOMS.filter(r => r.hotelId === hotelId) : MOCK_ROOMS;
+    const result = mockRooms.map(room => {
+      const days: any[] = [];
+      const cur = new Date(fromDate);
+      while (cur < toDate) {
+        const nextDay = new Date(cur);
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+        let booked = 0;
+        for (const b of MOCK_BOOKINGS) {
+          if (b.roomId === room.id && b.status !== 'cancelled') {
+            if (new Date(b.checkIn) < nextDay && new Date(b.checkOut) > cur) {
+              booked += (b.roomCount || 1);
+            }
+          }
+        }
+        const total = room.quantity || 1;
+        const stopSell = (room as any).manualStopSell === true;
+        days.push({
+          date: cur.toISOString().slice(0, 10),
+          booked,
+          available: stopSell ? 0 : Math.max(0, total - booked),
+        });
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
+      return {
+        roomId: room.id,
+        name: room.name,
+        hotelId: room.hotelId,
+        quantity: room.quantity || 1,
+        manualStopSell: (room as any).manualStopSell === true,
+        days,
+      };
+    });
+    return res.json(result);
+  }
+
+  try {
+    const calRes = await query(
+      `SELECT r.id AS "roomId", r.name, r."hotelId", r.quantity, r."manualStopSell",
+              to_char(d, 'YYYY-MM-DD') AS date,
+              COALESCE(SUM(COALESCE(b."roomCount", 1)), 0) AS booked
+       FROM rooms r
+       CROSS JOIN generate_series($1::date, $2::date - interval '1 day', interval '1 day') AS d
+       LEFT JOIN bookings b
+         ON b."roomId" = r.id
+         AND b.status != 'cancelled'
+         AND b."checkIn" < d + interval '1 day'
+         AND b."checkOut" > d
+       WHERE ($3::uuid IS NULL OR r."hotelId" = $3::uuid)
+       GROUP BY r.id, r.name, r."hotelId", r.quantity, r."manualStopSell", d
+       ORDER BY r.name, d`,
+      [from, to, hotelId || null]
+    );
+
+    const byRoom = new Map<string, any>();
+    for (const row of calRes.rows) {
+      let entry = byRoom.get(row.roomId);
+      if (!entry) {
+        entry = {
+          roomId: row.roomId,
+          name: row.name,
+          hotelId: row.hotelId,
+          quantity: parseInt(row.quantity),
+          manualStopSell: row.manualStopSell === true,
+          days: [],
+        };
+        byRoom.set(row.roomId, entry);
+      }
+      const booked = parseInt(row.booked);
+      entry.days.push({
+        date: row.date,
+        booked,
+        available: entry.manualStopSell ? 0 : Math.max(0, entry.quantity - booked),
+      });
+    }
+    res.json(Array.from(byRoom.values()));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch calendar' });
+  }
+});
+
 // Bookings
 app.get('/api/bookings', async (req, res) => {
   try {
