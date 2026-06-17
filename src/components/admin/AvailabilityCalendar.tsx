@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, Lock, Plus, Trash2 } from 'lucide-react';
 import { dbService } from '../../services/db';
-import { Hotel, RoomCalendar, CalendarDay } from '../../types';
+import { Hotel, RoomCalendar, CalendarDay, StopSell } from '../../types';
+import { Modal, SectionLabel } from './Shared';
 
 interface AvailabilityCalendarProps {
   hotels: Hotel[];
   onError?: (msg: string) => void;
+  onSuccess?: (msg: string) => void;
 }
 
 const MONTHS = [
@@ -18,11 +20,19 @@ const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 const fmt = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-export const AvailabilityCalendar = ({ hotels, onError }: AvailabilityCalendarProps) => {
+const addDays = (dateStr: string, n: number) => {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return fmt(d);
+};
+
+export const AvailabilityCalendar = ({ hotels, onError, onSuccess }: AvailabilityCalendarProps) => {
   const [anchor, setAnchor] = useState(() => new Date());
   const [hotelId, setHotelId] = useState<string>('');
   const [data, setData] = useState<RoomCalendar[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [closuresRoom, setClosuresRoom] = useState<RoomCalendar | null>(null);
 
   const year = anchor.getFullYear();
   const month = anchor.getMonth();
@@ -34,12 +44,13 @@ export const AvailabilityCalendar = ({ hotels, onError }: AvailabilityCalendarPr
     return Array.from({ length: daysInMonth }, (_, i) => {
       const dateObj = new Date(year, month, i + 1);
       const wd = dateObj.getDay();
+      const date = fmt(dateObj);
       return {
-        date: fmt(dateObj),
+        date,
         dayNum: i + 1,
         weekday: WEEKDAYS[wd],
         isWeekend: wd === 0 || wd === 6,
-        isToday: fmt(dateObj) === todayStr,
+        isToday: date === todayStr,
       };
     });
   }, [year, month]);
@@ -64,7 +75,7 @@ export const AvailabilityCalendar = ({ hotels, onError }: AvailabilityCalendarPr
     };
     load();
     return () => { active = false; };
-  }, [hotelId, year, month]);
+  }, [hotelId, year, month, refreshKey]);
 
   // Per-room date → day lookup for O(1) cell access.
   const dayMapByRoom = useMemo(() => {
@@ -83,18 +94,26 @@ export const AvailabilityCalendar = ({ hotels, onError }: AvailabilityCalendarPr
   const goNextMonth = () => setAnchor(new Date(year, month + 1, 1));
   const goToday = () => setAnchor(new Date());
 
+  // Cells communicate occupancy: the number is how many units are BOOKED that
+  // night. Free nights are blank to keep the grid quiet; colour encodes state.
   const cellClasses = (room: RoomCalendar, cd?: CalendarDay) => {
-    if (room.manualStopSell) return 'bg-slate-200 text-slate-500';
+    if (room.manualStopSell || cd?.stopped) return 'bg-slate-200 text-slate-500'; // closed
     if (!cd) return 'bg-white text-natural-muted';
-    if (cd.available <= 0) return 'bg-red-100 text-red-700';
-    if (cd.available < room.quantity) return 'bg-amber-100 text-amber-800';
-    return 'bg-green-50 text-green-700';
+    if (cd.available <= 0) return 'bg-red-100 text-red-700';   // sold out / fully booked
+    if (cd.booked > 0) return 'bg-amber-100 text-amber-800';    // partly booked
+    return 'bg-green-50 text-green-700';                        // free
   };
 
   const cellLabel = (room: RoomCalendar, cd?: CalendarDay) => {
-    if (room.manualStopSell) return '×';
-    if (!cd) return '–';
-    return String(cd.available);
+    if (room.manualStopSell || cd?.stopped) return '×';
+    if (!cd || cd.booked <= 0) return '';
+    return String(cd.booked);
+  };
+
+  const cellTitle = (room: RoomCalendar, cd?: CalendarDay, date?: string) => {
+    if (room.manualStopSell) return `${room.name} — ${date}: Closed (room stop-sell)`;
+    if (cd?.stopped) return `${room.name} — ${date}: Closed for these dates`;
+    return `${room.name} — ${date}: ${cd?.available ?? 0}/${room.quantity} available, ${cd?.booked ?? 0} booked`;
   };
 
   return (
@@ -145,7 +164,7 @@ export const AvailabilityCalendar = ({ hotels, onError }: AvailabilityCalendarPr
         <span className="flex items-center gap-2"><span className="w-4 h-4 rounded bg-amber-100 border border-amber-200" /> Partly booked</span>
         <span className="flex items-center gap-2"><span className="w-4 h-4 rounded bg-red-100 border border-red-200" /> Sold out</span>
         <span className="flex items-center gap-2"><span className="w-4 h-4 rounded bg-slate-200 border border-slate-300" /> Closed</span>
-        <span className="ml-auto normal-case tracking-normal font-medium">Numbers = units still available that night</span>
+        <span className="ml-auto normal-case tracking-normal font-medium">Numbers = units booked · click a room name to close/open dates</span>
       </div>
 
       {/* Grid */}
@@ -191,18 +210,27 @@ export const AvailabilityCalendar = ({ hotels, onError }: AvailabilityCalendarPr
                   const occ = capacity > 0 ? Math.round((bookedNights / capacity) * 100) : 0;
                   return (
                     <tr key={room.roomId} className="hover:bg-natural-bg/20">
-                      <td className="sticky left-0 z-10 bg-white py-3 px-5 min-w-[200px]">
-                        <p className="font-bold text-natural-dark text-sm truncate max-w-[180px]">{room.name}</p>
-                        <p className="text-[10px] text-natural-muted uppercase font-bold tracking-wider truncate max-w-[180px]">
-                          {hotelName(room.hotelId)} · {room.quantity} unit{room.quantity > 1 ? 's' : ''}
-                        </p>
+                      <td className="sticky left-0 z-10 bg-white py-2 px-3 min-w-[200px]">
+                        <button
+                          onClick={() => setClosuresRoom(room)}
+                          title="Manage closed dates for this room"
+                          className="group flex items-start gap-2 text-left w-full rounded-xl px-2 py-1.5 hover:bg-natural-bg transition-colors"
+                        >
+                          <Lock className="w-3.5 h-3.5 text-natural-muted group-hover:text-natural-primary mt-0.5 shrink-0" />
+                          <span className="min-w-0">
+                            <span className="block font-bold text-natural-dark text-sm truncate max-w-[160px] group-hover:text-natural-primary transition-colors">{room.name}</span>
+                            <span className="block text-[10px] text-natural-muted uppercase font-bold tracking-wider truncate max-w-[160px]">
+                              {hotelName(room.hotelId)} · {room.quantity} unit{room.quantity > 1 ? 's' : ''}
+                            </span>
+                          </span>
+                        </button>
                       </td>
                       {days.map(d => {
                         const cd = inner?.get(d.date);
                         return (
                           <td key={d.date} className="p-0.5 text-center">
                             <div
-                              title={`${room.name} — ${d.date}: ${room.manualStopSell ? 'Closed' : `${cd?.available ?? 0}/${room.quantity} available, ${cd?.booked ?? 0} booked`}`}
+                              title={cellTitle(room, cd, d.date)}
                               className={`w-9 h-9 mx-auto rounded-lg flex items-center justify-center text-[11px] font-bold ${cellClasses(room, cd)}`}
                             >
                               {cellLabel(room, cd)}
@@ -223,6 +251,176 @@ export const AvailabilityCalendar = ({ hotels, onError }: AvailabilityCalendarPr
           </div>
         </div>
       )}
+
+      {closuresRoom && (
+        <ClosuresModal
+          room={closuresRoom}
+          hotelName={hotelName(closuresRoom.hotelId)}
+          onClose={() => setClosuresRoom(null)}
+          onChanged={() => setRefreshKey(k => k + 1)}
+          onSuccess={onSuccess}
+          onError={onError}
+        />
+      )}
     </div>
+  );
+};
+
+interface ClosuresModalProps {
+  room: RoomCalendar;
+  hotelName: string;
+  onClose: () => void;
+  onChanged: () => void;
+  onSuccess?: (msg: string) => void;
+  onError?: (msg: string) => void;
+}
+
+const ClosuresModal = ({ room, hotelName, onClose, onChanged, onSuccess, onError }: ClosuresModalProps) => {
+  const [list, setList] = useState<StopSell[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const loadList = async () => {
+    setLoading(true);
+    try {
+      const res = await dbService.getRoomStopSells(room.roomId);
+      setList(res || []);
+    } catch (e: any) {
+      onError?.(e.message || 'Failed to load closures');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.roomId]);
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!from || !to) {
+      onError?.('Please choose both a start and end date.');
+      return;
+    }
+    if (to < from) {
+      onError?.('The end date cannot be before the start date.');
+      return;
+    }
+    setSaving(true);
+    try {
+      // UI dates are inclusive nights; the API stores an exclusive end.
+      await dbService.addStopSell({ roomId: room.roomId, fromDate: from, toDate: addDays(to, 1), reason: reason.trim() || undefined });
+      onSuccess?.('Dates closed');
+      setFrom(''); setTo(''); setReason('');
+      await loadList();
+      onChanged();
+    } catch (err: any) {
+      onError?.(err.message || 'Failed to close dates');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await dbService.deleteStopSell(id);
+      onSuccess?.('Dates re-opened');
+      await loadList();
+      onChanged();
+    } catch (err: any) {
+      onError?.(err.message || 'Failed to re-open dates');
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} title="Manage Closed Dates">
+      <div className="space-y-6">
+        <div className="bg-natural-bg p-4 rounded-2xl border border-natural-accent">
+          <p className="font-bold text-natural-dark text-sm">{room.name}</p>
+          <p className="text-[10px] text-natural-muted uppercase font-bold tracking-widest mt-0.5">{hotelName}</p>
+          <p className="text-xs text-natural-muted mt-2 leading-relaxed">
+            Closing dates stops new bookings for those nights. Existing bookings are not affected.
+          </p>
+        </div>
+
+        {/* Add a closure */}
+        <form onSubmit={handleAdd} className="space-y-4 border border-natural-accent rounded-2xl p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <SectionLabel label="First closed night" />
+              <input
+                type="date"
+                value={from}
+                onChange={e => { setFrom(e.target.value); if (to && to < e.target.value) setTo(e.target.value); }}
+                required
+                className="w-full bg-white border border-natural-accent rounded-2xl p-3.5 outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark text-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <SectionLabel label="Last closed night" />
+              <input
+                type="date"
+                value={to}
+                min={from || undefined}
+                onChange={e => setTo(e.target.value)}
+                required
+                className="w-full bg-white border border-natural-accent rounded-2xl p-3.5 outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark text-sm"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <SectionLabel label="Reason (optional)" />
+            <input
+              type="text"
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="e.g. Maintenance, private event"
+              className="w-full bg-white border border-natural-accent rounded-2xl p-3.5 outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark text-sm"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={saving}
+            className="w-full bg-natural-primary text-white py-4 rounded-full font-bold uppercase tracking-widest text-[10px] hover:bg-natural-dark transition-all shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <Plus className="w-4 h-4" /> {saving ? 'Closing…' : 'Close These Dates'}
+          </button>
+        </form>
+
+        {/* Existing closures */}
+        <div className="space-y-3">
+          <SectionLabel label="Current closures" />
+          {loading ? (
+            <p className="text-xs italic text-natural-muted px-1">Loading…</p>
+          ) : list.length === 0 ? (
+            <p className="text-xs italic text-natural-muted px-1">No closed dates for this room.</p>
+          ) : (
+            <div className="space-y-2">
+              {list.map(s => (
+                <div key={s.id} className="flex items-center justify-between gap-4 bg-white border border-natural-accent rounded-2xl px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-natural-dark">
+                      {s.fromDate} → {addDays(s.toDate, -1)}
+                    </p>
+                    {s.reason && <p className="text-[10px] text-natural-muted truncate">{s.reason}</p>}
+                  </div>
+                  <button
+                    onClick={() => handleDelete(s.id)}
+                    title="Re-open these dates"
+                    className="p-2 text-natural-muted hover:text-red-500 transition-colors shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
   );
 };

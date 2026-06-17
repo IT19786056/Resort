@@ -209,6 +209,12 @@ const MOCK_BOOKINGS = [
   }
 ];
 
+// In-memory stop-sells for mock mode (mirrors the room_stop_sells table).
+const MOCK_STOP_SELLS: { id: string; roomId: string; fromDate: string; toDate: string; reason?: string; createdAt: string }[] = [];
+
+// Half-open overlap between a stay [checkIn, checkOut) and a closure [fromDate, toDate).
+const rangesOverlap = (aFrom: string, aTo: string, bFrom: string, bTo: string) => aFrom < bTo && aTo > bFrom;
+
 let isDbInitialized = false;
 
 // Health check route
@@ -266,6 +272,16 @@ async function getBookedCount(dbQuery: any, roomId: string, checkIn: string, che
     [roomId, checkIn, checkOut]
   );
   return parseInt(bookingsRes.rows[0].booked_count);
+}
+
+// True when a staff stop-sell closes any night in [checkIn, checkOut) for a room.
+// Mirrors getBookedCount's overlap rule so closures and bookings agree.
+async function isRoomStopped(dbQuery: any, roomId: string, checkIn: string, checkOut: string): Promise<boolean> {
+  const r = await dbQuery(
+    `SELECT 1 FROM room_stop_sells WHERE "roomId" = $1 AND "fromDate" < $3 AND "toDate" > $2 LIMIT 1`,
+    [roomId, checkIn, checkOut]
+  );
+  return r.rows.length > 0;
 }
 
 // Records that a room's availability changed over a date window so a future
@@ -432,6 +448,19 @@ async function initDb() {
         "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
 
+      -- Staff-applied per-date close-outs (stop-sell). A row closes nights in
+      -- [fromDate, toDate) for a room, independent of bookings. Enforced by every
+      -- availability path so a closed range cannot be booked.
+      CREATE TABLE IF NOT EXISTS room_stop_sells (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "roomId" UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+        "fromDate" DATE NOT NULL,
+        "toDate" DATE NOT NULL,
+        reason TEXT,
+        "createdBy" TEXT,
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS media (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         "parentId" UUID NOT NULL,
@@ -471,6 +500,7 @@ async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_media_parent_id ON media("parentId");
       CREATE INDEX IF NOT EXISTS idx_admin_logs_createdAt ON admin_logs("createdAt" DESC);
       CREATE INDEX IF NOT EXISTS idx_inventory_sync_status ON inventory_sync_queue(status) WHERE status = 'pending';
+      CREATE INDEX IF NOT EXISTS idx_stop_sells_room ON room_stop_sells("roomId");
       -- Idempotency guard for inbound OTA reservations (dormant until integration).
       CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_external ON bookings("channelId", "externalRef") WHERE "externalRef" IS NOT NULL;
     `);
@@ -1126,9 +1156,14 @@ app.get('/api/rooms/:id/availability', async (req, res) => {
       return res.status(404).json({ error: 'Room not found' });
     }
     
+    // A staff stop-sell over these dates closes the room entirely.
+    if (MOCK_STOP_SELLS.some(s => s.roomId === id && rangesOverlap(checkIn as string, checkOut as string, s.fromDate, s.toDate))) {
+      return res.json({ remainingQuantity: 0 });
+    }
+
     const reqIn = new Date(checkIn as string);
     const reqOut = new Date(checkOut as string);
-    
+
     let sumBooked = 0;
     for (const b of MOCK_BOOKINGS) {
       if (b.roomId === id && b.status !== 'cancelled') {
@@ -1139,11 +1174,11 @@ app.get('/api/rooms/:id/availability', async (req, res) => {
         }
       }
     }
-    
+
     const remainingQuantity = Math.max(0, (room.quantity || 1) - sumBooked);
     return res.json({ remainingQuantity });
   }
-  
+
   try {
     const roomRes = await query('SELECT quantity, "manualStopSell" FROM rooms WHERE id = $1', [id]);
     if (!roomRes.rows[0]) {
@@ -1151,6 +1186,10 @@ app.get('/api/rooms/:id/availability', async (req, res) => {
     }
     // A manually closed room is unavailable regardless of remaining stock.
     if (roomRes.rows[0].manualStopSell === true) {
+      return res.json({ remainingQuantity: 0 });
+    }
+    // A date-range stop-sell over the requested stay closes the room too.
+    if (await isRoomStopped(query, id, checkIn as string, checkOut as string)) {
       return res.json({ remainingQuantity: 0 });
     }
     const totalQty = parseInt(roomRes.rows[0].quantity);
@@ -1254,14 +1293,19 @@ app.get('/api/availability', async (req, res) => {
           }
         }
       }
-      map[room.id] = (room as any).manualStopSell ? 0 : Math.max(0, (room.quantity || 1) - booked);
+      const stopped = MOCK_STOP_SELLS.some(s => s.roomId === room.id && rangesOverlap(checkIn as string, checkOut as string, s.fromDate, s.toDate));
+      map[room.id] = ((room as any).manualStopSell || stopped) ? 0 : Math.max(0, (room.quantity || 1) - booked);
     }
     return res.json(map);
   }
 
   try {
     const result = await query(
-      `SELECT r.id, r.quantity, r."manualStopSell", COALESCE(b.booked, 0) AS booked
+      `SELECT r.id, r.quantity, r."manualStopSell", COALESCE(b.booked, 0) AS booked,
+              EXISTS (
+                SELECT 1 FROM room_stop_sells s
+                WHERE s."roomId" = r.id AND s."fromDate" < $2 AND s."toDate" > $1
+              ) AS stopped
        FROM rooms r
        LEFT JOIN (
          SELECT "roomId", SUM(COALESCE("roomCount", 1)) AS booked
@@ -1273,7 +1317,7 @@ app.get('/api/availability', async (req, res) => {
     );
     const map: Record<string, number> = {};
     for (const row of result.rows) {
-      map[row.id] = row.manualStopSell === true
+      map[row.id] = (row.manualStopSell === true || row.stopped === true)
         ? 0
         : Math.max(0, parseInt(row.quantity) - parseInt(row.booked));
     }
@@ -1323,10 +1367,13 @@ app.get('/api/calendar', requireAdmin, async (req, res) => {
         }
         const total = room.quantity || 1;
         const stopSell = (room as any).manualStopSell === true;
+        const dateStr = cur.toISOString().slice(0, 10);
+        const nightStopped = MOCK_STOP_SELLS.some(s => s.roomId === room.id && s.fromDate <= dateStr && s.toDate > dateStr);
         days.push({
-          date: cur.toISOString().slice(0, 10),
+          date: dateStr,
           booked,
-          available: stopSell ? 0 : Math.max(0, total - booked),
+          available: (stopSell || nightStopped) ? 0 : Math.max(0, total - booked),
+          stopped: nightStopped,
         });
         cur.setUTCDate(cur.getUTCDate() + 1);
       }
@@ -1379,11 +1426,132 @@ app.get('/api/calendar', requireAdmin, async (req, res) => {
         date: row.date,
         booked,
         available: entry.manualStopSell ? 0 : Math.max(0, entry.quantity - booked),
+        stopped: false,
       });
     }
+
+    // Overlay staff stop-sells: close the affected nights for each room.
+    const stopRes = await query(
+      `SELECT s."roomId",
+              to_char(s."fromDate", 'YYYY-MM-DD') AS "fromDate",
+              to_char(s."toDate", 'YYYY-MM-DD') AS "toDate"
+       FROM room_stop_sells s
+       JOIN rooms r ON r.id = s."roomId"
+       WHERE s."fromDate" < $2::date AND s."toDate" > $1::date
+         AND ($3::uuid IS NULL OR r."hotelId" = $3::uuid)`,
+      [from, to, hotelId || null]
+    );
+    for (const s of stopRes.rows) {
+      const entry = byRoom.get(s.roomId);
+      if (!entry) continue;
+      for (const day of entry.days) {
+        if (day.date >= s.fromDate && day.date < s.toDate) {
+          day.stopped = true;
+          day.available = 0;
+        }
+      }
+    }
+
     res.json(Array.from(byRoom.values()));
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to fetch calendar' });
+  }
+});
+
+// --- Stop-sell management: per-date room close-outs (admin/staff) ---
+
+// List the stop-sells configured for a room.
+app.get('/api/rooms/:id/stop-sells', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  if (!pool) {
+    return res.json(MOCK_STOP_SELLS.filter(s => s.roomId === id));
+  }
+  try {
+    const result = await query(
+      `SELECT id, "roomId",
+              to_char("fromDate", 'YYYY-MM-DD') AS "fromDate",
+              to_char("toDate", 'YYYY-MM-DD') AS "toDate",
+              reason, "createdAt"
+       FROM room_stop_sells WHERE "roomId" = $1 ORDER BY "fromDate"`,
+      [id]
+    );
+    res.json(result.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch stop-sells' });
+  }
+});
+
+// Create a stop-sell (close a date range for a room). `toDate` is exclusive.
+app.post('/api/stop-sells', requireAdmin, async (req, res) => {
+  const { roomId, fromDate, toDate, reason } = req.body || {};
+  if (!roomId || !fromDate || !toDate) {
+    return res.status(400).json({ error: 'roomId, fromDate and toDate are required' });
+  }
+  const f = new Date(fromDate + 'T00:00:00Z');
+  const t = new Date(toDate + 'T00:00:00Z');
+  if (isNaN(f.getTime()) || isNaN(t.getTime()) || t <= f) {
+    return res.status(400).json({ error: 'Invalid date range: the end date must be after the start date.' });
+  }
+
+  if (!pool) {
+    const room = MOCK_ROOMS.find(r => r.id === roomId);
+    if (!room) return res.status(404).json({ error: 'Room not found' });
+    const row = {
+      id: 's_' + Math.random().toString(36).slice(2, 11),
+      roomId, fromDate, toDate,
+      reason: reason || undefined,
+      createdAt: new Date().toISOString(),
+    };
+    MOCK_STOP_SELLS.push(row);
+    return res.json(row);
+  }
+
+  try {
+    const roomCheck = await query('SELECT id FROM rooms WHERE id = $1', [roomId]);
+    if (!roomCheck.rows[0]) return res.status(404).json({ error: 'Room not found' });
+
+    const adminInfo = getAdminInfo(req);
+    const result = await query(
+      `INSERT INTO room_stop_sells ("roomId", "fromDate", "toDate", reason, "createdBy")
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, "roomId",
+                 to_char("fromDate", 'YYYY-MM-DD') AS "fromDate",
+                 to_char("toDate", 'YYYY-MM-DD') AS "toDate",
+                 reason, "createdAt"`,
+      [roomId, fromDate, toDate, reason || null, adminInfo.email]
+    );
+    await enqueueInventorySync(query, roomId, fromDate, toDate);
+    await logAdminAction(query, adminInfo, 'STOP_SELL', roomId, `${fromDate} → ${toDate}`, reason || '');
+    res.json(result.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to create stop-sell' });
+  }
+});
+
+// Remove a stop-sell (re-open the dates).
+app.delete('/api/stop-sells/:id', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  if (!pool) {
+    const idx = MOCK_STOP_SELLS.findIndex(s => s.id === id);
+    if (idx >= 0) MOCK_STOP_SELLS.splice(idx, 1);
+    return res.sendStatus(204);
+  }
+  try {
+    const result = await query(
+      `DELETE FROM room_stop_sells WHERE id = $1
+       RETURNING "roomId",
+                 to_char("fromDate", 'YYYY-MM-DD') AS "fromDate",
+                 to_char("toDate", 'YYYY-MM-DD') AS "toDate"`,
+      [id]
+    );
+    if (result.rows[0]) {
+      const row = result.rows[0];
+      await enqueueInventorySync(query, row.roomId, row.fromDate, row.toDate);
+      await logAdminAction(query, getAdminInfo(req), 'OPEN_SELL', row.roomId, `${row.fromDate} → ${row.toDate}`, '');
+    }
+    res.sendStatus(204);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to delete stop-sell' });
   }
 });
 
@@ -1443,9 +1611,14 @@ app.post('/api/bookings', async (req, res) => {
       return res.status(404).json({ error: 'Accommodation not found' });
     }
 
+    // A staff stop-sell over these dates blocks the booking.
+    if (MOCK_STOP_SELLS.some(s => s.roomId === roomId && rangesOverlap(checkIn as string, checkOut as string, s.fromDate, s.toDate))) {
+      return res.status(409).json({ error: 'This accommodation is closed for the selected dates.' });
+    }
+
     const reqIn = new Date(checkIn as string);
     const reqOut = new Date(checkOut as string);
-    
+
     let sumBooked = 0;
     for (const b of MOCK_BOOKINGS) {
       if (b.roomId === roomId && b.status !== 'cancelled') {
@@ -1505,6 +1678,11 @@ app.post('/api/bookings', async (req, res) => {
     // A manually closed room cannot be booked, even if stock remains.
     if (roomCheck.rows[0].manualStopSell === true) {
       throw new Error('This accommodation is currently not available for booking.');
+    }
+
+    // A date-range stop-sell over the requested stay blocks the booking.
+    if (await isRoomStopped(client.query.bind(client), roomId, checkIn, checkOut)) {
+      throw new Error('This accommodation is closed for the selected dates.');
     }
 
     const totalQty = parseInt(roomCheck.rows[0].quantity);

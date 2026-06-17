@@ -103,6 +103,18 @@ export interface CalendarDay {
   date: string;      // YYYY-MM-DD, the night being represented
   booked: number;    // units sold that night (non-cancelled bookings)
   available: number; // units still bookable that night
+  stopped: boolean;  // staff stop-sell closes this night for the room
+}
+
+// A staff-applied close-out over a date range for one room. Half-open:
+// nights in [fromDate, toDate) are closed (same convention as a booking stay).
+export interface StopSell {
+  id: string;
+  roomId: string;
+  fromDate: string;  // YYYY-MM-DD, inclusive first closed night
+  toDate: string;    // YYYY-MM-DD, exclusive end
+  reason?: string;
+  createdAt: string;
 }
 
 // Per-room availability across a date window, used by the admin calendar grid.

@@ -249,6 +249,7 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
                   {activeTab === 'calendar' && (
                     <AvailabilityCalendar
                       hotels={hotels}
+                      onSuccess={(msg) => showToast(msg)}
                       onError={(err) => showToast(err, 'error')}
                     />
                   )}

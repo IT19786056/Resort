@@ -1,4 +1,4 @@
-import { Hotel, Accommodation, Booking, CustomerProfile, AdminProfile, AdminLog, RoomCalendar } from '../types';
+import { Hotel, Accommodation, Booking, CustomerProfile, AdminProfile, AdminLog, RoomCalendar, StopSell } from '../types';
 
 let adminContext: { id: string; email: string; displayName?: string; role: 'admin' | 'staff' } | null = null;
 
@@ -167,6 +167,22 @@ export const dbService = {
     const params = new URLSearchParams({ from, to });
     if (hotelId) params.append('hotelId', hotelId);
     return apiFetch<RoomCalendar[]>(`/api/calendar?${params.toString()}`);
+  },
+
+  // Stop-sells (per-date room close-outs).
+  async getRoomStopSells(roomId: string) {
+    return apiFetch<StopSell[]>(`/api/rooms/${roomId}/stop-sells`);
+  },
+
+  async addStopSell(data: { roomId: string; fromDate: string; toDate: string; reason?: string }) {
+    return apiFetch<StopSell>('/api/stop-sells', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteStopSell(id: string) {
+    return apiFetch<void>(`/api/stop-sells/${id}`, { method: 'DELETE' });
   },
 
   // Bookings
