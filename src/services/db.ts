@@ -199,6 +199,39 @@ export const dbService = {
     return apiFetch<Booking[]>(`/api/bookings?userId=${userId}`);
   },
 
+  // Admin: server-side paginated + filtered bookings list. Returns a page only.
+  async getAdminBookings(params: {
+    scope: 'active' | 'past';
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    status?: string;
+    hotelId?: string;
+    from?: string;
+    to?: string;
+  }) {
+    const qp = new URLSearchParams();
+    qp.set('scope', params.scope);
+    if (params.page) qp.set('page', String(params.page));
+    if (params.pageSize) qp.set('pageSize', String(params.pageSize));
+    if (params.search) qp.set('search', params.search);
+    if (params.status && params.status !== 'all') qp.set('status', params.status);
+    if (params.hotelId && params.hotelId !== 'all') qp.set('hotelId', params.hotelId);
+    if (params.from) qp.set('from', params.from);
+    if (params.to) qp.set('to', params.to);
+    return apiFetch<{ items: Booking[]; total: number; page: number; pageSize: number }>(
+      `/api/admin/bookings?${qp.toString()}`
+    );
+  },
+
+  async getBookingStats() {
+    return apiFetch<{ active: number; past: number }>(`/api/admin/bookings/stats`);
+  },
+
+  async getBookingAlerts() {
+    return apiFetch<Booking[]>(`/api/admin/bookings/alerts`);
+  },
+
   async addBooking(booking: Omit<Booking, 'id'>) {
     const result = await apiFetch<Booking>('/api/bookings', {
       method: 'POST',

@@ -1601,6 +1601,128 @@ app.get('/api/bookings', async (req, res) => {
   }
 });
 
+// Server-side paginated + filtered bookings list for the admin panel. Keeps the
+// browser from ever loading the full bookings table. Returns { items, total }.
+// Scope encodes the active/past split; status/hotelId/search/from/to are optional.
+app.get('/api/admin/bookings', requireAdmin, async (req, res) => {
+  const scope = (req.query.scope as string) === 'past' ? 'past' : 'active';
+  const status = req.query.status as string | undefined;
+  const hotelId = req.query.hotelId as string | undefined;
+  const search = ((req.query.search as string) || '').trim();
+  const from = req.query.from as string | undefined;
+  const to = req.query.to as string | undefined;
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const pageSize = Math.min(50, Math.max(1, parseInt(req.query.pageSize as string) || 10));
+  const offset = (page - 1) * pageSize;
+
+  if (!pool) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const term = search.toLowerCase();
+    let filtered = MOCK_BOOKINGS.filter(b => {
+      const isPast = new Date(b.checkOut) < today;
+      const cancelled = b.status === 'cancelled';
+      if (scope === 'past' ? !(cancelled || isPast) : (cancelled || isPast)) return false;
+      if (status && status !== 'all' && b.status !== status) return false;
+      if (hotelId && hotelId !== 'all' && b.hotelId !== hotelId) return false;
+      if (from && new Date(b.checkIn) < new Date(from + 'T00:00:00')) return false;
+      if (to) { const t = new Date(to + 'T00:00:00'); t.setDate(t.getDate() + 1); if (new Date(b.checkIn) >= t) return false; }
+      if (term) {
+        const room = MOCK_ROOMS.find(r => r.id === b.roomId);
+        const hotel = MOCK_HOTELS.find(h => h.id === b.hotelId);
+        const hay = [b.fullName, b.email, b.phone, b.id, (b as any).specialRequests, b.status, room?.name, hotel?.name]
+          .map(x => (x || '').toString().toLowerCase());
+        if (!hay.some(x => x.includes(term))) return false;
+      }
+      return true;
+    });
+    filtered = filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return res.json({ items: filtered.slice(offset, offset + pageSize), total: filtered.length, page, pageSize });
+  }
+
+  try {
+    const conds: string[] = [];
+    const params: any[] = [];
+    let i = 1;
+
+    conds.push(scope === 'past'
+      ? `(b.status = 'cancelled' OR b."checkOut" < CURRENT_DATE)`
+      : `(b.status != 'cancelled' AND b."checkOut" >= CURRENT_DATE)`);
+
+    if (status && status !== 'all') { conds.push(`b.status = $${i++}`); params.push(status); }
+    if (hotelId && hotelId !== 'all') { conds.push(`b."hotelId" = $${i++}::uuid`); params.push(hotelId); }
+    if (from) { conds.push(`b."checkIn" >= $${i++}::date`); params.push(from); }
+    if (to) { conds.push(`b."checkIn" < ($${i++}::date + interval '1 day')`); params.push(to); }
+    if (search) {
+      conds.push(`(b."fullName" ILIKE $${i} OR b.email ILIKE $${i} OR COALESCE(b.phone,'') ILIKE $${i}
+                   OR b.id::text ILIKE $${i} OR COALESCE(b."specialRequests",'') ILIKE $${i}
+                   OR b.status ILIKE $${i} OR COALESCE(r.name,'') ILIKE $${i} OR COALESCE(h.name,'') ILIKE $${i})`);
+      params.push(`%${search}%`);
+      i++;
+    }
+
+    const where = `WHERE ${conds.join(' AND ')}`;
+    const joins = `LEFT JOIN rooms r ON r.id = b."roomId" LEFT JOIN hotels h ON h.id = b."hotelId"`;
+
+    const countRes = await query(`SELECT COUNT(*) AS total FROM bookings b ${joins} ${where}`, params);
+    const total = parseInt(countRes.rows[0].total);
+
+    const itemsRes = await query(
+      `SELECT b.* FROM bookings b ${joins} ${where} ORDER BY b."createdAt" DESC LIMIT $${i++} OFFSET $${i++}`,
+      [...params, pageSize, offset]
+    );
+    res.json({ items: itemsRes.rows, total, page, pageSize });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch bookings' });
+  }
+});
+
+// Lightweight counts for the sidebar badges — avoids loading rows just to count.
+app.get('/api/admin/bookings/stats', requireAdmin, async (req, res) => {
+  if (!pool) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    let active = 0, past = 0;
+    for (const b of MOCK_BOOKINGS) {
+      const isPast = new Date(b.checkOut) < today;
+      (b.status === 'cancelled' || isPast) ? past++ : active++;
+    }
+    return res.json({ active, past });
+  }
+  try {
+    const r = await query(
+      `SELECT
+         COUNT(*) FILTER (WHERE status != 'cancelled' AND "checkOut" >= CURRENT_DATE) AS active,
+         COUNT(*) FILTER (WHERE status = 'cancelled' OR "checkOut" < CURRENT_DATE) AS past
+       FROM bookings`
+    );
+    res.json({ active: parseInt(r.rows[0].active), past: parseInt(r.rows[0].past) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch booking stats' });
+  }
+});
+
+// Active bookings awaiting staff action (pending / payment_review) for the
+// "new booking" alerts banner. Bounded so it scales.
+app.get('/api/admin/bookings/alerts', requireAdmin, async (req, res) => {
+  if (!pool) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const items = MOCK_BOOKINGS
+      .filter(b => (b.status === 'pending' || b.status === 'payment_review') && new Date(b.checkOut) >= today)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 50);
+    return res.json(items);
+  }
+  try {
+    const r = await query(
+      `SELECT * FROM bookings
+       WHERE status IN ('pending', 'payment_review') AND "checkOut" >= CURRENT_DATE
+       ORDER BY "createdAt" DESC LIMIT 50`
+    );
+    res.json(r.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch booking alerts' });
+  }
+});
+
 app.post('/api/bookings', async (req, res) => {
   const { userId, roomId, hotelId, fullName, email, phone, checkIn, checkOut, guests, specialRequests, status, roomCount = 1 } = req.body;
   const requestedRoomCount = parseInt(roomCount as string) || 1;
