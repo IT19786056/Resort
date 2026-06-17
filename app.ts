@@ -1247,7 +1247,7 @@ app.get('/api/rooms/:id/calendar', async (req, res) => {
 
     const calRes = await query(
       `SELECT to_char(d, 'YYYY-MM-DD') AS date,
-              COALESCE(SUM(COALESCE(b."roomCount", 1)), 0) AS booked
+              COALESCE(SUM(CASE WHEN b.id IS NOT NULL THEN COALESCE(b."roomCount", 1) ELSE 0 END), 0) AS booked
        FROM generate_series($2::date, $3::date - interval '1 day', interval '1 day') AS d
        LEFT JOIN bookings b
          ON b."roomId" = $1
@@ -1393,7 +1393,7 @@ app.get('/api/calendar', requireAdmin, async (req, res) => {
     const calRes = await query(
       `SELECT r.id AS "roomId", r.name, r."hotelId", r.quantity, r."manualStopSell",
               to_char(d, 'YYYY-MM-DD') AS date,
-              COALESCE(SUM(COALESCE(b."roomCount", 1)), 0) AS booked
+              COALESCE(SUM(CASE WHEN b.id IS NOT NULL THEN COALESCE(b."roomCount", 1) ELSE 0 END), 0) AS booked
        FROM rooms r
        CROSS JOIN generate_series($1::date, $2::date - interval '1 day', interval '1 day') AS d
        LEFT JOIN bookings b
