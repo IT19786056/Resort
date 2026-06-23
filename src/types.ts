@@ -61,10 +61,39 @@ export interface CustomerProfile {
 export interface AdminProfile {
   id: string;
   email: string;
-  role: 'admin' | 'staff';
+  role: 'admin' | 'staff' | 'superadmin';
   displayName?: string;
   createdAt: string;
   requiresPasswordChange?: boolean;
+}
+
+export interface Tenant {
+  id: string;
+  domain: string;
+  hotelId: string;
+  hotelName?: string;
+  name: string;
+  logoUrl?: string | null;
+  markLogoUrl?: string | null;
+  primaryColor?: string | null;
+  accentColor?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  emailFrom?: string | null;
+  bankDetails?: Record<string, string> | null;
+  smtpConfig?: Record<string, any> | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface AdminSummary {
+  id: string;
+  email: string;
+  displayName?: string | null;
+  role: string;
+  hotelId: string | null;
+  hotelName?: string | null;
+  createdAt: string;
 }
 
 export interface FilterState {

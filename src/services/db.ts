@@ -19,7 +19,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   // (the x-admin-* headers below are display hints only and are NOT trusted
   // for authorization on the backend).
   if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('amadiya_customer_token');
+    const token = localStorage.getItem('resort_customer_token');
     if (token) {
       reqHeaders.set('Authorization', `Bearer ${token}`);
     }
@@ -240,9 +240,29 @@ export const dbService = {
     return result.id;
   },
 
-  async updateBooking(id: string, data: Partial<Booking>) {
+  async updateBooking(id: string, data: Partial<Booking> & { adminConfirm?: boolean }) {
     return apiFetch<Booking>(`/api/bookings/${id}`, {
       method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async createAdminBooking(data: {
+    roomId: string;
+    hotelId: string;
+    fullName: string;
+    email: string;
+    phone?: string;
+    checkIn: string;
+    checkOut: string;
+    guests?: number;
+    roomCount?: number;
+    specialRequests?: string;
+    status?: string;
+    sendEmail?: boolean;
+  }) {
+    return apiFetch<Booking>('/api/admin/bookings', {
+      method: 'POST',
       body: JSON.stringify(data),
     });
   },

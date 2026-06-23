@@ -1,4 +1,4 @@
-// Client-side auth for Amadiya Leisure.
+// Client-side auth module.
 //
 // Auth is fully self-hosted: it talks to this app's own /api/auth/* endpoints
 // (backed by Railway Postgres) and keeps the session in localStorage. There is
@@ -37,8 +37,8 @@ const decodeJwtPayload = (token: string) => {
 // Read the current session from localStorage, dropping it if the token expired.
 const getCustomSession = () => {
   try {
-    const saved = localStorage.getItem('amadiya_customer_user');
-    const token = localStorage.getItem('amadiya_customer_token');
+    const saved = localStorage.getItem('resort_customer_user');
+    const token = localStorage.getItem('resort_customer_token');
 
     if (saved && token) {
       const payload = decodeJwtPayload(token);
@@ -53,8 +53,8 @@ const getCustomSession = () => {
         };
       } else {
         // Expired! Silently remove expired session items to force re-authentication
-        localStorage.removeItem('amadiya_customer_user');
-        localStorage.removeItem('amadiya_customer_token');
+        localStorage.removeItem('resort_customer_user');
+        localStorage.removeItem('resort_customer_token');
         console.warn('Session has expired (limit 3600s). Forcing logout.');
       }
     }
@@ -77,7 +77,7 @@ const notifyAuthChange = (event: string, session: any) => {
   });
   // Also dispatch standard browser storage event to trigger crosscheck/renders
   window.dispatchEvent(new Event('storage'));
-  window.dispatchEvent(new CustomEvent('amadiya_auth_state_change', { detail: { event, session } }));
+  window.dispatchEvent(new CustomEvent('resort_auth_state_change', { detail: { event, session } }));
 };
 
 // Global listener to sync login/logout state correctly across components
@@ -86,7 +86,7 @@ if (typeof window !== 'undefined') {
     const activeSession = getCustomSession();
     notifyAuthChange(activeSession ? 'SIGNED_IN' : 'SIGNED_OUT', activeSession?.session || null);
   });
-  window.addEventListener('amadiya_auth_state_change', (e: any) => {
+  window.addEventListener('resort_auth_state_change', (e: any) => {
     const detail = e.detail;
     authListeners.forEach((listener) => {
       try {
@@ -126,9 +126,9 @@ export const auth = {
       });
       const data = await response.json();
       if (response.ok && data.success) {
-        localStorage.setItem('amadiya_customer_user', JSON.stringify(data.user));
+        localStorage.setItem('resort_customer_user', JSON.stringify(data.user));
         if (data.token) {
-          localStorage.setItem('amadiya_customer_token', data.token);
+          localStorage.setItem('resort_customer_token', data.token);
         }
         const custom = getCustomSession();
         notifyAuthChange('SIGNED_IN', custom?.session || null);
@@ -154,9 +154,9 @@ export const auth = {
         });
         const data = await response.json();
         if (response.ok && data.success) {
-          localStorage.setItem('amadiya_customer_user', JSON.stringify(data.user));
+          localStorage.setItem('resort_customer_user', JSON.stringify(data.user));
           if (data.token) {
-            localStorage.setItem('amadiya_customer_token', data.token);
+            localStorage.setItem('resort_customer_token', data.token);
           }
           const custom = getCustomSession();
           notifyAuthChange('SIGNED_IN', custom?.session || null);
@@ -170,13 +170,13 @@ export const auth = {
     }
     return {
       data: { user: null },
-      error: new Error('Amadiya Leisure requires confirming signups via custom 6-digit email OTP verify code.')
+      error: new Error('Signups require confirming via a 6-digit OTP email code. Please use the guest booking flow.')
     };
   },
 
   async signOut() {
-    localStorage.removeItem('amadiya_customer_user');
-    localStorage.removeItem('amadiya_customer_token');
+    localStorage.removeItem('resort_customer_user');
+    localStorage.removeItem('resort_customer_token');
     notifyAuthChange('SIGNED_OUT', null);
     return { error: null };
   },

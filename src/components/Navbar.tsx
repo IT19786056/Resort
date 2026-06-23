@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { auth, type User } from '../lib/auth';
 import { UserAuth } from './UserAuth';
 import { dbService } from '../services/db';
+import { useTenant, BRAND_DEFAULTS } from '../contexts/TenantContext';
 
 interface NavbarProps {
   activeTab: 'home' | 'accommodation' | 'weddings-events' | 'about' | 'contact' | 'my-bookings' | 'staff';
@@ -13,6 +14,9 @@ interface NavbarProps {
 }
 
 export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: NavbarProps) => {
+  const tenant = useTenant();
+  const logoUrl = tenant.logoUrl || BRAND_DEFAULTS.logoUrl;
+  const brandName = tenant.name || BRAND_DEFAULTS.name;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -126,8 +130,8 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
             {/* Logo */}
             <div className="cursor-pointer group shrink-0" onClick={() => handleNavClick('home')}>
               <img
-                src="/amadiya-logo.png"
-                alt="Amadiya Port Arthur Villas"
+                src={logoUrl}
+                alt={brandName}
                 className="h-10 md:h-12 w-auto object-contain transition-opacity group-hover:opacity-75"
               />
             </div>

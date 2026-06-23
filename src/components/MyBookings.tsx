@@ -3,11 +3,14 @@ import { dbService } from '../services/db';
 import { auth } from '../lib/auth';
 import { Booking } from '../types';
 import { BANK_DETAILS } from '../constants';
+import { useTenant } from '../contexts/TenantContext';
 import { uploadToCloudinary, isCloudinaryConfigured } from '../lib/cloudinary';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, Users, MapPin, Clock, XCircle, AlertCircle, CheckCircle2, Upload, Landmark, FileCheck2 } from 'lucide-react';
 
 export const MyBookings = () => {
+  const tenant = useTenant();
+  const bankDetails = tenant.bankDetails || BANK_DETAILS;
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancelModalId, setCancelModalId] = useState<string | null>(null);
@@ -216,11 +219,11 @@ export const MyBookings = () => {
 
                   <div className="bg-natural-bg rounded-2xl p-5 grid sm:grid-cols-2 gap-x-6 gap-y-2 mb-4">
                     {[
-                      ['Bank', BANK_DETAILS.bankName],
-                      ['Account Name', BANK_DETAILS.accountName],
-                      ['Account Number', BANK_DETAILS.accountNumber],
-                      ['Branch', BANK_DETAILS.branch],
-                      ['SWIFT', BANK_DETAILS.swift],
+                      ['Bank', bankDetails.bankName],
+                      ['Account Name', bankDetails.accountName],
+                      ['Account Number', bankDetails.accountNumber],
+                      ['Branch', bankDetails.branch],
+                      ['SWIFT', bankDetails.swift],
                       ['Payment Reference', booking.id.slice(0, 8).toUpperCase()],
                     ].map(([label, value]) => (
                       <div key={label} className="flex justify-between gap-3 text-sm">

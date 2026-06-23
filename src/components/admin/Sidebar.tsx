@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTenant, BRAND_DEFAULTS } from '../../contexts/TenantContext';
 import {
   Building2,
   BedDouble,
@@ -9,7 +10,11 @@ import {
   Users,
   Activity,
   X,
-  ImagePlay
+  ImagePlay,
+  Globe,
+  Sun,
+  BookUser,
+  TrendingUp,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -19,26 +24,31 @@ interface SidebarProps {
   pastBookingsCount: number;
   handleLogout: () => void;
   isAdmin: boolean;
+  isSuperAdmin?: boolean;
   isOpen?: boolean;
   onClose?: () => void;
 }
 
-export const Sidebar = ({ 
-  activeTab, 
-  setActiveTab, 
-  bookingsCount, 
-  pastBookingsCount, 
+export const Sidebar = ({
+  activeTab,
+  setActiveTab,
+  bookingsCount,
+  pastBookingsCount,
   handleLogout,
   isAdmin,
+  isSuperAdmin = false,
   isOpen = false,
   onClose
 }: SidebarProps) => {
+  const tenant = useTenant();
+  const brandName = tenant.name || BRAND_DEFAULTS.name;
+
   return (
     <aside className={`w-72 bg-white border-r border-natural-accent flex flex-col p-8 fixed h-full z-50 transition-transform duration-300 ease-in-out md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="mb-12 flex justify-between items-start">
         <div>
           <h1 className="font-serif text-2xl font-bold text-natural-dark italic">Admin Panel</h1>
-          <p className="text-[10px] uppercase tracking-widest text-natural-muted font-bold mt-1">Amadiya Leisure Manager</p>
+          <p className="text-[10px] uppercase tracking-widest text-natural-muted font-bold mt-1">{brandName} Manager</p>
         </div>
         {onClose && (
           <button 
@@ -52,8 +62,14 @@ export const Sidebar = ({
       </div>
 
       <nav className="flex-1 space-y-4">
-        <SidebarButton 
-          active={activeTab === 'bookings'} 
+        <SidebarButton
+          active={activeTab === 'today'}
+          onClick={() => { setActiveTab('today'); onClose?.(); }}
+          icon={<Sun className="w-5 h-5" />}
+          label="Today"
+        />
+        <SidebarButton
+          active={activeTab === 'bookings'}
           onClick={() => { setActiveTab('bookings'); onClose?.(); }}
           icon={<CalendarCheck className="w-5 h-5" />}
           label="Bookings"
@@ -90,21 +106,41 @@ export const Sidebar = ({
           icon={<ImagePlay className="w-5 h-5" />}
           label="Hero Media"
         />
+        <SidebarButton
+          active={activeTab === 'rates'}
+          onClick={() => { setActiveTab('rates'); onClose?.(); }}
+          icon={<TrendingUp className="w-5 h-5" />}
+          label="Rate Management"
+        />
         {isAdmin && (
           <>
-            <SidebarButton 
-              active={activeTab === 'users'} 
+            <SidebarButton
+              active={activeTab === 'guests'}
+              onClick={() => { setActiveTab('guests'); onClose?.(); }}
+              icon={<BookUser className="w-5 h-5" />}
+              label="Guests"
+            />
+            <SidebarButton
+              active={activeTab === 'users'}
               onClick={() => { setActiveTab('users'); onClose?.(); }}
               icon={<Users className="w-5 h-5" />}
               label="Users"
             />
-            <SidebarButton 
-              active={activeTab === 'logs'} 
+            <SidebarButton
+              active={activeTab === 'logs'}
               onClick={() => { setActiveTab('logs'); onClose?.(); }}
               icon={<Activity className="w-5 h-5" />}
               label="Logs"
             />
           </>
+        )}
+        {isSuperAdmin && (
+          <SidebarButton
+            active={activeTab === 'tenants'}
+            onClick={() => { setActiveTab('tenants'); onClose?.(); }}
+            icon={<Globe className="w-5 h-5" />}
+            label="Tenants"
+          />
         )}
       </nav>
 

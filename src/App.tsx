@@ -4,6 +4,7 @@ import { MapPin, ChevronRight, ArrowLeft, Search, Trash2, ShoppingCart, ShieldCh
 import { auth } from './lib/auth';
 import { dbService } from './services/db';
 import { cld, cldSrcSet } from './lib/cloudinary';
+import { useTenant, BRAND_DEFAULTS } from './contexts/TenantContext';
 
 // Cards sit in a 1 / 2 / 3-column grid (mobile / md / lg), so they span roughly
 // the full width on phones and a third of it on desktop. This `sizes` hint lets
@@ -35,6 +36,9 @@ import { CartDrawer } from './components/CartDrawer';
 const Admin = lazy(() => import('./components/Admin').then(m => ({ default: m.Admin })));
 
 export default function App() {
+  const tenant = useTenant();
+  const brandName = tenant.name || BRAND_DEFAULTS.name;
+  const bankDetails = tenant.bankDetails || BANK_DETAILS;
   const [activeTab, setActiveTab] = useState<'home' | 'accommodation' | 'weddings-events' | 'about' | 'contact' | 'my-bookings' | 'staff'>(() => {
     const path = window.location.pathname;
     if (path === '/admin' || path.startsWith('/admin/')) {
@@ -233,7 +237,7 @@ export default function App() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.8, ease: "easeInOut" }}
           >
-            <LoadingPlane label="Amadiya Leisure" />
+            <LoadingPlane label={brandName} />
           </motion.div>
         ) : (
           <motion.div
@@ -653,10 +657,10 @@ export default function App() {
 
               <div className="w-full bg-natural-bg rounded-2xl p-5 text-left space-y-2 mb-6">
                 {[
-                  ['Bank', BANK_DETAILS.bankName],
-                  ['Account Name', BANK_DETAILS.accountName],
-                  ['Account Number', BANK_DETAILS.accountNumber],
-                  ['Branch', BANK_DETAILS.branch],
+                  ['Bank', bankDetails.bankName],
+                  ['Account Name', bankDetails.accountName],
+                  ['Account Number', bankDetails.accountNumber],
+                  ['Branch', bankDetails.branch],
                 ].map(([label, value]) => (
                   <div key={label} className="flex justify-between gap-3 text-xs">
                     <span className="text-natural-muted">{label}</span>

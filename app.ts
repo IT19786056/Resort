@@ -389,6 +389,9 @@ async function initDb() {
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS "phone" TEXT;
       ALTER TABLE admins ADD COLUMN IF NOT EXISTS "password" TEXT;
       ALTER TABLE admins ADD COLUMN IF NOT EXISTS "requiresPasswordChange" BOOLEAN DEFAULT false;
+      -- Multi-tenant: scope an admin to a single property. NULL = unscoped.
+      -- A 'superadmin' role ignores this scope and manages every hotel/tenant.
+      ALTER TABLE admins ADD COLUMN IF NOT EXISTS "hotelId" UUID REFERENCES hotels(id) ON DELETE SET NULL;
 
       -- Channel-manager readiness (additive; dormant until OTA integration).
       -- Existing bookings default to source='direct'; no behavior change today.
@@ -461,6 +464,22 @@ async function initDb() {
         "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
 
+      -- Seasonal / date-range price overrides (Phase 8 rate management).
+      -- When multiple overrides cover the same night, the most recently created wins.
+      CREATE TABLE IF NOT EXISTS rate_overrides (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "roomId"  UUID NOT NULL REFERENCES rooms(id)  ON DELETE CASCADE,
+        "hotelId" UUID NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+        "fromDate" DATE NOT NULL,
+        "toDate"   DATE NOT NULL,
+        price NUMERIC(10,2) NOT NULL CHECK (price >= 0),
+        label VARCHAR(120),
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        CHECK ("toDate" >= "fromDate")
+      );
+      CREATE INDEX IF NOT EXISTS idx_rate_overrides_room ON rate_overrides ("roomId", "fromDate", "toDate");
+      CREATE INDEX IF NOT EXISTS idx_rate_overrides_hotel ON rate_overrides ("hotelId");
+
       CREATE TABLE IF NOT EXISTS media (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         "parentId" UUID NOT NULL,
@@ -492,6 +511,27 @@ async function initDb() {
         "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
 
+      -- Multi-tenant: one row per public domain. Maps an incoming Host header to
+      -- the hotel it serves and carries that site's branding/contact overrides.
+      -- The app resolves the tenant per-request; the frontend reads it via /api/config.
+      CREATE TABLE IF NOT EXISTS tenants (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        domain TEXT UNIQUE NOT NULL,            -- e.g. heritageahungalla.com (lowercase, no scheme)
+        "hotelId" UUID NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,                     -- site/brand display name
+        "logoUrl" TEXT,                         -- header logo
+        "markLogoUrl" TEXT,                     -- compact mark/favicon-style logo
+        "primaryColor" TEXT,                    -- theme override; falls back to CSS default
+        "accentColor" TEXT,
+        phone TEXT,                             -- shown in navbar/footer/contact
+        email TEXT,                             -- public contact address
+        "emailFrom" TEXT,                       -- outbound sender label; falls back to EMAIL_FROM
+        "bankDetails" JSONB,                    -- per-site payment instructions
+        "smtpConfig" JSONB,                     -- optional per-site SMTP override
+        "isActive" BOOLEAN DEFAULT true,
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE INDEX IF NOT EXISTS idx_email_queue_status ON email_queue(status) WHERE status = 'pending';
       CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON bookings("userId");
       CREATE INDEX IF NOT EXISTS idx_bookings_room_id ON bookings("roomId");
@@ -499,6 +539,9 @@ async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_rooms_availability ON rooms("isAvailable") WHERE "isAvailable" = true;
       CREATE INDEX IF NOT EXISTS idx_media_parent_id ON media("parentId");
       CREATE INDEX IF NOT EXISTS idx_admin_logs_createdAt ON admin_logs("createdAt" DESC);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_domain ON tenants(LOWER(domain));
+      CREATE INDEX IF NOT EXISTS idx_tenants_hotel_id ON tenants("hotelId");
+      CREATE INDEX IF NOT EXISTS idx_admins_hotel_id ON admins("hotelId");
       CREATE INDEX IF NOT EXISTS idx_inventory_sync_status ON inventory_sync_queue(status) WHERE status = 'pending';
       CREATE INDEX IF NOT EXISTS idx_stop_sells_room ON room_stop_sells("roomId");
       -- Idempotency guard for inbound OTA reservations (dormant until integration).
@@ -748,8 +791,20 @@ function getVerifiedToken(req: express.Request): any | null {
 // the x-admin-* headers are never trusted for access control.
 function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   const payload = getVerifiedToken(req);
-  if (!payload || payload.role !== 'admin') {
+  // A superadmin is a strict superset of admin, so it passes every admin gate.
+  if (!payload || (payload.role !== 'admin' && payload.role !== 'superadmin')) {
     return res.status(403).json({ error: 'Administrator authentication required.' });
+  }
+  (req as any).admin = payload;
+  next();
+}
+
+// Gate for cross-property/global operations (managing tenants, hotels, assigning
+// admins to properties). Only a 'superadmin' token may pass. Used in Phase 4.
+function requireSuperAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const payload = getVerifiedToken(req);
+  if (!payload || payload.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Super administrator authentication required.' });
   }
   (req as any).admin = payload;
   next();
@@ -766,6 +821,29 @@ const getAdminInfo = (req: express.Request) => {
     role: verified?.role || null,
   };
 };
+
+// Returns the hotelId a property-scoped admin is restricted to, or null for
+// superadmins / legacy unscoped admins. Use as a WHERE "hotelId" = $X guard
+// on admin routes (after requireAdmin has run and set req.admin).
+function getAdminHotelScope(req: express.Request): string | null {
+  const admin = (req as any).admin;
+  if (!admin || admin.role === 'superadmin' || !admin.hotelId) return null;
+  return admin.hotelId as string;
+}
+
+// Effective scope for read endpoints (public + admin). Priority:
+// 1. Scoped admin JWT (admin with a non-null hotelId and non-superadmin role)
+// 2. Tenant resolved from the incoming domain (req.tenant from resolveTenant)
+// 3. null — no filter; return all data (demo / superadmin)
+function getEffectiveHotelScope(req: express.Request): string | null {
+  const token = (req as any).admin || getVerifiedToken(req);
+  if (token) {
+    if (token.role === 'superadmin') return null;
+    if (token.hotelId) return token.hotelId as string;
+  }
+  const tenant = (req as any).tenant;
+  return tenant?.hotelId || null;
+}
 
 async function logAdminAction(dbQuery: any, adminInfo: any, action: string, targetId: string, targetName: string, details: string) {
   try {
@@ -808,15 +886,74 @@ const clearCache = () => {
   _heroCache = null;
 };
 
+// Phase 2: per-hostname tenant cache (1 min TTL) + resolution middleware.
+// In the demo environment the tenants table is empty, so req.tenant is always
+// null and every request falls through normally — no behaviour change.
+const _tenantCache = new Map<string, { row: any; ts: number }>();
+const TENANT_CACHE_TTL = 60_000;
+
+async function resolveTenant(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (!pool) { (req as any).tenant = null; return next(); }
+  const host = req.hostname.toLowerCase();
+  const cached = _tenantCache.get(host);
+  if (cached && Date.now() - cached.ts < TENANT_CACHE_TTL) {
+    (req as any).tenant = cached.row;
+    return next();
+  }
+  try {
+    const r = await query('SELECT * FROM tenants WHERE LOWER(domain) = $1 AND "isActive" = true', [host]);
+    const row = r.rows[0] || null;
+    _tenantCache.set(host, { row, ts: Date.now() });
+    (req as any).tenant = row;
+  } catch {
+    (req as any).tenant = null;
+  }
+  next();
+}
+
+app.use(resolveTenant);
+
+// Per-domain branding and config for the frontend React app.
+// Returns null fields when no tenant matches (demo / single-hotel mode) so the
+// frontend can fall back gracefully to its built-in defaults.
+app.get('/api/config', async (req, res) => {
+  const tenant = (req as any).tenant;
+  if (!tenant) {
+    return res.json({
+      tenant: null, hotelId: null, name: null, logoUrl: null, markLogoUrl: null,
+      primaryColor: null, accentColor: null, phone: null, email: null,
+      emailFrom: null, bankDetails: null,
+    });
+  }
+  res.json({
+    tenant: tenant.id,
+    hotelId: tenant.hotelId,
+    name: tenant.name,
+    logoUrl: tenant.logoUrl || null,
+    markLogoUrl: tenant.markLogoUrl || null,
+    primaryColor: tenant.primaryColor || null,
+    accentColor: tenant.accentColor || null,
+    phone: tenant.phone || null,
+    email: tenant.email || null,
+    emailFrom: tenant.emailFrom || null,
+    bankDetails: tenant.bankDetails || null,
+  });
+});
+
 // Hotels
 app.get('/api/hotels', async (req, res) => {
   const forceRefresh = req.query.refresh === 'true';
+  const hotelScope = getEffectiveHotelScope(req);
   const now = Date.now();
-  if (cachedHotels && !forceRefresh && (now - cachedHotelsTime < CACHE_TTL)) {
+  // Skip the in-memory cache for scoped requests so scoped admins / tenant
+  // domains never accidentally receive another hotel's data from the cache.
+  if (!hotelScope && cachedHotels && !forceRefresh && (now - cachedHotelsTime < CACHE_TTL)) {
     return res.json(cachedHotels);
   }
   try {
-    const result = await query('SELECT * FROM hotels ORDER BY "createdAt" DESC');
+    const result = hotelScope
+      ? await query('SELECT * FROM hotels WHERE id = $1::uuid', [hotelScope])
+      : await query('SELECT * FROM hotels ORDER BY "createdAt" DESC');
     const hotels = result.rows;
     const hotelsToFetch = hotels.filter((h: any) => !h.imageUrl || h.imageUrl.startsWith('https://images.unsplash.com') || h.imageUrl === '');
     if (hotelsToFetch.length > 0) {
@@ -838,8 +975,10 @@ app.get('/api/hotels', async (req, res) => {
         }
       }
     }
-    cachedHotels = hotels;
-    cachedHotelsTime = Date.now();
+    if (!hotelScope) {
+      cachedHotels = hotels;
+      cachedHotelsTime = Date.now();
+    }
     res.json(hotels);
   } catch (err: any) {
     if (err.isConfigError || err.message?.includes('does not exist')) {
@@ -891,6 +1030,10 @@ app.post('/api/hotels', requireAdmin, async (req, res) => {
 app.patch('/api/hotels/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
+    const hotelScope = getAdminHotelScope(req);
+    if (hotelScope && hotelScope !== id) {
+      return res.status(403).json({ error: 'Access denied: you can only update your assigned hotel.' });
+    }
     const updates = req.body;
     const ALLOWED_HOTEL_FIELDS = new Set(['name', 'location', 'description', 'imageUrl', 'type', 'hasBanquetHall', 'email', 'phone']);
     const keys = Object.keys(updates).filter(k => ALLOWED_HOTEL_FIELDS.has(k) && updates[k] !== undefined);
@@ -918,6 +1061,10 @@ app.patch('/api/hotels/:id', requireAdmin, async (req, res) => {
 
 app.delete('/api/hotels/:id', requireAdmin, async (req, res) => {
   try {
+    const hotelScope = getAdminHotelScope(req);
+    if (hotelScope && hotelScope !== req.params.id) {
+      return res.status(403).json({ error: 'Access denied: you can only delete your assigned hotel.' });
+    }
     const adminInfo = getAdminInfo(req);
     let hotelName = 'Hotel';
     let hotelType = 'Location';
@@ -947,7 +1094,11 @@ app.delete('/api/hotels/:id', requireAdmin, async (req, res) => {
 
 // Rooms
 app.get('/api/rooms', async (req, res) => {
-  const { hotelId, refresh } = req.query;
+  const { refresh } = req.query;
+  // Effective scope takes priority over the client-supplied ?hotelId= so a
+  // scoped admin or tenant domain cannot query another hotel's rooms.
+  const hotelScope = getEffectiveHotelScope(req);
+  const hotelId = hotelScope || (req.query.hotelId as string | undefined);
   const forceRefresh = refresh === 'true';
   const now = Date.now();
   if (cachedRooms && !forceRefresh && (now - cachedRoomsTime < CACHE_TTL)) {
@@ -1002,11 +1153,15 @@ app.get('/api/rooms', async (req, res) => {
 });
 
 app.post('/api/rooms', requireAdmin, async (req, res) => {
+  const {
+    hotelId, name, type, description, price, rating, imageUrl, amenities, maxGuests,
+    isAvailable = true, location, quantity
+  } = req.body;
+  const hotelScope = getAdminHotelScope(req);
+  if (hotelScope && hotelScope !== hotelId) {
+    return res.status(403).json({ error: 'Access denied: you can only add rooms to your assigned hotel.' });
+  }
   if (!pool) {
-    const { 
-      hotelId, name, type, description, price, rating, imageUrl, amenities, maxGuests, 
-      isAvailable = true, location, quantity
-    } = req.body;
     const newRoom = {
       id: 'r_' + Math.random().toString(36).substring(2, 11),
       hotelId,
@@ -1027,12 +1182,8 @@ app.post('/api/rooms', requireAdmin, async (req, res) => {
     return res.json(newRoom);
   }
   try {
-    const { 
-      hotelId, name, type, description, price, rating, imageUrl, amenities, maxGuests, 
-      isAvailable = true, location, quantity 
-    } = req.body;
     const result = await query(
-      `INSERT INTO rooms ("hotelId", name, type, description, price, rating, "imageUrl", amenities, "maxGuests", "isAvailable", location, quantity) 
+      `INSERT INTO rooms ("hotelId", name, type, description, price, rating, "imageUrl", amenities, "maxGuests", "isAvailable", location, quantity)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
       [hotelId, name, type, description, price, rating, imageUrl, amenities, maxGuests, isAvailable, location, quantity || 1]
     );
@@ -1052,19 +1203,27 @@ app.post('/api/rooms', requireAdmin, async (req, res) => {
 });
 
 app.patch('/api/rooms/:id', requireAdmin, async (req, res) => {
+  const hotelScope = getAdminHotelScope(req);
   if (!pool) {
     const { id } = req.params;
     const updates = req.body;
     const room = MOCK_ROOMS.find(r => r.id === id);
-    if (room) {
-      Object.assign(room, updates);
-      return res.json(room);
+    if (!room) return res.status(404).json({ error: 'Mock room not found' });
+    if (hotelScope && room.hotelId !== hotelScope) {
+      return res.status(403).json({ error: 'Access denied: room does not belong to your assigned hotel.' });
     }
-    return res.status(404).json({ error: 'Mock room not found' });
+    Object.assign(room, updates);
+    return res.json(room);
   }
   try {
     const { id } = req.params;
     const updates = req.body;
+    if (hotelScope) {
+      const ownerCheck = await query('SELECT "hotelId" FROM rooms WHERE id = $1', [id]);
+      if (!ownerCheck.rows[0] || ownerCheck.rows[0].hotelId !== hotelScope) {
+        return res.status(403).json({ error: 'Access denied: room does not belong to your assigned hotel.' });
+      }
+    }
     const ALLOWED_ROOM_FIELDS = new Set(['name', 'type', 'description', 'price', 'rating', 'imageUrl', 'amenities', 'maxGuests', 'isAvailable', 'location', 'quantity', 'manualStopSell']);
     const keys = Object.keys(updates).filter(k => ALLOWED_ROOM_FIELDS.has(k));
     if (keys.length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
@@ -1115,13 +1274,17 @@ app.patch('/api/rooms/:id', requireAdmin, async (req, res) => {
 
 app.delete('/api/rooms/:id', requireAdmin, async (req, res) => {
   try {
+    const hotelScope = getAdminHotelScope(req);
     const adminInfo = getAdminInfo(req);
     let roomName = 'Accommodation';
     let roomType = 'Room';
 
     try {
-      const rCheck = await query('SELECT name, type FROM rooms WHERE id = $1', [req.params.id]);
+      const rCheck = await query('SELECT name, type, "hotelId" FROM rooms WHERE id = $1', [req.params.id]);
       if (rCheck.rows[0]) {
+        if (hotelScope && rCheck.rows[0].hotelId !== hotelScope) {
+          return res.status(403).json({ error: 'Access denied: room does not belong to your assigned hotel.' });
+        }
         roomName = rCheck.rows[0].name;
         roomType = rCheck.rows[0].type || 'Room';
       }
@@ -1332,7 +1495,10 @@ app.get('/api/availability', async (req, res) => {
 // so the two can never disagree. `to` is exclusive. The window is capped to keep
 // the rooms × days expansion bounded. Admin/staff only.
 app.get('/api/calendar', requireAdmin, async (req, res) => {
-  const { from, to, hotelId } = req.query as { from?: string; to?: string; hotelId?: string };
+  const { from, to, hotelId: _requestedHotelId } = req.query as { from?: string; to?: string; hotelId?: string };
+  // Scoped admin overrides the client-supplied ?hotelId= so they can't view
+  // another hotel's calendar by passing a different id.
+  const hotelId = getAdminHotelScope(req) || _requestedHotelId;
 
   if (!from || !to) {
     return res.status(400).json({ error: 'from and to dates are required' });
@@ -1607,7 +1773,8 @@ app.get('/api/bookings', async (req, res) => {
 app.get('/api/admin/bookings', requireAdmin, async (req, res) => {
   const scope = (req.query.scope as string) === 'past' ? 'past' : 'active';
   const status = req.query.status as string | undefined;
-  const hotelId = req.query.hotelId as string | undefined;
+  // Scoped admin: ignore the client's ?hotelId= and force their assigned hotel.
+  const hotelId = getAdminHotelScope(req) || (req.query.hotelId as string | undefined);
   const search = ((req.query.search as string) || '').trim();
   const from = req.query.from as string | undefined;
   const to = req.query.to as string | undefined;
@@ -1678,10 +1845,12 @@ app.get('/api/admin/bookings', requireAdmin, async (req, res) => {
 
 // Lightweight counts for the sidebar badges — avoids loading rows just to count.
 app.get('/api/admin/bookings/stats', requireAdmin, async (req, res) => {
+  const hotelScope = getAdminHotelScope(req);
   if (!pool) {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     let active = 0, past = 0;
     for (const b of MOCK_BOOKINGS) {
+      if (hotelScope && b.hotelId !== hotelScope) continue;
       const isPast = new Date(b.checkOut) < today;
       (b.status === 'cancelled' || isPast) ? past++ : active++;
     }
@@ -1692,7 +1861,9 @@ app.get('/api/admin/bookings/stats', requireAdmin, async (req, res) => {
       `SELECT
          COUNT(*) FILTER (WHERE status != 'cancelled' AND "checkOut" >= CURRENT_DATE) AS active,
          COUNT(*) FILTER (WHERE status = 'cancelled' OR "checkOut" < CURRENT_DATE) AS past
-       FROM bookings`
+       FROM bookings
+       WHERE ($1::uuid IS NULL OR "hotelId" = $1::uuid)`,
+      [hotelScope]
     );
     res.json({ active: parseInt(r.rows[0].active), past: parseInt(r.rows[0].past) });
   } catch (err: any) {
@@ -1703,10 +1874,13 @@ app.get('/api/admin/bookings/stats', requireAdmin, async (req, res) => {
 // Active bookings awaiting staff action (pending / payment_review) for the
 // "new booking" alerts banner. Bounded so it scales.
 app.get('/api/admin/bookings/alerts', requireAdmin, async (req, res) => {
+  const hotelScope = getAdminHotelScope(req);
   if (!pool) {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const items = MOCK_BOOKINGS
-      .filter(b => (b.status === 'pending' || b.status === 'payment_review') && new Date(b.checkOut) >= today)
+      .filter(b => (b.status === 'pending' || b.status === 'payment_review')
+        && new Date(b.checkOut) >= today
+        && (!hotelScope || b.hotelId === hotelScope))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 50);
     return res.json(items);
@@ -1715,11 +1889,316 @@ app.get('/api/admin/bookings/alerts', requireAdmin, async (req, res) => {
     const r = await query(
       `SELECT * FROM bookings
        WHERE status IN ('pending', 'payment_review') AND "checkOut" >= CURRENT_DATE
-       ORDER BY "createdAt" DESC LIMIT 50`
+         AND ($1::uuid IS NULL OR "hotelId" = $1::uuid)
+       ORDER BY "createdAt" DESC LIMIT 50`,
+      [hotelScope]
     );
     res.json(r.rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to fetch booking alerts' });
+  }
+});
+
+// ── Today dashboard (Phase 6) ─────────────────────────────────────────────────
+// Returns arrivals, departures, in-house guests, and pending-action bookings
+// for the current calendar day, scoped to the admin's property if applicable.
+app.get('/api/admin/today', requireAdmin, async (req, res) => {
+  const hotelScope = getAdminHotelScope(req);
+  const today = new Date().toISOString().split('T')[0];
+
+  if (!pool) {
+    const confirmed = MOCK_BOOKINGS.filter((b: any) =>
+      b.status === 'confirmed' && (!hotelScope || b.hotelId === hotelScope)
+    );
+    return res.json({
+      date: today,
+      arrivals:    confirmed.filter((b: any) => (b.checkIn  || '').startsWith(today)),
+      departures:  confirmed.filter((b: any) => (b.checkOut || '').startsWith(today)),
+      inHouse:     confirmed.filter((b: any) => b.checkIn < today && b.checkOut > today),
+      pendingActions: MOCK_BOOKINGS.filter((b: any) =>
+        ['pending', 'payment_review'].includes(b.status) &&
+        b.checkIn >= today &&
+        (!hotelScope || b.hotelId === hotelScope)
+      ).slice(0, 20),
+    });
+  }
+
+  try {
+    // Shared JOIN + scope filter reused across all four queries.
+    const base = `
+      SELECT b.id, b."fullName", b.email, b.phone,
+             b."checkIn", b."checkOut", b.guests, b."roomCount",
+             b.status, b."specialRequests", b."createdAt",
+             r.name AS "roomName", h.name AS "hotelName"
+      FROM bookings b
+      JOIN rooms r ON b."roomId" = r.id
+      JOIN hotels h ON b."hotelId" = h.id
+      WHERE ($1::uuid IS NULL OR b."hotelId" = $1::uuid)
+    `;
+    const p = [hotelScope];
+
+    const [arr, dep, inh, pend] = await Promise.all([
+      query(`${base} AND b.status = 'confirmed'
+             AND DATE(b."checkIn")  = CURRENT_DATE
+             ORDER BY b."checkIn"  ASC`, p),
+      query(`${base} AND b.status = 'confirmed'
+             AND DATE(b."checkOut") = CURRENT_DATE
+             ORDER BY b."checkOut" ASC`, p),
+      // In-house: arrived before today, checking out after today (staying over)
+      query(`${base} AND b.status = 'confirmed'
+             AND DATE(b."checkIn")  < CURRENT_DATE
+             AND DATE(b."checkOut") > CURRENT_DATE
+             ORDER BY b."checkOut" ASC`, p),
+      query(`${base} AND b.status IN ('pending', 'payment_review')
+             AND b."checkIn" >= CURRENT_DATE
+             ORDER BY b."checkIn" ASC LIMIT 20`, p),
+    ]);
+
+    res.json({
+      date: today,
+      arrivals:       arr.rows,
+      departures:     dep.rows,
+      inHouse:        inh.rows,
+      pendingActions: pend.rows,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Guest directory (Phase 7) ─────────────────────────────────────────────────
+// Deduplicated guest list grouped by email, with stay stats and search.
+app.get('/api/admin/guests', requireAdmin, async (req, res) => {
+  const hotelScope = getAdminHotelScope(req);
+  const { search, hotelId, page = '1', pageSize = '20' } = req.query as Record<string, string>;
+  const pageNum = Math.max(1, parseInt(page) || 1);
+  const size    = Math.min(50, Math.max(1, parseInt(pageSize) || 20));
+  const offset  = (pageNum - 1) * size;
+  // Admin JWT scope beats query-param filter
+  const effectiveHotel = hotelScope ?? (hotelId && hotelId !== 'all' ? hotelId : null);
+
+  if (!pool) {
+    const grouped: Record<string, any> = {};
+    for (const b of MOCK_BOOKINGS as any[]) {
+      if (effectiveHotel && b.hotelId !== effectiveHotel) continue;
+      const key = (b.email || '').toLowerCase();
+      if (!key) continue;
+      if (!grouped[key]) grouped[key] = { email: key, fullName: b.fullName, phone: b.phone, bookings: [], inHouseNow: false };
+      grouped[key].bookings.push(b);
+      const now = new Date();
+      if (b.status === 'confirmed' && new Date(b.checkIn) <= now && new Date(b.checkOut) > now)
+        grouped[key].inHouseNow = true;
+    }
+    let items = Object.values(grouped).map((g: any) => ({
+      email: g.email, fullName: g.fullName, phone: g.phone, inHouseNow: g.inHouseNow,
+      totalBookings: g.bookings.length,
+      confirmedBookings: g.bookings.filter((b: any) => b.status === 'confirmed').length,
+      totalNights: g.bookings.filter((b: any) => b.status === 'confirmed').reduce((sum: number, b: any) => {
+        return sum + Math.max(0, Math.round((new Date(b.checkOut).getTime() - new Date(b.checkIn).getTime()) / 86400000));
+      }, 0),
+      firstSeen: g.bookings.map((b: any) => b.createdAt).sort()[0],
+      lastCheckIn: g.bookings.map((b: any) => b.checkIn).sort().at(-1),
+      hotels: [...new Set(g.bookings.map((b: any) => b.hotelId))],
+    }));
+    if (search) {
+      const s = search.toLowerCase();
+      items = items.filter((g: any) =>
+        g.fullName?.toLowerCase().includes(s) || g.email.includes(s) || g.phone?.includes(s)
+      );
+    }
+    items.sort((a: any, b: any) => new Date(b.firstSeen).getTime() - new Date(a.firstSeen).getTime());
+    return res.json({ items: items.slice(offset, offset + size), total: items.length, page: pageNum, pageSize: size });
+  }
+
+  try {
+    const params: any[] = [effectiveHotel];
+    let searchClause = '';
+    if (search?.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      const n = params.length;
+      searchClause = `AND (LOWER(b."fullName") LIKE $${n} OR LOWER(b.email) LIKE $${n} OR b.phone LIKE $${n})`;
+    }
+
+    const whereClause = `
+      FROM bookings b
+      LEFT JOIN hotels h ON b."hotelId" = h.id
+      WHERE ($1::uuid IS NULL OR b."hotelId" = $1::uuid)
+      ${searchClause}
+    `;
+
+    const [countRes, dataRes] = await Promise.all([
+      query(`SELECT COUNT(DISTINCT LOWER(b.email)) AS total ${whereClause}`, params),
+      query(
+        `SELECT
+           LOWER(b.email) AS email,
+           (ARRAY_AGG(b."fullName" ORDER BY b."createdAt" DESC))[1] AS "fullName",
+           (ARRAY_AGG(b.phone ORDER BY b."createdAt" DESC)
+             FILTER (WHERE b.phone IS NOT NULL AND b.phone != ''))[1] AS phone,
+           COUNT(*)::int AS "totalBookings",
+           SUM(CASE WHEN b.status = 'confirmed' THEN 1 ELSE 0 END)::int AS "confirmedBookings",
+           SUM(CASE WHEN b.status = 'confirmed'
+             THEN GREATEST(0, EXTRACT(EPOCH FROM
+               (b."checkOut"::timestamptz - b."checkIn"::timestamptz)) / 86400)
+             ELSE 0 END)::int AS "totalNights",
+           MIN(b."createdAt") AS "firstSeen",
+           MAX(b."checkIn") AS "lastCheckIn",
+           BOOL_OR(b.status = 'confirmed'
+             AND b."checkIn" <= NOW() AND b."checkOut" > NOW()) AS "inHouseNow",
+           ARRAY_AGG(DISTINCT h.name) FILTER (WHERE h.name IS NOT NULL) AS hotels
+         ${whereClause}
+         GROUP BY LOWER(b.email)
+         ORDER BY MAX(b."createdAt") DESC
+         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, size, offset]
+      ),
+    ]);
+
+    res.json({
+      items: dataRes.rows,
+      total: parseInt(countRes.rows[0]?.total || '0'),
+      page: pageNum,
+      pageSize: size,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Full booking history for a single guest email (used by guest detail modal).
+app.get('/api/admin/guests/:email/bookings', requireAdmin, async (req, res) => {
+  const hotelScope = getAdminHotelScope(req);
+  const email = decodeURIComponent(req.params.email).toLowerCase();
+
+  if (!pool) {
+    return res.json(
+      (MOCK_BOOKINGS as any[])
+        .filter(b => (b.email || '').toLowerCase() === email &&
+          (!hotelScope || b.hotelId === hotelScope))
+        .sort((a, b) => new Date(b.checkIn).getTime() - new Date(a.checkIn).getTime())
+    );
+  }
+
+  try {
+    const r = await query(
+      `SELECT b.*, r.name AS "roomName", h.name AS "hotelName"
+       FROM bookings b
+       JOIN rooms r ON b."roomId" = r.id
+       JOIN hotels h ON b."hotelId" = h.id
+       WHERE LOWER(b.email) = $1
+         AND ($2::uuid IS NULL OR b."hotelId" = $2::uuid)
+       ORDER BY b."checkIn" DESC`,
+      [email, hotelScope]
+    );
+    res.json(r.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Rate overrides / seasonal pricing (Phase 8) ───────────────────────────────
+app.get('/api/admin/rate-overrides', requireAdmin, async (req, res) => {
+  const hotelScope = getAdminHotelScope(req);
+  const { roomId, hotelId } = req.query as Record<string, string>;
+  const effectiveHotel = hotelScope ?? (hotelId && hotelId !== 'all' ? hotelId : null);
+
+  if (!pool) return res.json([]);
+
+  try {
+    const r = await query(
+      `SELECT ro.*, rm.name AS "roomName", h.name AS "hotelName"
+       FROM rate_overrides ro
+       JOIN rooms rm ON ro."roomId" = rm.id
+       JOIN hotels h  ON ro."hotelId" = h.id
+       WHERE ($1::uuid IS NULL OR ro."hotelId" = $1::uuid)
+         AND ($2::uuid IS NULL OR ro."roomId"  = $2::uuid)
+       ORDER BY ro."fromDate" ASC, ro."createdAt" DESC`,
+      [effectiveHotel, roomId || null]
+    );
+    res.json(r.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/rate-overrides', requireAdmin, async (req, res) => {
+  const hotelScope = getAdminHotelScope(req);
+  const { roomId, hotelId, fromDate, toDate, price, label } = req.body;
+
+  if (!roomId || !fromDate || !toDate || price == null)
+    return res.status(400).json({ error: 'roomId, fromDate, toDate, and price are required.' });
+  if (new Date(toDate) < new Date(fromDate))
+    return res.status(400).json({ error: 'toDate must be on or after fromDate.' });
+
+  const effectiveHotel = hotelScope ?? hotelId;
+  if (!effectiveHotel) return res.status(400).json({ error: 'hotelId is required.' });
+
+  if (!pool) return res.status(201).json({ id: 'mock-rate', roomId, hotelId: effectiveHotel, fromDate, toDate, price, label });
+
+  try {
+    const roomCheck = await query(
+      `SELECT id FROM rooms WHERE id = $1 AND "hotelId" = $2`, [roomId, effectiveHotel]
+    );
+    if (roomCheck.rows.length === 0)
+      return res.status(403).json({ error: 'Room not found in your property.' });
+
+    const r = await query(
+      `INSERT INTO rate_overrides ("roomId", "hotelId", "fromDate", "toDate", price, label)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [roomId, effectiveHotel, fromDate, toDate, Number(price), label?.trim() || null]
+    );
+    logAdminAction(req, 'CREATE_RATE_OVERRIDE', { id: r.rows[0].id, roomId, fromDate, toDate, price });
+    res.status(201).json(r.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/rate-overrides/:id', requireAdmin, async (req, res) => {
+  const hotelScope = getAdminHotelScope(req);
+  const { id } = req.params;
+  const { fromDate, toDate, price, label } = req.body;
+
+  if (!pool) return res.json({ id });
+
+  try {
+    const check = await query(`SELECT "hotelId" FROM rate_overrides WHERE id = $1`, [id]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Rate override not found.' });
+    if (hotelScope && check.rows[0].hotelId !== hotelScope)
+      return res.status(403).json({ error: 'Access denied.' });
+
+    const ALLOWED = { fromDate, toDate, price: price != null ? Number(price) : undefined, label: label !== undefined ? (label?.trim() || null) : undefined };
+    const entries = Object.entries(ALLOWED).filter(([, v]) => v !== undefined);
+    if (entries.length === 0) return res.status(400).json({ error: 'No fields to update.' });
+
+    const setClauses = entries.map(([k], i) => `"${k}" = $${i + 2}`).join(', ');
+    const r = await query(
+      `UPDATE rate_overrides SET ${setClauses} WHERE id = $1 RETURNING *`,
+      [id, ...entries.map(([, v]) => v)]
+    );
+    logAdminAction(req, 'UPDATE_RATE_OVERRIDE', { id, ...Object.fromEntries(entries) });
+    res.json(r.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/rate-overrides/:id', requireAdmin, async (req, res) => {
+  const hotelScope = getAdminHotelScope(req);
+  const { id } = req.params;
+
+  if (!pool) return res.status(204).send();
+
+  try {
+    const check = await query(`SELECT "hotelId" FROM rate_overrides WHERE id = $1`, [id]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Not found.' });
+    if (hotelScope && check.rows[0].hotelId !== hotelScope)
+      return res.status(403).json({ error: 'Access denied.' });
+
+    await query(`DELETE FROM rate_overrides WHERE id = $1`, [id]);
+    logAdminAction(req, 'DELETE_RATE_OVERRIDE', { id });
+    res.status(204).send();
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1857,7 +2336,7 @@ app.post('/api/bookings', async (req, res) => {
       fullName: booking.fullName,
       email: booking.email,
       phone: booking.phone,
-      hotelName: hotelResult.rows[0]?.name || 'Amadiya Leisure',
+      hotelName: hotelResult.rows[0]?.name || (req as any).tenant?.name || 'Resort',
       roomName: roomCheck.rows[0].name,
       roomImageUrl: roomImageUrl,
       checkIn: booking.checkIn,
@@ -1867,7 +2346,7 @@ app.post('/api/bookings', async (req, res) => {
       placedAt: booking.createdAt,
       price: roomCheck.rows[0].price ? Number(roomCheck.rows[0].price) : undefined,
       roomCount: booking.roomCount || 1
-    });
+    }, (req as any).tenant || {});
 
     await client.query('COMMIT');
     isClientReleased = true;
@@ -1883,6 +2362,129 @@ app.post('/api/bookings', async (req, res) => {
     await client.query('ROLLBACK');
     console.error('Booking Error:', err);
     res.status(err.isConfigError ? 403 : 409).json({ error: err.message || 'Failed to create booking' });
+  } finally {
+    client.release();
+  }
+});
+
+// ── Admin-created bookings (Phase 5) ─────────────────────────────────────────
+// Staff can create bookings on behalf of guests (walk-ins, phone bookings, etc.).
+// Unlike the public POST /api/bookings, this endpoint:
+//   - Requires an admin JWT
+//   - Allows status='confirmed' without a payment slip (cash / card in person)
+//   - Stamps paidAt automatically for confirmed bookings
+//   - Logs the creation in admin_logs
+//   - Sends a confirmation email only when sendEmail=true (default false)
+app.post('/api/admin/bookings', requireAdmin, async (req, res) => {
+  const {
+    roomId, hotelId, fullName, email, phone,
+    checkIn, checkOut, guests = 2, specialRequests,
+    status = 'pending', roomCount = 1, sendEmail = false,
+  } = req.body;
+  const requestedRoomCount = parseInt(roomCount) || 1;
+
+  if (!roomId || !hotelId || !fullName || !email || !checkIn || !checkOut) {
+    return res.status(400).json({ error: 'roomId, hotelId, fullName, email, checkIn, and checkOut are required.' });
+  }
+
+  if (!pool) {
+    const newBooking: any = {
+      id: 'b_' + Math.random().toString(36).substring(2, 11),
+      roomId, hotelId, fullName, email, phone: phone || null, checkIn, checkOut,
+      guests: Number(guests) || 2, specialRequests: specialRequests || null,
+      status, roomCount: requestedRoomCount,
+      paidAt: status === 'confirmed' ? new Date().toISOString() : null,
+      createdAt: new Date().toISOString(),
+    };
+    MOCK_BOOKINGS.push(newBooking);
+    return res.status(201).json(newBooking);
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const roomCheck = await client.query(
+      'SELECT quantity, name, "imageUrl", price, "manualStopSell" FROM rooms WHERE id = $1 FOR UPDATE',
+      [roomId]
+    );
+    if (!roomCheck.rows[0]) throw new Error('Room not found.');
+    if (roomCheck.rows[0].manualStopSell) throw new Error('This room is not currently available for booking.');
+
+    if (await isRoomStopped(client.query.bind(client), roomId, checkIn, checkOut)) {
+      throw new Error('This room has a stop-sell applied for the requested dates.');
+    }
+
+    const totalQty = parseInt(roomCheck.rows[0].quantity);
+    const bookedCount = await getBookedCount(client.query.bind(client), roomId, checkIn, checkOut);
+    const remaining = Math.max(0, totalQty - bookedCount);
+    if (requestedRoomCount > remaining) {
+      throw new Error(`Only ${remaining} unit(s) available for the requested dates.`);
+    }
+
+    const paidAt = status === 'confirmed' ? new Date().toISOString() : null;
+    const result = await client.query(
+      `INSERT INTO bookings ("roomId", "hotelId", "fullName", email, phone, "checkIn", "checkOut",
+         guests, "specialRequests", status, "roomCount", "paidAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       RETURNING *`,
+      [roomId, hotelId, fullName, email, phone || null, checkIn, checkOut,
+       Number(guests) || 2, specialRequests || null, status, requestedRoomCount, paidAt]
+    );
+    const booking = result.rows[0];
+
+    await client.query(
+      `UPDATE rooms SET "isAvailable" = (
+        quantity > COALESCE((
+          SELECT SUM(COALESCE("roomCount", 1)) FROM bookings
+          WHERE "roomId" = $1 AND status != 'cancelled'
+        ), 0)
+      ) WHERE id = $1`,
+      [roomId]
+    );
+
+    await enqueueInventorySync(client.query.bind(client), roomId, checkIn, checkOut);
+
+    const hotelResult = await client.query('SELECT name FROM hotels WHERE id = $1', [hotelId]);
+    const hotelName = hotelResult.rows[0]?.name || (req as any).tenant?.name || 'Resort';
+    const adminInfo = getAdminInfo(req);
+    await logAdminAction(
+      client.query.bind(client), adminInfo, 'CREATE_BOOKING', booking.id, fullName,
+      `Admin created booking for ${fullName} at ${hotelName} (${roomCheck.rows[0].name}): ${new Date(checkIn).toLocaleDateString()} – ${new Date(checkOut).toLocaleDateString()}, status: ${status}`
+    );
+
+    if (sendEmail) {
+      let roomImageUrl = roomCheck.rows[0].imageUrl;
+      try {
+        const mediaRes = await client.query(
+          'SELECT data FROM media WHERE "parentId" = $1 ORDER BY "order" ASC, id ASC LIMIT 1',
+          [roomId]
+        );
+        if (mediaRes.rows[0]?.data) roomImageUrl = mediaRes.rows[0].data;
+      } catch { /* non-fatal */ }
+      await queueBookingConfirmation(client.query.bind(client), {
+        id: booking.id, fullName, email, phone: phone || undefined,
+        hotelName, roomName: roomCheck.rows[0].name, roomImageUrl,
+        checkIn, checkOut, guests: Number(guests) || 2,
+        specialRequests: specialRequests || undefined,
+        placedAt: booking.createdAt,
+        price: roomCheck.rows[0].price ? Number(roomCheck.rows[0].price) : undefined,
+        roomCount: requestedRoomCount,
+      }, (req as any).tenant || {});
+    }
+
+    await client.query('COMMIT');
+
+    if (sendEmail) {
+      await processEmailQueue(pool).catch(err =>
+        console.error('Email queue failed after admin booking creation:', err)
+      );
+    }
+
+    res.status(201).json(booking);
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    res.status(409).json({ error: err.message || 'Failed to create booking.' });
   } finally {
     client.release();
   }
@@ -1912,30 +2514,62 @@ app.patch('/api/bookings/:id', requireAdmin, async (req, res) => {
     await client.query('BEGIN');
     
     // Get the current booking to know the roomId / payment slip
-    const currentBooking = await client.query('SELECT "roomId", "paymentSlipUrl" FROM bookings WHERE id = $1 FOR UPDATE', [id]);
+    const currentBooking = await client.query(
+      'SELECT "roomId", "paymentSlipUrl", "checkIn", "checkOut", "roomCount" FROM bookings WHERE id = $1 FOR UPDATE',
+      [id]
+    );
     const roomId = currentBooking.rows[0]?.roomId;
 
     if (!currentBooking.rows[0]) {
       throw new Error('Booking not found');
     }
 
-    // Guard: a booking can never be confirmed without a payment slip on record.
-    if (status === 'confirmed' && !currentBooking.rows[0].paymentSlipUrl) {
+    // Guard: a booking can only be confirmed without a payment slip when the admin
+    // explicitly overrides (cash/card payment collected in person).
+    if (status === 'confirmed' && !currentBooking.rows[0].paymentSlipUrl && !req.body.adminConfirm) {
       await client.query('ROLLBACK');
       return res.status(409).json({ error: 'Cannot confirm: no payment slip has been uploaded for this booking.' });
     }
 
-    const ALLOWED_BOOKING_FIELDS = new Set(['status', 'specialRequests', 'fullName', 'phone', 'guests', 'roomCount', 'checkIn', 'checkOut', 'paymentSlipUrl', 'paidAt']);
+    const ALLOWED_BOOKING_FIELDS = new Set(['status', 'specialRequests', 'fullName', 'email', 'phone', 'guests', 'roomCount', 'checkIn', 'checkOut', 'paymentSlipUrl', 'paidAt']);
     const allUpdates: any = { status, ...updates };
     // Stamp the verification time automatically when staff confirm a booking.
     if (status === 'confirmed' && allUpdates.paidAt === undefined) {
       allUpdates.paidAt = new Date().toISOString();
     }
     const keys = Object.keys(allUpdates).filter(k => ALLOWED_BOOKING_FIELDS.has(k));
+
+    // Re-check availability when dates or roomCount are being changed so that
+    // editing a booking never creates an overbook. Exclude the current booking's
+    // own contribution from the count before comparing against total capacity.
+    const isDateOrCountChange = 'checkIn' in allUpdates || 'checkOut' in allUpdates || 'roomCount' in allUpdates;
+    if (isDateOrCountChange && roomId) {
+      const cur = currentBooking.rows[0];
+      const newCheckIn  = allUpdates.checkIn  ?? cur.checkIn;
+      const newCheckOut = allUpdates.checkOut ?? cur.checkOut;
+      const newRoomCount = Number(allUpdates.roomCount ?? cur.roomCount ?? 1);
+      const availRes = await client.query(
+        `SELECT COALESCE(SUM(COALESCE("roomCount", 1)), 0) AS booked
+         FROM bookings
+         WHERE "roomId" = $1 AND id != $2 AND status != 'cancelled'
+           AND "checkIn" < $3 AND "checkOut" > $4`,
+        [roomId, id, newCheckOut, newCheckIn]
+      );
+      const booked = parseInt(availRes.rows[0].booked, 10);
+      const roomQtyRes = await client.query('SELECT quantity FROM rooms WHERE id = $1', [roomId]);
+      const totalQty = roomQtyRes.rows[0]?.quantity || 1;
+      if (booked + newRoomCount > totalQty) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error: `Only ${Math.max(0, totalQty - booked)} unit(s) available for the requested dates.`,
+        });
+      }
+    }
+
     if (keys.length > 0) {
       const setClause = keys.map((key, i) => `"${key}" = $${i + 2}`).join(', ');
       const values = keys.map(key => allUpdates[key as keyof typeof allUpdates]);
-      
+
       const result = await client.query(
         `UPDATE bookings SET ${setClause} WHERE id = $1 RETURNING *`,
         [id, ...values]
@@ -2004,7 +2638,7 @@ app.patch('/api/bookings/:id', requireAdmin, async (req, res) => {
             fullName: det.fullName,
             email: det.email,
             phone: det.phone || undefined,
-            hotelName: det.hotelName || 'Amadiya Leisure',
+            hotelName: det.hotelName || (req as any).tenant?.name || 'Resort',
             roomName: det.roomName,
             roomImageUrl: roomImageUrl,
             checkIn: det.checkIn,
@@ -2015,19 +2649,20 @@ app.patch('/api/bookings/:id', requireAdmin, async (req, res) => {
             price: det.roomPrice ? Number(det.roomPrice) : undefined,
             roomCount: det.roomCount || 1
           };
+          const tenantBranding = (req as any).tenant || {};
 
           if (status === 'confirmed') {
-            await queueBookingAcceptance(client.query.bind(client), bookingDetails);
+            await queueBookingAcceptance(client.query.bind(client), bookingDetails, tenantBranding);
           } else {
-            await queueBookingCancellation(client.query.bind(client), bookingDetails);
+            await queueBookingCancellation(client.query.bind(client), bookingDetails, tenantBranding);
           }
 
           const adminInfo = getAdminInfo(req);
           if (adminInfo.email) {
             const logAction = status === 'confirmed' ? 'CONFIRM_BOOKING' : 'CANCEL_BOOKING';
             const logDetails = status === 'confirmed'
-              ? `Confirmed booking for guest ${det.fullName} at ${det.hotelName || 'Amadiya Leisure'} (${det.roomName})`
-              : `Cancelled booking for guest ${det.fullName} at ${det.hotelName || 'Amadiya Leisure'} (${det.roomName})`;
+              ? `Confirmed booking for guest ${det.fullName} at ${det.hotelName || 'Resort'} (${det.roomName})`
+              : `Cancelled booking for guest ${det.fullName} at ${det.hotelName || 'Resort'} (${det.roomName})`;
             await logAdminAction(client.query.bind(client), adminInfo, logAction, det.id, det.fullName, logDetails);
           }
         }
@@ -2300,21 +2935,22 @@ app.post('/api/auth/send-otp', async (req, res) => {
   // Send the OTP via email
   const emailConfigured = !!process.env.BREVO_API_KEY || !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 
-  const subject = `${otp} is your Amadiya Leisure Verification Code`;
+  const _otpBrandName = (req as any).tenant?.name || 'Resort';
+  const subject = `${otp} is your ${_otpBrandName} Verification Code`;
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F8F5F2; padding: 40px; border-radius: 20px; max-width: 500px; margin: 40px auto; border: 1px solid #EEEEEE; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
       <div style="text-align: center; margin-bottom: 30px;">
-        <span style="font-family: Georgia, serif; font-size: 24px; font-style: italic; color: #8D7B68; letter-spacing: 0.1em; text-transform: uppercase;">Amadiya Leisure</span>
+        <span style="font-family: Georgia, serif; font-size: 24px; font-style: italic; color: #8D7B68; letter-spacing: 0.1em; text-transform: uppercase;">${_otpBrandName}</span>
       </div>
       <h2 style="color: #2D2D2D; font-weight: normal; margin-bottom: 16px; font-size: 18px;">Confirm Your Email Address</h2>
       <p style="font-size: 14px; color: #666666; line-height: 1.6; margin-bottom: 24px;">Hello ${displayName || 'Valued Guest'},</p>
-      <p style="font-size: 14px; color: #666666; line-height: 1.6; margin-bottom: 24px;">Thank you for initiating your reservation at Amadiya Leisure. Please enter the verification code below on the signup page to secure your account and confirm your sanctuary booking:</p>
+      <p style="font-size: 14px; color: #666666; line-height: 1.6; margin-bottom: 24px;">Thank you for initiating your reservation at ${_otpBrandName}. Please enter the verification code below on the signup page to secure your account and confirm your sanctuary booking:</p>
       <div style="background-color: #FFFFFF; font-size: 32px; font-weight: bold; letter-spacing: 0.25em; text-align: center; padding: 20px; border-radius: 12px; margin: 24px 0; color: #8D7B68; border: 1px solid #EAE5E0; box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);">
         ${otp}
       </div>
       <p style="font-size: 12px; color: #999999; text-align: center; margin-top: 24px;">This code expires in 5 minutes.</p>
       <div style="border-top: 1px solid #EAE5E0; padding-top: 20px; margin-top: 30px; text-align: center; font-size: 11px; color: #999999; font-style: italic;">
-        &copy; ${new Date().getFullYear()} Amadiya Leisure. Handcrafted Sri Lankan hospitality.
+        &copy; ${new Date().getFullYear()} ${_otpBrandName}. Handcrafted Sri Lankan hospitality.
       </div>
     </div>
   `;
@@ -2529,7 +3165,11 @@ app.post('/api/auth/login', async (req, res) => {
       const tokenPayload = {
         id: admin.id,
         email: admin.email,
-        role: 'admin',
+        // Existing 'admin'/'staff' rows keep their current full-admin token role;
+        // only a 'superadmin' DB row is elevated so it can manage tenants/all hotels.
+        role: admin.role === 'superadmin' ? 'superadmin' : 'admin',
+        // Carry the admin's property scope so tenant-aware endpoints can filter by it.
+        hotelId: admin.hotelId || null,
         exp: Math.floor(Date.now() / 1000) + 3600
       };
       const token = signJwt(tokenPayload);
@@ -2733,22 +3373,23 @@ app.post('/api/auth/send-admin-otp', requireAdmin, async (req, res) => {
   // Send the OTP via email
   const emailConfigured = !!process.env.BREVO_API_KEY || !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 
-  const subject = `${otp} is your Amadiya Staff Promotion Verification Code`;
+  const _inviteBrandName = (req as any).tenant?.name || 'Resort';
+  const subject = `${otp} is your ${_inviteBrandName} Staff Promotion Verification Code`;
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F8F5F2; padding: 40px; border-radius: 20px; max-width: 500px; margin: 40px auto; border: 1px solid #EEEEEE; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
       <div style="text-align: center; margin-bottom: 30px;">
-        <span style="font-family: Georgia, serif; font-size: 24px; font-style: italic; color: #8D7B68; letter-spacing: 0.1em; text-transform: uppercase;">Amadiya Leisure</span>
+        <span style="font-family: Georgia, serif; font-size: 24px; font-style: italic; color: #8D7B68; letter-spacing: 0.1em; text-transform: uppercase;">${_inviteBrandName}</span>
       </div>
       <h2 style="color: #2D2D2D; font-weight: normal; margin-bottom: 16px; font-size: 18px;">Staff Administration Onboarding</h2>
       <p style="font-size: 14px; color: #666666; line-height: 1.6; margin-bottom: 24px;">Hello,</p>
-      <p style="font-size: 14px; color: #666666; line-height: 1.6; margin-bottom: 24px;">You have been invited to join the Amadiya Leisure administration and management team.</p>
+      <p style="font-size: 14px; color: #666666; line-height: 1.6; margin-bottom: 24px;">You have been invited to join the ${_inviteBrandName} administration and management team.</p>
       <p style="font-size: 14px; color: #666666; line-height: 1.6; margin-bottom: 24px;">Please provide the following 6-digit confirmation code to the system administrator to verify your email and activate your staff coordinates:</p>
       <div style="background-color: #FFFFFF; font-size: 32px; font-weight: bold; letter-spacing: 0.25em; text-align: center; padding: 20px; border-radius: 12px; margin: 24px 0; color: #8D7B68; border: 1px solid #EAE5E0; box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);">
         ${otp}
       </div>
       <p style="font-size: 12px; color: #999999; text-align: center; margin-top: 24px;">This code is valid for 5 minutes.</p>
       <div style="border-top: 1px solid #EAE5E0; padding-top: 20px; margin-top: 30px; text-align: center; font-size: 11px; color: #999999; font-style: italic;">
-        &copy; ${new Date().getFullYear()} Amadiya Leisure. All rights reserved.
+        &copy; ${new Date().getFullYear()} ${_inviteBrandName}. All rights reserved.
       </div>
     </div>
   `;
@@ -2956,6 +3597,124 @@ app.get('/api/demo-auth', (req, res) => {
   const payload = verifyJwt(token);
   return res.json({ valid: payload?.role === 'demo' });
 });
+
+// ── Superadmin: Tenant management (Phase 4) ──────────────────────────────────
+
+app.get('/api/superadmin/tenants', requireSuperAdmin, async (req, res) => {
+  try {
+    const r = await query(
+      `SELECT t.*, h.name AS "hotelName"
+       FROM tenants t
+       LEFT JOIN hotels h ON h.id = t."hotelId"
+       ORDER BY t."createdAt" DESC`
+    );
+    res.json(r.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/superadmin/tenants', requireSuperAdmin, async (req, res) => {
+  try {
+    const {
+      domain, hotelId, name, logoUrl, markLogoUrl, primaryColor, accentColor,
+      phone, email, emailFrom, bankDetails, smtpConfig, isActive = true,
+    } = req.body;
+    if (!domain || !hotelId || !name) {
+      return res.status(400).json({ error: 'domain, hotelId, and name are required.' });
+    }
+    const r = await query(
+      `INSERT INTO tenants
+         (domain, "hotelId", name, "logoUrl", "markLogoUrl", "primaryColor", "accentColor",
+          phone, email, "emailFrom", "bankDetails", "smtpConfig", "isActive")
+       VALUES (LOWER(TRIM($1)), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       RETURNING *`,
+      [domain, hotelId, name,
+       logoUrl || null, markLogoUrl || null, primaryColor || null, accentColor || null,
+       phone || null, email || null, emailFrom || null,
+       bankDetails || null, smtpConfig || null, isActive]
+    );
+    _tenantCache.delete(domain.trim().toLowerCase());
+    res.status(201).json(r.rows[0]);
+  } catch (err: any) {
+    if ((err as any).code === '23505') return res.status(409).json({ error: 'A tenant with this domain already exists.' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/superadmin/tenants/:id', requireSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ALLOWED = new Set(['domain', 'hotelId', 'name', 'logoUrl', 'markLogoUrl',
+      'primaryColor', 'accentColor', 'phone', 'email', 'emailFrom',
+      'bankDetails', 'smtpConfig', 'isActive']);
+    const keys = Object.keys(req.body).filter(k => ALLOWED.has(k));
+    if (keys.length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
+    const setClause = keys.map((k, i) => `"${k}" = $${i + 2}`).join(', ');
+    const r = await query(
+      `UPDATE tenants SET ${setClause} WHERE id = $1 RETURNING *`,
+      [id, ...keys.map(k => req.body[k])]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'Tenant not found.' });
+    if (r.rows[0].domain) _tenantCache.delete((r.rows[0].domain as string).toLowerCase());
+    res.json(r.rows[0]);
+  } catch (err: any) {
+    if ((err as any).code === '23505') return res.status(409).json({ error: 'A tenant with this domain already exists.' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/superadmin/tenants/:id', requireSuperAdmin, async (req, res) => {
+  try {
+    const r = await query('DELETE FROM tenants WHERE id = $1 RETURNING domain', [req.params.id]);
+    if (r.rows[0]?.domain) _tenantCache.delete((r.rows[0].domain as string).toLowerCase());
+    res.sendStatus(204);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/superadmin/admins', requireSuperAdmin, async (req, res) => {
+  try {
+    const r = await query(
+      `SELECT a.id, a.email, a."displayName", a.role, a."hotelId",
+              h.name AS "hotelName", a."createdAt"
+       FROM admins a
+       LEFT JOIN hotels h ON h.id = a."hotelId"
+       ORDER BY a."createdAt" DESC`
+    );
+    res.json(r.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/superadmin/admins/:id', requireSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const self = (req as any).admin;
+    if (id === self?.id && req.body.role && req.body.role !== 'superadmin') {
+      return res.status(400).json({ error: 'You cannot change your own role.' });
+    }
+    const ALLOWED_ROLES = new Set(['admin', 'staff', 'superadmin']);
+    const updates: Record<string, any> = {};
+    if ('hotelId' in req.body) updates['hotelId'] = req.body.hotelId || null;
+    if (req.body.role !== undefined && ALLOWED_ROLES.has(req.body.role)) updates['role'] = req.body.role;
+    if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
+    const keys = Object.keys(updates);
+    const setClause = keys.map((k, i) => `"${k}" = $${i + 2}`).join(', ');
+    const r = await query(
+      `UPDATE admins SET ${setClause} WHERE id = $1
+       RETURNING id, email, "displayName", role, "hotelId"`,
+      [id, ...keys.map(k => updates[k])]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'Admin not found.' });
+    res.json(r.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Hero media is fetched client-side by <Hero/>, which means a fresh device

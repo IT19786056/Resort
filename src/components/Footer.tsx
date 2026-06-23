@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTenant, BRAND_DEFAULTS } from '../contexts/TenantContext';
 
 type TabId = 'home' | 'accommodation' | 'weddings-events' | 'about' | 'contact' | 'my-bookings' | 'staff';
 
@@ -14,6 +15,10 @@ const navLinks: { id: TabId; label: string }[] = [
 ];
 
 export const Footer = ({ onTabChange }: FooterProps) => {
+  const tenant = useTenant();
+  const logoUrl = tenant.logoUrl || BRAND_DEFAULTS.logoUrl;
+  const brandName = tenant.name || BRAND_DEFAULTS.name;
+
   const handleClick = (tab: TabId) => {
     onTabChange(tab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -25,8 +30,8 @@ export const Footer = ({ onTabChange }: FooterProps) => {
         {/* Logo */}
         <div className="shrink-0">
           <img
-            src="/amadiya-logo.png"
-            alt="Amadiya Port Arthur Villas"
+            src={logoUrl}
+            alt={brandName}
             className="h-8 w-auto object-contain"
           />
         </div>
@@ -46,7 +51,7 @@ export const Footer = ({ onTabChange }: FooterProps) => {
 
         {/* Copyright */}
         <p className="text-[10px] text-natural-muted font-medium shrink-0">
-          © 2026 Amadiya Leisure Group
+          © {new Date().getFullYear()} {brandName}
         </p>
       </div>
     </footer>

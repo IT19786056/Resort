@@ -1,8 +1,9 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { useTenant, BRAND_DEFAULTS } from '../contexts/TenantContext';
 
-const STORAGE_KEY = 'amadiya_demo_gate';
+const STORAGE_KEY = 'resort_demo_gate';
 const SESSION_MS = 60 * 60 * 1000; // 1 hour
 
 interface GateSession {
@@ -53,6 +54,8 @@ async function submitPassword(password: string): Promise<{ session: GateSession 
 }
 
 export function PasswordGate({ children }: { children: ReactNode }) {
+  const tenant = useTenant();
+  const brandName = tenant.name || BRAND_DEFAULTS.name;
   const [status, setStatus] = useState<'checking' | 'locked' | 'open'>('checking');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -112,7 +115,7 @@ export function PasswordGate({ children }: { children: ReactNode }) {
             <Lock className="w-7 h-7 text-white" />
           </div>
           <div>
-            <h1 className="font-serif text-3xl italic text-white tracking-wide">Amadiya Leisure</h1>
+            <h1 className="font-serif text-3xl italic text-white tracking-wide">{brandName}</h1>
             <p className="text-white/40 text-xs uppercase tracking-[0.3em] mt-2 font-light">Preview Access</p>
           </div>
         </div>

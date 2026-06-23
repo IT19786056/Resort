@@ -27,6 +27,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar } from './Sidebar';
 import { UsersList } from './UsersList';
 import { AdminLogsList } from './AdminLogsList';
+import { TenantManagement } from './TenantManagement';
+import { TodayDashboard } from './TodayDashboard';
+import { GuestDirectory } from './GuestDirectory';
+import { RateManagement } from './RateManagement';
 import { LoadingPlane } from '../ui/LoadingPlane';
 import { Toast } from '../ui/Toast';
 import { Modal, Input, SectionLabel } from './Shared';
@@ -46,7 +50,7 @@ const generateUUID = () => {
 };
 import { triggerDataRefresh } from '../../lib/events';
 
-type AdminTab = 'hotels' | 'rooms' | 'bookings' | 'past_bookings' | 'users' | 'logs' | 'hero_media' | 'calendar';
+type AdminTab = 'today' | 'hotels' | 'rooms' | 'bookings' | 'past_bookings' | 'guests' | 'users' | 'logs' | 'hero_media' | 'calendar' | 'tenants' | 'rates';
 
 export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>(profile.role === 'admin' ? 'bookings' : 'bookings');
@@ -131,13 +135,14 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
             )}
           </AnimatePresence>
 
-          <Sidebar 
-            activeTab={activeTab} 
+          <Sidebar
+            activeTab={activeTab}
             setActiveTab={setActiveTab}
             bookingsCount={activeBookingsCount}
             pastBookingsCount={pastBookingsCount}
             handleLogout={handleLogout}
-            isAdmin={profile.role === 'admin'}
+            isAdmin={profile.role === 'admin' || profile.role === 'superadmin'}
+            isSuperAdmin={profile.role === 'superadmin'}
             isOpen={isSidebarOpen}
             onClose={() => setIsSidebarOpen(false)}
           />
@@ -224,19 +229,48 @@ export const AdminDashboard = ({ profile }: { profile: AdminProfile }) => {
                       onProcessing={(msg: string) => showToast(msg, 'loading')}
                     />
                   )}
-                  {activeTab === 'users' && profile.role === 'admin' && (
-                    <UsersList 
-                      onUpdate={() => fetchData(true)} 
+                  {activeTab === 'users' && (profile.role === 'admin' || profile.role === 'superadmin') && (
+                    <UsersList
+                      onUpdate={() => fetchData(true)}
                       onSuccess={(msg) => showToast(msg)}
                       onError={(err) => showToast(err, 'error')}
                       onProcessing={(msg) => showToast(msg, 'loading')}
                     />
                   )}
-                  {activeTab === 'logs' && profile.role === 'admin' && (
+                  {activeTab === 'guests' && (profile.role === 'admin' || profile.role === 'superadmin') && (
+                    <GuestDirectory
+                      hotels={hotels}
+                      onError={(err) => showToast(err, 'error')}
+                    />
+                  )}
+                  {activeTab === 'logs' && (profile.role === 'admin' || profile.role === 'superadmin') && (
                     <AdminLogsList />
+                  )}
+                  {activeTab === 'tenants' && profile.role === 'superadmin' && (
+                    <TenantManagement
+                      hotels={hotels}
+                      onSuccess={(msg) => showToast(msg)}
+                      onError={(err) => showToast(err, 'error')}
+                      onProcessing={(msg) => showToast(msg, 'loading')}
+                    />
+                  )}
+                  {activeTab === 'today' && (
+                    <TodayDashboard
+                      onSuccess={(msg) => showToast(msg)}
+                      onError={(err) => showToast(err, 'error')}
+                    />
                   )}
                   {activeTab === 'hero_media' && (
                     <HeroMediaManager
+                      onSuccess={(msg) => showToast(msg)}
+                      onError={(err) => showToast(err, 'error')}
+                      onProcessing={(msg) => showToast(msg, 'loading')}
+                    />
+                  )}
+                  {activeTab === 'rates' && (
+                    <RateManagement
+                      hotels={hotels}
+                      rooms={rooms}
                       onSuccess={(msg) => showToast(msg)}
                       onError={(err) => showToast(err, 'error')}
                       onProcessing={(msg) => showToast(msg, 'loading')}
@@ -321,6 +355,7 @@ const AdminBookingsList = ({ rooms, hotels, onUpdate, type, onSuccess, onError, 
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const itemsPerPage = 10;
   const [items, setItems] = useState<Booking[]>([]);
@@ -361,7 +396,7 @@ const AdminBookingsList = ({ rooms, hotels, onUpdate, type, onSuccess, onError, 
   // Local storage seen bookings tracker
   const [seenBookingIds, setSeenBookingIds] = useState<string[]>(() => {
     try {
-      const raw = localStorage.getItem('amadiya_seen_bookings_v1');
+      const raw = localStorage.getItem('resort_seen_bookings_v1');
       return raw ? JSON.parse(raw) : [];
     } catch (e) {
       return [];
@@ -373,7 +408,7 @@ const AdminBookingsList = ({ rooms, hotels, onUpdate, type, onSuccess, onError, 
       if (prev.includes(id)) return prev;
       const next = [...prev, id];
       try {
-        localStorage.setItem('amadiya_seen_bookings_v1', JSON.stringify(next));
+        localStorage.setItem('resort_seen_bookings_v1', JSON.stringify(next));
       } catch (e) {
         console.error(e);
       }
@@ -386,7 +421,7 @@ const AdminBookingsList = ({ rooms, hotels, onUpdate, type, onSuccess, onError, 
     setSeenBookingIds(prev => {
       const next = Array.from(new Set([...prev, ...ids]));
       try {
-        localStorage.setItem('amadiya_seen_bookings_v1', JSON.stringify(next));
+        localStorage.setItem('resort_seen_bookings_v1', JSON.stringify(next));
       } catch (e) {
         console.error(e);
       }
@@ -564,6 +599,14 @@ const AdminBookingsList = ({ rooms, hotels, onUpdate, type, onSuccess, onError, 
             />
           </div>
 
+          <div className="flex items-center gap-2 shrink-0 self-end lg:self-auto">
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 bg-natural-primary text-white px-4 py-2.5 rounded-2xl font-bold uppercase text-[10px] tracking-widest hover:bg-natural-dark transition-all shadow-lg shadow-natural-primary/20"
+            >
+              <Plus className="w-3.5 h-3.5" /> New Booking
+            </button>
+
           <div className="flex items-center gap-1.5 border border-natural-accent bg-natural-bg p-1 rounded-2xl shrink-0 self-end lg:self-auto">
             <button
               onClick={() => setViewMode('grid')}
@@ -583,6 +626,7 @@ const AdminBookingsList = ({ rooms, hotels, onUpdate, type, onSuccess, onError, 
               <Table className="w-3.5 h-3.5" />
               Table
             </button>
+          </div>
           </div>
         </div>
 
@@ -902,9 +946,9 @@ const AdminBookingsList = ({ rooms, hotels, onUpdate, type, onSuccess, onError, 
 
       <AnimatePresence>
         {selectedBooking && (
-          <BookingDetailsModal 
-            booking={selectedBooking} 
-            hotels={hotels} 
+          <BookingDetailsModal
+            booking={selectedBooking}
+            hotels={hotels}
             rooms={rooms}
             onClose={() => { if (!showCancelDialog) setSelectedBooking(null); }}
             showCancelDialog={showCancelDialog}
@@ -912,6 +956,28 @@ const AdminBookingsList = ({ rooms, hotels, onUpdate, type, onSuccess, onError, 
             cancelReason={cancelReason}
             setCancelReason={setCancelReason}
             onStatusUpdate={handleStatusUpdate}
+            onEdited={(updated: Booking) => {
+              setSelectedBooking(updated);
+              setRefreshKey(k => k + 1);
+              onSuccess?.('Booking details updated.');
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showCreateModal && (
+          <CreateBookingModal
+            hotels={hotels}
+            rooms={rooms}
+            onClose={() => setShowCreateModal(false)}
+            onSuccess={(msg: string) => {
+              onSuccess?.(msg);
+              setRefreshKey(k => k + 1);
+              onUpdate?.(true);
+            }}
+            onError={onError}
+            onProcessing={onProcessing}
           />
         )}
       </AnimatePresence>
@@ -1417,15 +1483,76 @@ const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: a
 
 // --- Missing subcomponents from original refactor ---
 
-const BookingDetailsModal = ({ booking, hotels, rooms, onClose, showCancelDialog, setShowCancelDialog, cancelReason, setCancelReason, onStatusUpdate }: any) => {
+const BookingDetailsModal = ({ booking, hotels, rooms, onClose, showCancelDialog, setShowCancelDialog, cancelReason, setCancelReason, onStatusUpdate, onEdited }: any) => {
   const hotel = hotels.find((h: any) => h.id === booking.hotelId);
   const room = rooms.find((r: any) => r.id === booking.roomId);
 
-  // A booking can only be confirmed after staff have uploaded-to-record AND
-  // actually opened the payment slip. Reset the "viewed" flag per booking.
   const [slipViewed, setSlipViewed] = useState(false);
   useEffect(() => { setSlipViewed(false); }, [booking.id]);
   const canConfirm = Boolean(booking.paymentSlipUrl) && slipViewed;
+
+  // ── Edit mode ────────────────────────────────────────────────────────────
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState({
+    fullName: booking.fullName || '',
+    email: booking.email || '',
+    phone: booking.phone || '',
+    checkIn: booking.checkIn ? booking.checkIn.split('T')[0] : '',
+    checkOut: booking.checkOut ? booking.checkOut.split('T')[0] : '',
+    guests: booking.guests || 2,
+    roomCount: booking.roomCount || 1,
+    specialRequests: booking.specialRequests || '',
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  useEffect(() => {
+    setEditMode(false);
+    setEditForm({
+      fullName: booking.fullName || '',
+      email: booking.email || '',
+      phone: booking.phone || '',
+      checkIn: booking.checkIn ? booking.checkIn.split('T')[0] : '',
+      checkOut: booking.checkOut ? booking.checkOut.split('T')[0] : '',
+      guests: booking.guests || 2,
+      roomCount: booking.roomCount || 1,
+      specialRequests: booking.specialRequests || '',
+    });
+    setEditError('');
+  }, [booking.id]);
+
+  const handleSaveEdit = async () => {
+    if (!editForm.fullName || !editForm.email || !editForm.checkIn || !editForm.checkOut) {
+      setEditError('Name, email, and dates are required.');
+      return;
+    }
+    if (new Date(editForm.checkOut) <= new Date(editForm.checkIn)) {
+      setEditError('Check-out must be after check-in.');
+      return;
+    }
+    setIsSaving(true);
+    setEditError('');
+    try {
+      const updated = await dbService.updateBooking(booking.id, {
+        fullName: editForm.fullName,
+        email: editForm.email,
+        phone: editForm.phone || undefined,
+        checkIn: editForm.checkIn,
+        checkOut: editForm.checkOut,
+        guests: Number(editForm.guests),
+        roomCount: Number(editForm.roomCount),
+        specialRequests: editForm.specialRequests || undefined,
+      } as any);
+      setEditMode(false);
+      onEdited?.(updated);
+    } catch (err: any) {
+      setEditError(err.message || 'Failed to save changes.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const ef = (field: string, value: any) => setEditForm(prev => ({ ...prev, [field]: value }));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
@@ -1442,9 +1569,68 @@ const BookingDetailsModal = ({ booking, hotels, rooms, onClose, showCancelDialog
                     <p className="text-[10px] text-natural-muted font-bold uppercase tracking-widest border-l border-natural-accent pl-4">Placed: {new Date(booking.createdAt).toLocaleString()}</p>
                   </div>
                 </div>
-                <button onClick={onClose} className="p-2 hover:bg-natural-bg rounded-full transition-colors"><XCircle className="w-8 h-8 text-natural-muted" /></button>
+                <div className="flex items-center gap-2">
+                  {booking.status !== 'cancelled' && !editMode && (
+                    <button
+                      onClick={() => setEditMode(true)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-natural-accent text-xs font-bold uppercase tracking-widest text-natural-dark hover:bg-natural-bg transition-all"
+                    >
+                      <Edit className="w-3.5 h-3.5" /> Edit Details
+                    </button>
+                  )}
+                  <button onClick={onClose} className="p-2 hover:bg-natural-bg rounded-full transition-colors"><XCircle className="w-8 h-8 text-natural-muted" /></button>
+                </div>
               </div>
-              
+
+              {/* ── Edit mode form ──────────────────────────────────────── */}
+              {editMode ? (
+                <div className="space-y-5 mb-10">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input label="Full Name *" value={editForm.fullName} onChange={(v: string) => ef('fullName', v)} />
+                    <Input label="Email *" type="email" value={editForm.email} onChange={(v: string) => ef('email', v)} />
+                    <Input label="Phone" value={editForm.phone} onChange={(v: string) => ef('phone', v)} />
+                    <div className="space-y-2">
+                      <SectionLabel label="Guests" />
+                      <input type="number" min={1} max={20} value={editForm.guests} onChange={e => ef('guests', e.target.value)}
+                        className="w-full bg-white border border-natural-accent rounded-2xl p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 text-natural-dark font-medium" />
+                    </div>
+                    <div className="space-y-2">
+                      <SectionLabel label="Check-in *" />
+                      <input type="date" value={editForm.checkIn} onChange={e => ef('checkIn', e.target.value)}
+                        className="w-full bg-white border border-natural-accent rounded-2xl p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 text-natural-dark font-medium" />
+                    </div>
+                    <div className="space-y-2">
+                      <SectionLabel label="Check-out *" />
+                      <input type="date" value={editForm.checkOut} min={editForm.checkIn || undefined} onChange={e => ef('checkOut', e.target.value)}
+                        className="w-full bg-white border border-natural-accent rounded-2xl p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 text-natural-dark font-medium" />
+                    </div>
+                    <div className="space-y-2">
+                      <SectionLabel label="Room Count" />
+                      <input type="number" min={1} max={20} value={editForm.roomCount} onChange={e => ef('roomCount', e.target.value)}
+                        className="w-full bg-white border border-natural-accent rounded-2xl p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 text-natural-dark font-medium" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <SectionLabel label="Special Requests" />
+                    <textarea value={editForm.specialRequests} onChange={e => ef('specialRequests', e.target.value)} rows={3}
+                      className="w-full bg-white border border-natural-accent rounded-2xl p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 text-natural-dark font-medium resize-none" />
+                  </div>
+                  {editError && (
+                    <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-2xl px-4 py-3">{editError}</p>
+                  )}
+                  <div className="flex gap-4">
+                    <button onClick={() => { setEditMode(false); setEditError(''); }}
+                      className="flex-1 border border-natural-accent text-natural-dark py-4 rounded-full font-bold uppercase text-[10px] tracking-widest hover:bg-natural-bg transition-all">
+                      Cancel
+                    </button>
+                    <button onClick={handleSaveEdit} disabled={isSaving}
+                      className="flex-1 bg-natural-primary text-white py-4 rounded-full font-bold uppercase text-[10px] tracking-widest hover:bg-natural-dark transition-all disabled:opacity-50 shadow-lg shadow-natural-primary/20">
+                      {isSaving ? 'Saving…' : 'Save Changes'}
+                    </button>
+                  </div>
+                </div>
+              ) : (<>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-10">
                 <div className="space-y-8">
                   <div>
@@ -1596,6 +1782,7 @@ const BookingDetailsModal = ({ booking, hotels, rooms, onClose, showCancelDialog
                   </div>
                 )}
               </div>
+              </>)}
             </div>
           </div>
         </motion.div>
@@ -1610,6 +1797,170 @@ const BookingDetailsModal = ({ booking, hotels, rooms, onClose, showCancelDialog
         </motion.div>
       )}
     </div>
+  );
+};
+
+// ── Admin creates a booking on behalf of a guest ─────────────────────────────
+const CreateBookingModal = ({ hotels, rooms, onClose, onSuccess, onError, onProcessing }: any) => {
+  const initialForm = () => ({
+    hotelId: hotels.length === 1 ? hotels[0].id : '',
+    roomId: '',
+    fullName: '', email: '', phone: '',
+    checkIn: '', checkOut: '',
+    guests: 2, roomCount: 1,
+    specialRequests: '',
+    status: 'pending' as string,
+    sendEmail: true,
+  });
+  const [form, setForm] = useState(initialForm());
+  const [saving, setSaving] = useState(false);
+
+  const filteredRooms = rooms.filter((r: Accommodation) =>
+    !form.hotelId || r.hotelId === form.hotelId
+  );
+
+  const f = (field: string, value: any) => {
+    setForm(prev => {
+      const next = { ...prev, [field]: value };
+      // When hotel changes, reset room selection
+      if (field === 'hotelId') next.roomId = '';
+      return next;
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (!form.roomId || !form.hotelId || !form.fullName || !form.email || !form.checkIn || !form.checkOut) {
+      onError?.('Room, guest name, email, and dates are required.');
+      return;
+    }
+    if (new Date(form.checkOut) <= new Date(form.checkIn)) {
+      onError?.('Check-out must be after check-in.');
+      return;
+    }
+    setSaving(true);
+    onProcessing?.('Creating booking…');
+    try {
+      await dbService.createAdminBooking({
+        roomId: form.roomId,
+        hotelId: form.hotelId,
+        fullName: form.fullName,
+        email: form.email,
+        phone: form.phone || undefined,
+        checkIn: form.checkIn,
+        checkOut: form.checkOut,
+        guests: Number(form.guests) || 2,
+        roomCount: Number(form.roomCount) || 1,
+        specialRequests: form.specialRequests || undefined,
+        status: form.status,
+        sendEmail: form.sendEmail,
+      });
+      onSuccess?.('Booking created successfully.');
+      onClose();
+    } catch (err: any) {
+      onError?.(err.message || 'Failed to create booking.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const selectCls = 'w-full bg-white border border-natural-accent rounded-2xl p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark text-sm appearance-none cursor-pointer';
+  const numCls = 'w-full bg-white border border-natural-accent rounded-2xl p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 text-natural-dark font-medium';
+  const dateCls = 'w-full bg-white border border-natural-accent rounded-2xl p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 text-natural-dark font-medium';
+
+  return (
+    <Modal title="New Booking" onClose={onClose}>
+      <div className="space-y-5">
+        {/* Hotel + Room */}
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <SectionLabel label="Hotel *" />
+            <select value={form.hotelId} onChange={e => f('hotelId', e.target.value)} className={selectCls}>
+              <option value="">Select hotel…</option>
+              {hotels.map((h: Hotel) => <option key={h.id} value={h.id}>{h.name}</option>)}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <SectionLabel label="Room *" />
+            <select value={form.roomId} onChange={e => f('roomId', e.target.value)} className={selectCls} disabled={!form.hotelId}>
+              <option value="">Select room…</option>
+              {filteredRooms.map((r: Accommodation) => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Dates */}
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <SectionLabel label="Check-in *" />
+            <input type="date" value={form.checkIn} onChange={e => f('checkIn', e.target.value)} className={dateCls} />
+          </div>
+          <div className="space-y-2">
+            <SectionLabel label="Check-out *" />
+            <input type="date" value={form.checkOut} min={form.checkIn || undefined} onChange={e => f('checkOut', e.target.value)} className={dateCls} />
+          </div>
+        </div>
+
+        <hr className="border-natural-accent" />
+
+        {/* Guest info */}
+        <Input label="Guest Full Name *" value={form.fullName} onChange={(v: string) => f('fullName', v)} />
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Input label="Email *" type="email" value={form.email} onChange={(v: string) => f('email', v)} />
+          <Input label="Phone" value={form.phone} onChange={(v: string) => f('phone', v)} placeholder="+94 …" />
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <SectionLabel label="Guests" />
+            <input type="number" min={1} max={50} value={form.guests} onChange={e => f('guests', e.target.value)} className={numCls} />
+          </div>
+          <div className="space-y-2">
+            <SectionLabel label="Room Count" />
+            <input type="number" min={1} max={20} value={form.roomCount} onChange={e => f('roomCount', e.target.value)} className={numCls} />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <SectionLabel label="Special Requests" />
+          <textarea value={form.specialRequests} onChange={e => f('specialRequests', e.target.value)} rows={2}
+            className="w-full bg-white border border-natural-accent rounded-2xl p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 text-natural-dark font-medium resize-none" />
+        </div>
+
+        <hr className="border-natural-accent" />
+
+        {/* Status & email */}
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <SectionLabel label="Initial Status" />
+            <select value={form.status} onChange={e => f('status', e.target.value)} className={selectCls}>
+              <option value="pending">Pending (awaiting payment)</option>
+              <option value="confirmed">Confirmed (payment received)</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-3 pt-7">
+            <button type="button" onClick={() => f('sendEmail', !form.sendEmail)}
+              className={`relative rounded-full transition-colors duration-200 ${form.sendEmail ? 'bg-natural-primary' : 'bg-natural-accent'}`}
+              style={{ width: 40, height: 22 }}>
+              <span className="absolute top-0.5 left-0.5 rounded-full bg-white shadow transition-transform duration-200"
+                style={{ width: 18, height: 18, transform: form.sendEmail ? 'translateX(18px)' : 'translateX(0)' }} />
+            </button>
+            <span className="text-xs font-bold text-natural-dark uppercase tracking-widest">
+              {form.sendEmail ? 'Send confirmation email' : 'No email to guest'}
+            </span>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-4 pt-2">
+          <button onClick={onClose}
+            className="flex-1 border border-natural-accent text-natural-dark py-4 rounded-full font-bold uppercase text-[10px] tracking-widest hover:bg-natural-bg transition-all">
+            Cancel
+          </button>
+          <button onClick={handleSubmit} disabled={saving}
+            className="flex-1 bg-natural-primary text-white py-4 rounded-full font-bold uppercase text-[10px] tracking-widest hover:bg-natural-dark transition-all disabled:opacity-50 shadow-lg shadow-natural-primary/20">
+            {saving ? 'Creating…' : 'Create Booking'}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 };
 

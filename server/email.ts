@@ -135,7 +135,14 @@ export const sendEmail = async (opts: SendEmailOptions): Promise<void> => {
   });
 };
 
-const getEmailTemplate = (details: BookingDetails, type: 'initial' | 'confirmed' | 'cancelled' = 'initial') => {
+interface TenantBranding {
+  name?: string | null;
+  bankDetails?: Record<string, string> | null;
+}
+
+const getEmailTemplate = (details: BookingDetails, type: 'initial' | 'confirmed' | 'cancelled' = 'initial', branding: TenantBranding = {}) => {
+  const brandName = branding.name || 'Amadiya Leisure';
+  const bankDetails = (branding.bankDetails as typeof BANK_DETAILS | null) || BANK_DETAILS;
   const primaryColor = '#8D7B68';
   const bgColor = '#FDFCFB';
   const textColor = '#2D2D2D';
@@ -178,7 +185,7 @@ const getEmailTemplate = (details: BookingDetails, type: 'initial' | 'confirmed'
 
   if (type === 'confirmed') {
     headerTitle = 'Reservation Confirmed';
-    bottomMessage = 'Great news! Your reservation has been accepted and confirmed by our staff. We look forward to welcoming you to Amadiya Leisure.';
+    bottomMessage = `Great news! Your reservation has been accepted and confirmed by our staff. We look forward to welcoming you to ${brandName}.`;
   } else if (type === 'cancelled') {
     headerTitle = 'Reservation Cancelled';
     bottomMessage = 'Your reservation has been cancelled. If you believe this is in error, or if you need help rescheduling, please reach out to us.';
@@ -347,11 +354,11 @@ const getEmailTemplate = (details: BookingDetails, type: 'initial' | 'confirmed'
                   <td style="padding: 25px;">
                     <div class="section-label" style="margin-bottom: 16px;">Bank Transfer Details</div>
                     <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                      <tr><td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">Bank</td><td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">${BANK_DETAILS.bankName}</td></tr>
-                      <tr><td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">Account Name</td><td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">${BANK_DETAILS.accountName}</td></tr>
-                      <tr><td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">Account Number</td><td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">${BANK_DETAILS.accountNumber}</td></tr>
-                      <tr><td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">Branch</td><td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">${BANK_DETAILS.branch}</td></tr>
-                      <tr><td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">SWIFT</td><td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">${BANK_DETAILS.swift}</td></tr>
+                      <tr><td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">Bank</td><td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">${bankDetails.bankName}</td></tr>
+                      <tr><td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">Account Name</td><td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">${bankDetails.accountName}</td></tr>
+                      <tr><td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">Account Number</td><td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">${bankDetails.accountNumber}</td></tr>
+                      <tr><td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">Branch</td><td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">${bankDetails.branch}</td></tr>
+                      <tr><td style="font-size: 12px; color: ${mutedColor}; padding-bottom: 8px;">SWIFT</td><td style="font-size: 12px; color: ${textColor}; text-align: right; padding-bottom: 8px;">${bankDetails.swift}</td></tr>
                       <tr style="border-top: 1px solid ${accentColor};"><td style="font-size: 13px; font-weight: 700; color: ${textColor}; padding-top: 14px;">Payment Reference</td><td style="font-size: 13px; font-weight: 700; color: ${primaryColor}; text-align: right; padding-top: 14px;">${details.id.slice(0, 8).toUpperCase()}</td></tr>
                     </table>
                     <p style="font-size: 11px; color: ${mutedColor}; margin: 16px 0 0 0; line-height: 1.5;">Please use the Payment Reference above as the transfer reference so we can match your payment, then reply to this email with your payment slip.</p>
@@ -365,7 +372,7 @@ const getEmailTemplate = (details: BookingDetails, type: 'initial' | 'confirmed'
             </div>
             
             <div class="footer">
-              <p>&copy; ${new Date().getFullYear()} Amadiya Leisure. Handcrafted Hospitality in Sri Lanka.</p>
+              <p>&copy; ${new Date().getFullYear()} ${brandName}. Handcrafted Hospitality in Sri Lanka.</p>
             </div>
           </div>
         </div>
@@ -374,9 +381,9 @@ const getEmailTemplate = (details: BookingDetails, type: 'initial' | 'confirmed'
   `;
 };
 
-export const queueBookingConfirmation = async (dbQuery: any, details: BookingDetails) => {
+export const queueBookingConfirmation = async (dbQuery: any, details: BookingDetails, branding: TenantBranding = {}) => {
   try {
-    const html = getEmailTemplate(details, 'initial');
+    const html = getEmailTemplate(details, 'initial', branding);
     const subject = `Your Sanctuary Awaits: Confirmation for ${details.hotelName}`;
     
     await dbQuery(
@@ -389,9 +396,9 @@ export const queueBookingConfirmation = async (dbQuery: any, details: BookingDet
   }
 };
 
-export const queueBookingAcceptance = async (dbQuery: any, details: BookingDetails) => {
+export const queueBookingAcceptance = async (dbQuery: any, details: BookingDetails, branding: TenantBranding = {}) => {
   try {
-    const html = getEmailTemplate(details, 'confirmed');
+    const html = getEmailTemplate(details, 'confirmed', branding);
     const subject = `Reservation Confirmed: Your Sanctuary at ${details.hotelName}`;
     
     await dbQuery(
@@ -404,9 +411,9 @@ export const queueBookingAcceptance = async (dbQuery: any, details: BookingDetai
   }
 };
 
-export const queueBookingCancellation = async (dbQuery: any, details: BookingDetails) => {
+export const queueBookingCancellation = async (dbQuery: any, details: BookingDetails, branding: TenantBranding = {}) => {
   try {
-    const html = getEmailTemplate(details, 'cancelled');
+    const html = getEmailTemplate(details, 'cancelled', branding);
     const subject = `Reservation Cancelled: ${details.hotelName}`;
     
     await dbQuery(

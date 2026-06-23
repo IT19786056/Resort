@@ -121,12 +121,12 @@ export const UserAuth = ({
     const finalUser = verifyData.user;
     if (finalUser) {
       // Set the customer session in local storage and dispatch event to synchronize all components
-      localStorage.setItem('amadiya_customer_user', JSON.stringify(finalUser));
+      localStorage.setItem('resort_customer_user', JSON.stringify(finalUser));
       if (verifyData.token) {
-        localStorage.setItem('amadiya_customer_token', verifyData.token);
+        localStorage.setItem('resort_customer_token', verifyData.token);
       }
       window.dispatchEvent(new Event('storage'));
-      window.dispatchEvent(new CustomEvent('amadiya_auth_state_change', {
+      window.dispatchEvent(new CustomEvent('resort_auth_state_change', {
         detail: {
           event: 'SIGNED_IN',
           session: {

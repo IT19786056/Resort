@@ -190,7 +190,7 @@ export const AdminLogsList = () => {
                     </td>
                     <td className="py-5 px-6">
                       <div className="flex flex-col">
-                        <span className="text-xs font-bold text-natural-dark">{log.adminName || 'Amadiya Staff'}</span>
+                        <span className="text-xs font-bold text-natural-dark">{log.adminName || 'Staff'}</span>
                         <span className="text-[10px] text-natural-muted font-mono">{log.adminEmail}</span>
                       </div>
                     </td>
@@ -229,7 +229,7 @@ export const AdminLogsList = () => {
                     {log.details}
                   </h5>
                   <div className="flex flex-wrap items-center gap-2 pt-1 text-[10px] text-natural-muted">
-                    <span className="font-bold text-natural-primary">{log.adminName || 'Amadiya Staff'}</span>
+                    <span className="font-bold text-natural-primary">{log.adminName || 'Staff'}</span>
                     <span>•</span>
                     <span className="font-mono">{log.adminEmail}</span>
                   </div>
