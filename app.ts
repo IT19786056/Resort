@@ -1757,7 +1757,7 @@ app.get('/api/bookings', async (req, res) => {
     // operation. Customers may only request their own bookings via ?userId=.
     if (!userId) {
       const payload = getVerifiedToken(req);
-      if (!payload || payload.role !== 'admin') {
+      if (!payload || (payload.role !== 'admin' && payload.role !== 'superadmin')) {
         return res.status(403).json({ error: 'Administrator authentication required to list all bookings.' });
       }
     }
@@ -3197,7 +3197,7 @@ app.post('/api/auth/login', async (req, res) => {
         role: admin.role === 'superadmin' ? 'superadmin' : 'admin',
         // Carry the admin's property scope so tenant-aware endpoints can filter by it.
         hotelId: admin.hotelId || null,
-        exp: Math.floor(Date.now() / 1000) + 3600
+        exp: Math.floor(Date.now() / 1000) + 86400 // 24 hours
       };
       const token = signJwt(tokenPayload);
 

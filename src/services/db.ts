@@ -1,6 +1,6 @@
 import { Hotel, Accommodation, Booking, CustomerProfile, AdminProfile, AdminLog, RoomCalendar, StopSell } from '../types';
 
-let adminContext: { id: string; email: string; displayName?: string; role: 'admin' | 'staff' } | null = null;
+let adminContext: { id: string; email: string; displayName?: string; role: 'admin' | 'staff' | 'superadmin' } | null = null;
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   // Use fully qualified paths for same-origin API calls to ensure
