@@ -262,13 +262,22 @@ async function query(text: string, params?: any[]) {
 // every non-cancelled booking (incl. pending holds) that overlaps [checkIn, checkOut).
 // `dbQuery` may be the pooled `query` helper or a transaction client's query fn.
 async function getBookedCount(dbQuery: any, roomId: string, checkIn: string, checkOut: string): Promise<number> {
+  // Count bookings for this room OR any room that shares its groupId (villa group blocking).
+  // If groupId is NULL the subquery returns only the room itself — identical to the old behaviour.
   const bookingsRes = await dbQuery(
-    `SELECT COALESCE(SUM(COALESCE("roomCount", 1)), 0) as booked_count
-     FROM bookings
-     WHERE "roomId" = $1
-       AND status != 'cancelled'
-       AND "checkIn" < $3
-       AND "checkOut" > $2`,
+    `SELECT COALESCE(SUM(COALESCE(b."roomCount", 1)), 0) AS booked_count
+     FROM bookings b
+     WHERE b.status != 'cancelled'
+       AND b."checkIn" < $3
+       AND b."checkOut" > $2
+       AND b."roomId" IN (
+         SELECT id FROM rooms
+         WHERE id = $1
+            OR (
+              "groupId" IS NOT NULL
+              AND "groupId" = (SELECT "groupId" FROM rooms WHERE id = $1)
+            )
+       )`,
     [roomId, checkIn, checkOut]
   );
   return parseInt(bookingsRes.rows[0].booked_count);
@@ -382,6 +391,10 @@ async function initDb() {
       UPDATE rooms SET quantity = 1 WHERE quantity IS NULL;
       ALTER TABLE rooms ALTER COLUMN quantity SET DEFAULT 1;
       ALTER TABLE rooms ALTER COLUMN quantity SET NOT NULL;
+      -- Villa group booking: rooms sharing a groupId are mutually exclusive.
+      -- Booking any room in the group blocks all others for the same dates.
+      ALTER TABLE rooms ADD COLUMN IF NOT EXISTS "groupId" TEXT;
+      CREATE INDEX IF NOT EXISTS idx_rooms_group_id ON rooms("groupId") WHERE "groupId" IS NOT NULL;
       ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "roomCount" INTEGER DEFAULT 1;
       ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "paymentSlipUrl" TEXT;
       ALTER TABLE bookings ADD COLUMN IF NOT EXISTS "paidAt" TIMESTAMP WITH TIME ZONE;
@@ -1463,26 +1476,40 @@ app.get('/api/availability', async (req, res) => {
   }
 
   try {
+    // Group-aware batch availability: for rooms that share a groupId, any booking
+    // in the group blocks all members. The subquery aggregates by group first, then
+    // joins back to individual rooms so that a "Full Villa" booking blocks "Room A"
+    // and vice versa, using the same overlap rule as getBookedCount.
     const result = await query(
-      `SELECT r.id, r.quantity, r."manualStopSell", COALESCE(b.booked, 0) AS booked,
+      `SELECT r.id, r.quantity, r."manualStopSell", COALESCE(gb.booked, 0) AS booked,
               EXISTS (
                 SELECT 1 FROM room_stop_sells s
                 WHERE s."roomId" = r.id AND s."fromDate" < $2 AND s."toDate" > $1
               ) AS stopped
        FROM rooms r
        LEFT JOIN (
+         SELECT r2."groupId", SUM(COALESCE(b."roomCount", 1)) AS booked
+         FROM bookings b
+         JOIN rooms r2 ON b."roomId" = r2.id
+         WHERE b.status != 'cancelled'
+           AND b."checkIn" < $2 AND b."checkOut" > $1
+           AND r2."groupId" IS NOT NULL
+         GROUP BY r2."groupId"
+       ) gb ON gb."groupId" = r."groupId" AND r."groupId" IS NOT NULL
+       LEFT JOIN (
          SELECT "roomId", SUM(COALESCE("roomCount", 1)) AS booked
          FROM bookings
          WHERE status != 'cancelled' AND "checkIn" < $2 AND "checkOut" > $1
          GROUP BY "roomId"
-       ) b ON b."roomId" = r.id`,
+       ) sb ON sb."roomId" = r.id AND r."groupId" IS NULL`,
       [checkIn, checkOut]
     );
     const map: Record<string, number> = {};
     for (const row of result.rows) {
+      const booked = parseInt(row.booked ?? '0');
       map[row.id] = (row.manualStopSell === true || row.stopped === true)
         ? 0
-        : Math.max(0, parseInt(row.quantity) - parseInt(row.booked));
+        : Math.max(0, parseInt(row.quantity) - booked);
     }
     res.json(map);
   } catch (err: any) {

@@ -338,10 +338,12 @@ export default function App() {
                     />
 
                     <section id="stays-list" className="max-w-7xl mx-auto px-6 py-24">
-                      {!isSearched ? (
+                      {/* Single-hotel domains (multi-tenant) skip the portfolio and show rooms directly.
+                          Multi-hotel demo mode keeps the original portfolio → search flow. */}
+                      {!isSearched && hotels.length > 1 ? (
                         <>
                           <div className="mb-12 md:mb-20 text-center">
-                            <motion.h2 
+                            <motion.h2
                               initial={{ opacity: 0, y: 20 }}
                               whileInView={{ opacity: 1, y: 0 }}
                               viewport={{ once: true }}
@@ -353,72 +355,46 @@ export default function App() {
                               Our resorts are more than places to stay—they are portals to different worlds, harmonizing architecture with nature.
                             </p>
                           </div>
-
-                          <motion.div 
-                            variants={{
-                              hidden: { opacity: 0 },
-                              show: {
-                                opacity: 1,
-                                transition: {
-                                  staggerChildren: 0.1
-                                }
-                              }
-                            }}
-                            initial="hidden"
-                            whileInView="show"
-                            viewport={{ once: true }}
+                          <motion.div
+                            variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } }}
+                            initial="hidden" whileInView="show" viewport={{ once: true }}
                             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-12"
                           >
-                            {loading ? (
-                              [1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)
-                            ) : hotels.map((hotel, index) => (
-                              <HotelCard 
-                                key={hotel.id} 
-                                hotel={hotel} 
-                                index={index} 
-                                onSelect={handleSelectHotel}
-                              />
+                            {loading ? [1,2,3,4,5,6].map(i => <SkeletonCard key={i} />) : hotels.map((hotel, index) => (
+                              <HotelCard key={hotel.id} hotel={hotel} index={index} onSelect={handleSelectHotel} />
                             ))}
                           </motion.div>
                         </>
                       ) : (
                         <>
                           <div className="mb-12 md:mb-20 text-center">
-                            <motion.h2 
+                            <motion.h2
                               initial={{ opacity: 0, y: 20 }}
                               whileInView={{ opacity: 1, y: 0 }}
                               viewport={{ once: true }}
                               className="font-serif text-fluid-h1 mb-4 md:mb-6 italic text-natural-dark tracking-tighter"
                             >
-                              Our Curated Micro-Escapes.
+                              {isSearched ? 'Our Curated Micro-Escapes.' : 'Our Accommodations.'}
                             </motion.h2>
                             <p className="text-natural-muted max-w-2xl mx-auto font-light text-fluid-body italic">
-                              Explore our handpicked selection of stays, from overwater suites to hidden garden villas.
+                              {isSearched
+                                ? 'Explore our handpicked selection of stays, from overwater suites to hidden garden villas.'
+                                : 'Discover spaces crafted with intention — where comfort, character, and Sri Lanka\'s natural beauty come together.'}
                             </p>
                           </div>
 
-                          <motion.div 
-                            variants={{
-                              hidden: { opacity: 0 },
-                              show: {
-                                opacity: 1,
-                                transition: {
-                                  staggerChildren: 0.1
-                                }
-                              }
-                            }}
-                            initial="hidden"
-                            whileInView="show"
-                            viewport={{ once: true }}
+                          <motion.div
+                            variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } }}
+                            initial="hidden" whileInView="show" viewport={{ once: true }}
                             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-12"
                           >
                             {loading ? (
                               [1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)
                             ) : filteredItems.map((item, index) => (
-                              <AccommodationCard 
-                                key={item.id} 
-                                item={item} 
-                                index={index} 
+                              <AccommodationCard
+                                key={item.id}
+                                item={item}
+                                index={index}
                                 onSelect={handleSelectItem}
                                 onBook={handleStartBooking}
                                 disabled={!item.isAvailable}
@@ -430,7 +406,7 @@ export default function App() {
                             <div className="py-40 text-center">
                               <p className="text-natural-muted text-xl italic font-light">No stays match your current preferences.</p>
                               <div className="flex justify-center gap-6 mt-8">
-                                <button 
+                                <button
                                   onClick={() => {
                                     setFilters({ type: 'All', priceRange: [0, 10000000], minRating: 0, location: 'All', checkIn: '', checkOut: '', hotelId: 'All' });
                                     setIsSearched(false);
@@ -439,12 +415,14 @@ export default function App() {
                                 >
                                   Reset All Filters
                                 </button>
-                                <button 
-                                  onClick={() => setIsSearched(false)}
-                                  className="text-natural-muted font-bold uppercase text-[10px] tracking-[0.4em] border-b border-natural-accent pb-2 hover:opacity-70 transition-opacity"
-                                >
-                                  View Portfolios
-                                </button>
+                                {hotels.length > 1 && (
+                                  <button
+                                    onClick={() => setIsSearched(false)}
+                                    className="text-natural-muted font-bold uppercase text-[10px] tracking-[0.4em] border-b border-natural-accent pb-2 hover:opacity-70 transition-opacity"
+                                  >
+                                    View Portfolios
+                                  </button>
+                                )}
                               </div>
                             </div>
                           )}
@@ -465,22 +443,37 @@ export default function App() {
                 >
                   <div className="max-w-7xl mx-auto">
                     <div className="mb-16 md:mb-28 text-center">
-                      <h1 className="font-serif text-fluid-hero italic text-natural-dark mb-6 md:mb-10 tracking-tighter leading-none">The Portfolios.</h1>
+                      <h1 className="font-serif text-fluid-hero italic text-natural-dark mb-6 md:mb-10 tracking-tighter leading-none">Our Accommodations.</h1>
                       <p className="text-natural-muted max-w-3xl mx-auto text-fluid-body font-light italic leading-relaxed">
-                        Our resorts are more than places to stay—they are portals to different worlds, harmonizing architecture with the raw beauty of nature.
+                        Every space here has been shaped by the land around it — designed not simply to shelter, but to immerse. Whether you seek the intimacy of a single room or the full breadth of the villa, each stay is an experience in itself.
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-24">
-                      {hotels.map((hotel, index) => (
-                        <HotelCard 
-                          key={hotel.id} 
-                          hotel={hotel} 
-                          index={index} 
-                          onSelect={handleSelectHotel}
-                        />
-                      ))}
-                    </div>
+                    {/* Multi-hotel domains show hotel cards; single-hotel domains show rooms directly */}
+                    {hotels.length > 1 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-24">
+                        {hotels.map((hotel, index) => (
+                          <HotelCard key={hotel.id} hotel={hotel} index={index} onSelect={handleSelectHotel} />
+                        ))}
+                      </div>
+                    ) : (
+                      <motion.div
+                        variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } }}
+                        initial="hidden" animate="show"
+                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+                      >
+                        {loading ? [1,2,3].map(i => <SkeletonCard key={i} />) : accommodations.map((item: any, index: number) => (
+                          <AccommodationCard
+                            key={item.id}
+                            item={item}
+                            index={index}
+                            onSelect={handleSelectItem}
+                            onBook={handleStartBooking}
+                            disabled={!item.isAvailable}
+                          />
+                        ))}
+                      </motion.div>
+                    )}
                   </div>
                 </motion.div>
               ) : activeTab === 'weddings-events' ? (
@@ -537,9 +530,13 @@ export default function App() {
       {/* Modals */}
       <AnimatePresence>
         {selectedHotel && (
-          <HotelDetailModal 
-            hotel={selectedHotel} 
-            onClose={() => setSelectedHotel(null)} 
+          <HotelDetailModal
+            hotel={selectedHotel}
+            rooms={accommodations}
+            onClose={() => setSelectedHotel(null)}
+            onSelectRoom={(room: any) => {
+              setSelectedItem(room);
+            }}
             onViewStays={() => {
               setSelectedHotel(null);
               setFilters(prev => ({ ...prev, location: selectedHotel.location, hotelId: selectedHotel.id }));
@@ -797,42 +794,69 @@ const HotelCard = memo(({ hotel, index, onSelect }: any) => (
 
 const DetailDivider = () => <div className="h-[1px] w-full bg-natural-accent my-6 md:my-8" />;
 
-const HotelDetailModal = ({ hotel, onClose, onViewStays }: any) => (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 md:p-10">
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-natural-dark/70 backdrop-blur-lg" />
-    <button onClick={onClose} className="absolute top-5 left-5 z-20 p-3 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all shadow-lg">
-      <ArrowLeft className="w-5 h-5" />
-    </button>
-    <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="relative z-10 w-full max-w-6xl bg-natural-cream rounded-[24px] sm:rounded-[40px] md:rounded-[60px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.3)] flex flex-col lg:flex-row h-[94vh] lg:h-[85vh] max-h-[850px] modal-container">
-      <div className="lg:w-1/2 h-56 sm:h-72 lg:h-full relative overflow-hidden bg-natural-accent">
-        <Gallery parentId={hotel.id} fallbackImage={hotel.imageUrl} className="w-full h-full" />
-      </div>
-      <div className="lg:w-1/2 p-6 sm:p-10 md:p-16 lg:p-24 overflow-y-auto flex flex-col selection:bg-natural-primary/20">
-        <div className="mb-4 md:mb-10 flex items-center gap-3">
-          <MapPin className="w-4 h-4 text-natural-primary" />
-          <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-muted">{hotel.location}</span>
+const HotelDetailModal = ({ hotel, rooms = [], onClose, onViewStays, onSelectRoom }: any) => {
+  const hotelRooms = rooms.filter((r: any) => r.hotelId === hotel.id);
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 md:p-10">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-natural-dark/70 backdrop-blur-lg" />
+      <button onClick={onClose} className="absolute top-5 left-5 z-20 p-3 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all shadow-lg">
+        <ArrowLeft className="w-5 h-5" />
+      </button>
+      <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="relative z-10 w-full max-w-6xl bg-natural-cream rounded-[24px] sm:rounded-[40px] md:rounded-[60px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.3)] flex flex-col lg:flex-row h-[94vh] lg:h-[85vh] max-h-[850px] modal-container">
+        <div className="lg:w-1/2 h-56 sm:h-72 lg:h-full relative overflow-hidden bg-natural-accent">
+          <Gallery parentId={hotel.id} fallbackImage={hotel.imageUrl} className="w-full h-full" />
         </div>
-        <h2 className="font-serif text-fluid-h1 text-natural-dark italic mb-6 md:mb-12 tracking-tighter leading-tight md:leading-none">{hotel.name}</h2>
-        <p className="text-fluid-body text-natural-muted font-light italic leading-relaxed mb-10 md:mb-16">{hotel.description}</p>
-        <DetailDivider />
-        <div className="mb-10 md:mb-16">
-          <h4 className="text-[10px] uppercase font-bold tracking-[0.3em] text-natural-dark mb-6 md:mb-8">Location Map</h4>
-          <div className="h-56 md:h-72 bg-natural-bg rounded-[32px] md:rounded-[40px] overflow-hidden border border-natural-accent relative">
-             {import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? (
-               <iframe title="map" width="100%" height="100%" frameBorder="0" src={`https://www.google.com/maps/embed/v1/place?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&q=${encodeURIComponent(hotel.name + ' ' + hotel.location)}`} />
-             ) : (
-               <iframe title="map" width="100%" height="100%" frameBorder="0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" src={`https://maps.google.com/maps?q=${encodeURIComponent(hotel.name + ' ' + hotel.location)}&output=embed`} />
-             )}
-             <div className="absolute inset-0 bg-natural-primary/5 pointer-events-none" />
+        <div className="lg:w-1/2 p-6 sm:p-10 md:p-16 lg:p-24 overflow-y-auto flex flex-col selection:bg-natural-primary/20">
+          <div className="mb-4 md:mb-10 flex items-center gap-3">
+            <MapPin className="w-4 h-4 text-natural-primary" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-muted">{hotel.location}</span>
           </div>
+          <h2 className="font-serif text-fluid-h1 text-natural-dark italic mb-6 md:mb-12 tracking-tighter leading-tight md:leading-none">{hotel.name}</h2>
+          <p className="text-fluid-body text-natural-muted font-light italic leading-relaxed mb-10 md:mb-16">{hotel.description}</p>
+          <DetailDivider />
+          <div className="mb-10 md:mb-16">
+            <h4 className="text-[10px] uppercase font-bold tracking-[0.3em] text-natural-dark mb-6 md:mb-8">Location Map</h4>
+            <div className="h-56 md:h-72 bg-natural-bg rounded-[32px] md:rounded-[40px] overflow-hidden border border-natural-accent relative">
+              {import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? (
+                <iframe title="map" width="100%" height="100%" frameBorder="0" src={`https://www.google.com/maps/embed/v1/place?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&q=${encodeURIComponent(hotel.name + ' ' + hotel.location)}`} />
+              ) : (
+                <iframe title="map" width="100%" height="100%" frameBorder="0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" src={`https://maps.google.com/maps?q=${encodeURIComponent(hotel.name + ' ' + hotel.location)}&output=embed`} />
+              )}
+              <div className="absolute inset-0 bg-natural-primary/5 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Room options — shown when rooms are available for this hotel */}
+          {hotelRooms.length > 0 ? (
+            <div className="mt-auto space-y-3">
+              <h4 className="text-[10px] uppercase font-bold tracking-[0.3em] text-natural-dark mb-2">Available Options</h4>
+              {hotelRooms.map((room: any) => (
+                <div key={room.id} className="flex items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-natural-accent hover:border-natural-primary/40 transition-all">
+                  <div className="min-w-0">
+                    <p className="font-bold text-natural-dark text-sm truncate">{room.name}</p>
+                    <p className="text-[10px] text-natural-muted font-mono mt-0.5">
+                      LKR {Number(room.price).toLocaleString()}<span className="font-normal"> / night</span>
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => { onClose(); onSelectRoom?.(room); }}
+                    className="shrink-0 bg-natural-primary text-white px-5 py-2.5 rounded-full font-bold uppercase tracking-widest text-[9px] hover:bg-natural-dark transition-all shadow-md"
+                  >
+                    Reserve
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <button onClick={onViewStays} className="mt-auto w-full bg-natural-primary text-white py-5 md:py-6 rounded-full font-bold uppercase tracking-[0.3em] shadow-xl hover:bg-natural-dark hover:-translate-y-1 transition-all flex items-center justify-center gap-4 text-[10px] md:text-sm">
+              Explore Collection <ChevronRight className="w-5 h-5"/>
+            </button>
+          )}
         </div>
-        <button onClick={onViewStays} className="mt-auto w-full bg-natural-primary text-white py-5 md:py-6 rounded-full font-bold uppercase tracking-[0.3em] shadow-xl hover:bg-natural-dark hover:-translate-y-1 transition-all flex items-center justify-center gap-4 text-[10px] md:text-sm">
-          Explore Collection <ChevronRight className="w-5 h-5"/>
-        </button>
-      </div>
-    </motion.div>
-  </div>
-);
+      </motion.div>
+    </div>
+  );
+};
 
 const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, onStartBooking, onAddToCart, initialCheckIn, initialCheckOut }: any) => {
   const isFormState = isBooking && !bookingSuccess;

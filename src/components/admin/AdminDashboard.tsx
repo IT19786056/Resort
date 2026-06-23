@@ -1385,7 +1385,8 @@ const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: a
     description: room?.description || '',
     imageUrl: room?.imageUrl || '',
     amenities: room?.amenities?.join(', ') || '',
-    quantity: room?.quantity || 1
+    quantity: room?.quantity || 1,
+    groupId: (room as any)?.groupId || '',
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -1413,7 +1414,8 @@ const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: a
         location: selectedProperty?.location || '',
         rating: room?.rating || 5,
         amenities: formData.amenities.split(',').map(a => a.trim()).filter(Boolean),
-        isAvailable: room ? room.isAvailable : true
+        isAvailable: room ? room.isAvailable : true,
+        groupId: formData.groupId.trim() || null,
       };
       if (room) {
         await dbService.updateRoom(room.id, payload);
@@ -1453,12 +1455,23 @@ const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: a
         
         <div className="space-y-4">
           <SectionLabel label="Amenities (Comma separated)" />
-          <input 
-            className="w-full bg-white border border-natural-accent rounded-2xl p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark" 
-            value={formData.amenities} 
+          <input
+            className="w-full bg-white border border-natural-accent rounded-2xl p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark"
+            value={formData.amenities}
             onChange={e => setFormData({...formData, amenities: e.target.value})}
             placeholder="e.g. Private Pool, Wi-Fi, Ocean View"
           />
+        </div>
+
+        <div className="space-y-2">
+          <SectionLabel label="Villa Group Tag (optional)" />
+          <input
+            className="w-full bg-white border border-natural-accent rounded-2xl p-4 outline-none focus:ring-2 focus:ring-natural-primary/20 focus:border-natural-primary transition-all font-medium text-natural-dark"
+            value={formData.groupId}
+            onChange={e => setFormData({...formData, groupId: e.target.value})}
+            placeholder="e.g. blue-wave-villa — rooms sharing this tag block each other"
+          />
+          <p className="text-[10px] text-natural-muted px-1">Rooms with the same tag become mutually exclusive: booking any one blocks all others for those dates. Leave blank for independent rooms.</p>
         </div>
 
         <div className="space-y-4">

@@ -14,7 +14,7 @@ export const AboutUs = () => {
             transition={{ duration: 0.9 }}
             className="space-y-8"
           >
-            <span className="text-fluid-eyebrow font-bold uppercase tracking-[0.4em] text-white/50">Our Legacy</span>
+            <span className="text-fluid-eyebrow font-bold uppercase tracking-[0.4em] text-white/50">Our Vision</span>
             <h1 className="font-serif text-fluid-hero italic text-white leading-tight">
               Where Sri Lanka's Soul<br />Becomes Your Story
             </h1>
@@ -22,8 +22,8 @@ export const AboutUs = () => {
               There is a particular kind of magic that happens when a place feels both completely foreign and
               deeply familiar. A warm breeze carrying the scent of cinnamon through an open veranda. Golden
               light pooling across a private infinity pool at dusk. A host who smiles and already knows your
-              name. At Amadiya Leisure, we have spent years engineering that moment — for every type of
-              traveler, across every breathtaking corner of Sri Lanka.
+              name. We have spent years engineering that moment — for every type of traveler, across every
+              breathtaking corner of Sri Lanka.
             </p>
           </motion.div>
         </div>
@@ -47,22 +47,22 @@ export const AboutUs = () => {
               className="space-y-6 md:space-y-8"
             >
               <div className="space-y-4">
-                <span className="text-fluid-eyebrow font-bold uppercase tracking-[0.4em] text-natural-primary">A Bond. A Belief. A Beginning.</span>
+                <span className="text-fluid-eyebrow font-bold uppercase tracking-[0.4em] text-natural-primary">Our Mission</span>
                 <h2 className="font-serif text-fluid-h1 italic text-natural-dark leading-tight">
-                  Built on Family.<br />Rooted in Sri Lanka.
+                  A Bond. A Belief.<br />A Beginning.
                 </h2>
               </div>
               <p className="text-natural-muted leading-relaxed font-light text-fluid-body">
-                Amadiya Leisure was not born from a business plan. It was born from a belief shared between
-                a father and his son: that the finest hospitality in the world should feel like a gift, not a
-                transaction. Together, we set out to create something Sri Lanka had never quite seen — a
-                curated collection of properties so diverse in character, yet so unified in soul, that every
-                traveler could find their own perfect expression of paradise here.
+                Built on family and rooted in Sri Lanka, our mission is to create spaces where genuine
+                hospitality is not performed — it is lived. We believe that every guest deserves more than
+                a beautiful room; they deserve a home that carries the warmth of the island in every detail.
+                From the handpicked furnishings to the staff who greet you by name, each element is chosen
+                to honour both the land and the people who call it theirs.
               </p>
               <p className="text-natural-muted leading-relaxed font-light text-fluid-body">
                 We are not a chain. We are a family. And every property we manage carries that distinction in
-                its very walls — in the handpicked details, the locally inspired design, the staff who welcome
-                you not merely as guests, but as cherished arrivals to something rare.
+                its very walls — in the locally inspired design, the unhurried pace of service, and the quiet
+                belief that the finest moments of travel feel less like a transaction and more like a gift.
               </p>
               <div className="grid grid-cols-2 gap-8 pt-6">
                 <div className="space-y-2">
