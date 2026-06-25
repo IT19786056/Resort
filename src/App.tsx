@@ -25,7 +25,12 @@ import { BookingForm } from './components/BookingForm';
 import { MyBookings } from './components/MyBookings';
 import { AboutUs } from './components/AboutUs';
 import { ContactUs } from './components/ContactUs';
-import { WeddingsEvents } from './components/WeddingsEvents';
+import { Experiences } from './components/Experiences';
+import { ExploreLocations } from './components/ExploreLocations';
+import { GalleryPage } from './components/GalleryPage';
+import { AccommodationsPage } from './components/AccommodationsPage';
+import { IntroBand, FeaturedExperiences, SignatureStays, Testimonials, GalleryStrip } from './components/HomeSections';
+import type { TabId } from './types';
 import { LoadingPlane } from './components/ui/LoadingPlane';
 import { SkeletonCard } from './components/ui/SkeletonCard';
 import { Gallery } from './components/ui/Gallery';
@@ -39,7 +44,7 @@ export default function App() {
   const tenant = useTenant();
   const brandName = tenant.name || BRAND_DEFAULTS.name;
   const bankDetails = tenant.bankDetails || BANK_DETAILS;
-  const [activeTab, setActiveTab] = useState<'home' | 'accommodation' | 'weddings-events' | 'about' | 'contact' | 'my-bookings' | 'staff'>(() => {
+  const [activeTab, setActiveTab] = useState<TabId>(() => {
     const path = window.location.pathname;
     if (path === '/admin' || path.startsWith('/admin/')) {
       return 'staff';
@@ -247,8 +252,8 @@ export default function App() {
             transition={{ duration: 1, ease: "easeOut" }}
             className="flex-1 flex flex-col"
           >
-            <Navbar 
-              activeTab={activeTab as any}
+            <Navbar
+              activeTab={activeTab}
               onTabChange={handleTabChange}
               cartCount={cart.length}
               onOpenCart={() => setIsCartOpen(true)}
@@ -337,98 +342,75 @@ export default function App() {
                       accommodations={accommodations}
                     />
 
-                    <section id="stays-list" className="max-w-7xl mx-auto px-6 py-24">
-                      {/* Single-hotel domains (multi-tenant) skip the portfolio and show rooms directly.
-                          Multi-hotel demo mode keeps the original portfolio → search flow. */}
-                      {!isSearched && hotels.length > 1 ? (
-                        <>
-                          <div className="mb-12 md:mb-20 text-center">
-                            <motion.h2
-                              initial={{ opacity: 0, y: 20 }}
-                              whileInView={{ opacity: 1, y: 0 }}
-                              viewport={{ once: true }}
-                              className="font-serif text-fluid-h1 mb-4 md:mb-6 italic text-natural-dark tracking-tighter"
-                            >
-                              Our Portfolio
-                            </motion.h2>
-                            <p className="text-natural-muted max-w-2xl mx-auto font-light text-fluid-body italic">
-                              Our resorts are more than places to stay—they are portals to different worlds, harmonizing architecture with nature.
-                            </p>
-                          </div>
-                          <motion.div
-                            variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } }}
-                            initial="hidden" whileInView="show" viewport={{ once: true }}
-                            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-12"
+                    {isSearched ? (
+                      /* ── Search results grid ─────────────────────────────── */
+                      <section id="stays-list" className="max-w-7xl mx-auto px-6 py-20 md:py-24 scroll-mt-28 md:scroll-mt-32">
+                        <div className="mb-12 md:mb-20 text-center">
+                          <motion.h2
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            className="font-serif text-fluid-h1 mb-4 md:mb-6 italic text-natural-dark tracking-tighter"
                           >
-                            {loading ? [1,2,3,4,5,6].map(i => <SkeletonCard key={i} />) : hotels.map((hotel, index) => (
-                              <HotelCard key={hotel.id} hotel={hotel} index={index} onSelect={handleSelectHotel} />
-                            ))}
-                          </motion.div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="mb-12 md:mb-20 text-center">
-                            <motion.h2
-                              initial={{ opacity: 0, y: 20 }}
-                              whileInView={{ opacity: 1, y: 0 }}
-                              viewport={{ once: true }}
-                              className="font-serif text-fluid-h1 mb-4 md:mb-6 italic text-natural-dark tracking-tighter"
-                            >
-                              {isSearched ? 'Our Curated Micro-Escapes.' : 'Our Accommodations.'}
-                            </motion.h2>
-                            <p className="text-natural-muted max-w-2xl mx-auto font-light text-fluid-body italic">
-                              {isSearched
-                                ? 'Explore our handpicked selection of stays, from overwater suites to hidden garden villas.'
-                                : 'Discover spaces crafted with intention — where comfort, character, and Sri Lanka\'s natural beauty come together.'}
-                            </p>
-                          </div>
+                            Our Curated Micro-Escapes.
+                          </motion.h2>
+                          <p className="text-natural-muted max-w-2xl mx-auto font-light text-fluid-body italic">
+                            Explore our handpicked selection of stays, from overwater suites to hidden garden villas.
+                          </p>
+                        </div>
 
-                          <motion.div
-                            variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } }}
-                            initial="hidden" whileInView="show" viewport={{ once: true }}
-                            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-12"
-                          >
-                            {loading ? (
-                              [1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)
-                            ) : filteredItems.map((item, index) => (
-                              <AccommodationCard
-                                key={item.id}
-                                item={item}
-                                index={index}
-                                onSelect={handleSelectItem}
-                                onBook={handleStartBooking}
-                                disabled={!item.isAvailable}
-                              />
-                            ))}
-                          </motion.div>
+                        <motion.div
+                          variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } }}
+                          initial="hidden" whileInView="show" viewport={{ once: true }}
+                          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-12"
+                        >
+                          {loading ? (
+                            [1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)
+                          ) : filteredItems.map((item, index) => (
+                            <AccommodationCard
+                              key={item.id}
+                              item={item}
+                              index={index}
+                              onSelect={handleSelectItem}
+                              onBook={handleStartBooking}
+                              disabled={!item.isAvailable}
+                            />
+                          ))}
+                        </motion.div>
 
-                          {filteredItems.length === 0 && (
-                            <div className="py-40 text-center">
-                              <p className="text-natural-muted text-xl italic font-light">No stays match your current preferences.</p>
-                              <div className="flex justify-center gap-6 mt-8">
-                                <button
-                                  onClick={() => {
-                                    setFilters({ type: 'All', priceRange: [0, 10000000], minRating: 0, location: 'All', checkIn: '', checkOut: '', hotelId: 'All' });
-                                    setIsSearched(false);
-                                  }}
-                                  className="text-natural-primary font-bold uppercase text-[10px] tracking-[0.4em] border-b border-natural-primary pb-2 hover:opacity-70 transition-opacity"
-                                >
-                                  Reset All Filters
-                                </button>
-                                {hotels.length > 1 && (
-                                  <button
-                                    onClick={() => setIsSearched(false)}
-                                    className="text-natural-muted font-bold uppercase text-[10px] tracking-[0.4em] border-b border-natural-accent pb-2 hover:opacity-70 transition-opacity"
-                                  >
-                                    View Portfolios
-                                  </button>
-                                )}
-                              </div>
+                        {!loading && filteredItems.length === 0 && (
+                          <div className="py-32 md:py-40 text-center">
+                            <p className="text-natural-muted text-xl italic font-light">No stays match your current preferences.</p>
+                            <div className="flex justify-center gap-6 mt-8">
+                              <button
+                                onClick={() => {
+                                  setFilters({ type: 'All', priceRange: [0, 10000000], minRating: 0, location: 'All', checkIn: '', checkOut: '', hotelId: 'All' });
+                                  setIsSearched(false);
+                                }}
+                                className="text-natural-primary font-bold uppercase text-[10px] tracking-[0.4em] border-b border-natural-primary pb-2 hover:opacity-70 transition-opacity"
+                              >
+                                Reset All Filters
+                              </button>
                             </div>
-                          )}
-                        </>
-                      )}
-                    </section>
+                          </div>
+                        )}
+                      </section>
+                    ) : (
+                      /* ── Default home content (portfolio removed; filled with
+                           curated sections so the page never feels empty) ──── */
+                      <div id="stays-list" className="scroll-mt-28 md:scroll-mt-32">
+                        <IntroBand brandName={brandName} />
+                        <FeaturedExperiences onExplore={() => handleTabChange('experiences')} />
+                        <SignatureStays
+                          items={filteredItems}
+                          onSelect={handleSelectItem}
+                          onBook={handleStartBooking}
+                          onViewAll={() => handleTabChange('accommodation')}
+                        />
+                        <Testimonials />
+                        <GalleryStrip onViewGallery={() => handleTabChange('gallery')} />
+                      </div>
+                    )}
                   </main>
 
                   <Newsletter />
@@ -439,55 +421,52 @@ export default function App() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="pt-40 pb-32 px-10 min-h-screen"
                 >
-                  <div className="max-w-7xl mx-auto">
-                    <div className="mb-16 md:mb-28 text-center">
-                      <h1 className="font-serif text-fluid-hero italic text-natural-dark mb-6 md:mb-10 tracking-tighter leading-none">Our Accommodations.</h1>
-                      <p className="text-natural-muted max-w-3xl mx-auto text-fluid-body font-light italic leading-relaxed">
-                        Every space here has been shaped by the land around it — designed not simply to shelter, but to immerse. Whether you seek the intimacy of a single room or the full breadth of the villa, each stay is an experience in itself.
-                      </p>
-                    </div>
-
-                    {/* Multi-hotel domains show hotel cards; single-hotel domains show rooms directly */}
-                    {hotels.length > 1 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-24">
-                        {hotels.map((hotel, index) => (
-                          <HotelCard key={hotel.id} hotel={hotel} index={index} onSelect={handleSelectHotel} />
-                        ))}
-                      </div>
-                    ) : (
-                      <motion.div
-                        variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } }}
-                        initial="hidden" animate="show"
-                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
-                      >
-                        {loading ? [1,2,3].map(i => <SkeletonCard key={i} />) : accommodations.map((item: any, index: number) => (
-                          <AccommodationCard
-                            key={item.id}
-                            item={item}
-                            index={index}
-                            onSelect={handleSelectItem}
-                            onBook={handleStartBooking}
-                            disabled={!item.isAvailable}
-                          />
-                        ))}
-                      </motion.div>
-                    )}
-                  </div>
+                  <AccommodationsPage
+                    accommodations={accommodations}
+                    loading={loading}
+                    onSelect={handleSelectItem}
+                    onBook={handleStartBooking}
+                    onReserveCTA={() => {
+                      handleTabChange('home');
+                      setTimeout(() => document.getElementById('stays')?.scrollIntoView({ behavior: 'smooth' }), 350);
+                    }}
+                  />
                 </motion.div>
-              ) : activeTab === 'weddings-events' ? (
+              ) : activeTab === 'experiences' ? (
                 <motion.div
-                  key="weddings"
+                  key="experiences"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                 >
-                  <WeddingsEvents 
-                    venues={hotels.filter(h => h.hasBanquetHall)} 
-                    onSelectVenue={(id) => {
-                      const hotel = hotels.find(h => h.id === id);
-                      if (hotel) setSelectedHotel(hotel);
+                  <Experiences
+                    onReserve={() => {
+                      handleTabChange('home');
+                      setTimeout(() => document.getElementById('stays')?.scrollIntoView({ behavior: 'smooth' }), 350);
+                    }}
+                  />
+                </motion.div>
+              ) : activeTab === 'explore-locations' ? (
+                <motion.div
+                  key="explore-locations"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <ExploreLocations hotels={hotels} onSelectHotel={handleSelectHotel} />
+                </motion.div>
+              ) : activeTab === 'gallery' ? (
+                <motion.div
+                  key="gallery"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <GalleryPage
+                    onReserve={() => {
+                      handleTabChange('home');
+                      setTimeout(() => document.getElementById('stays')?.scrollIntoView({ behavior: 'smooth' }), 350);
                     }}
                   />
                 </motion.div>
@@ -757,41 +736,6 @@ const AccommodationCard = memo(({ item, index, onSelect, onBook, disabled }: any
   </motion.div>
 ));
 
-const HotelCard = memo(({ hotel, index, onSelect }: any) => (
-  <motion.div
-    initial={{ opacity: 0, y: 40 }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true }}
-    transition={{ delay: index * 0.1, duration: 0.8 }}
-    onClick={() => onSelect(hotel)}
-    className="group bg-white rounded-[24px] overflow-hidden flex flex-col shadow-md border border-natural-accent hover:shadow-2xl transition-all duration-500 cursor-pointer"
-  >
-    <div className="w-full aspect-[16/10] bg-natural-accent overflow-hidden relative">
-      <img
-        src={cld(hotel.imageUrl, 'f_auto,q_auto,w_900')}
-        srcSet={cldSrcSet(hotel.imageUrl, [400, 640, 900])}
-        sizes={CARD_IMAGE_SIZES}
-        className="w-full h-full object-cover group-hover:scale-110 transition-all duration-[2000ms]"
-        alt={hotel.name}
-        loading="lazy"
-        referrerPolicy="no-referrer"
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-natural-dark/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700 flex items-end p-8">
-        <p className="text-white text-fluid-body font-light italic max-w-sm">
-          {hotel.description}
-        </p>
-      </div>
-    </div>
-    <div className="p-8 flex-1 flex flex-col">
-      <div className="flex items-center gap-3 mb-4">
-        <MapPin className="w-3 md:w-4 h-3 md:h-4 text-natural-primary" />
-        <span className="text-fluid-eyebrow font-bold uppercase tracking-[0.4em] text-natural-muted">{hotel.location}</span>
-      </div>
-      <h3 className="font-serif text-fluid-card-title text-natural-dark group-hover:italic transition-all duration-500 tracking-tighter">{hotel.name}</h3>
-    </div>
-  </motion.div>
-));
-
 const DetailDivider = () => <div className="h-[1px] w-full bg-natural-accent my-6 md:my-8" />;
 
 const HotelDetailModal = ({ hotel, rooms = [], onClose, onViewStays, onSelectRoom }: any) => {
@@ -897,7 +841,7 @@ const AccommodationDetailModal = ({ item, isBooking, bookingSuccess, onClose, on
                 <Gallery parentId={item.id} fallbackImage={item.imageUrl} className="w-full h-full" />
               </div>
               <div className="lg:w-1/2 p-6 sm:p-10 md:p-16 flex flex-col selection:bg-natural-primary/20 bg-natural-cream">
-                <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-primary mb-4 md:mb-6">{item.type} Portfolio</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-natural-primary mb-4 md:mb-6">Private {item.type}</span>
                 <h2 className="font-serif text-fluid-h1 text-natural-dark italic mb-4 md:mb-8 tracking-tighter leading-tight">{item.name}</h2>
                 <div className="flex flex-wrap items-center gap-4 md:gap-6 mb-8 md:mb-10 pb-6 md:pb-8 border-b border-natural-accent">
                    <div className="flex items-center gap-2 text-xs md:text-sm font-bold"><MapPin className="w-4 h-4 text-natural-primary" /> {item.location}</div>

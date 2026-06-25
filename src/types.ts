@@ -1,3 +1,16 @@
+// Top-level page tabs the storefront can show. Drives the Navbar, Footer and
+// the AnimatePresence switch in App.tsx — keep all three in sync.
+export type TabId =
+  | 'home'
+  | 'accommodation'
+  | 'experiences'
+  | 'gallery'
+  | 'explore-locations'
+  | 'about'
+  | 'contact'
+  | 'my-bookings'
+  | 'staff';
+
 export interface Hotel {
   id: string;
   name: string;

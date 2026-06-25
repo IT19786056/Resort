@@ -1,17 +1,42 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Menu, User as UserIcon, LogOut, Briefcase, Shield, Phone } from 'lucide-react';
+import { X, Menu, User as UserIcon, LogOut, Briefcase, Shield, Phone, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, type User } from '../lib/auth';
 import { UserAuth } from './UserAuth';
 import { dbService } from '../services/db';
 import { useTenant, BRAND_DEFAULTS } from '../contexts/TenantContext';
+import type { TabId } from '../types';
 
 interface NavbarProps {
-  activeTab: 'home' | 'accommodation' | 'weddings-events' | 'about' | 'contact' | 'my-bookings' | 'staff';
-  onTabChange: (tab: 'home' | 'accommodation' | 'weddings-events' | 'about' | 'contact' | 'my-bookings' | 'staff') => void;
+  activeTab: TabId;
+  onTabChange: (tab: TabId) => void;
   cartCount: number;
   onOpenCart: () => void;
 }
+
+// Top-level nav. "Explore" is a parent with a hover dropdown; everything else is
+// a direct tab. Keep this in sync with the AnimatePresence switch in App.tsx.
+type NavItem =
+  | { id: TabId; label: string }
+  | { id: 'explore'; label: string; children: { id: TabId; label: string }[] };
+
+const NAV_ITEMS: NavItem[] = [
+  { id: 'home', label: 'Home' },
+  { id: 'accommodation', label: 'Accommodation' },
+  { id: 'experiences', label: 'Experiences' },
+  {
+    id: 'explore',
+    label: 'Explore',
+    children: [
+      { id: 'gallery', label: 'Gallery' },
+      { id: 'explore-locations', label: 'Explore Locations' },
+    ],
+  },
+  { id: 'about', label: 'About Us' },
+  { id: 'contact', label: 'Contact Us' },
+];
+
+const EXPLORE_TABS: TabId[] = ['gallery', 'explore-locations'];
 
 export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: NavbarProps) => {
   const tenant = useTenant();
@@ -21,6 +46,7 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isExploreOpen, setIsExploreOpen] = useState(false);
   const [isAdminUser, setIsAdminUser] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -97,14 +123,6 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
     }
   };
 
-  const navLinks = [
-    { id: 'home', label: 'Home' },
-    { id: 'accommodation', label: 'Accommodation' },
-    { id: 'weddings-events', label: 'Weddings & Events' },
-    { id: 'about', label: 'About Us' },
-    { id: 'contact', label: 'Contact Us' },
-  ];
-
   return (
     <>
       {/* Hidden cart trigger */}
@@ -137,19 +155,71 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
             </div>
 
             {/* Desktop Menu */}
-            <div className="hidden md:flex items-center space-x-3 lg:space-x-6 xl:space-x-9 text-[11px] lg:text-[13px] font-bold uppercase tracking-[0.15em] lg:tracking-[0.22em] text-natural-dark">
-              {navLinks.map(link => (
-                <button
-                  key={link.id}
-                  onClick={() => handleNavClick(link.id as any)}
-                  className={`border-b-2 transition-all pb-1 whitespace-nowrap ${
-                    activeTab === link.id
-                      ? 'border-natural-primary text-natural-primary'
-                      : 'border-transparent text-natural-dark hover:text-natural-primary hover:border-natural-primary/50'
-                  }`}
-                >
-                  {link.label}
-                </button>
+            <div className="hidden md:flex items-center space-x-3 lg:space-x-6 xl:space-x-8 text-[11px] lg:text-[13px] font-bold uppercase tracking-[0.15em] lg:tracking-[0.22em] text-natural-dark">
+              {NAV_ITEMS.map(item => (
+                'children' in item ? (
+                  <div
+                    key={item.id}
+                    className="relative"
+                    onMouseEnter={() => setIsExploreOpen(true)}
+                    onMouseLeave={() => setIsExploreOpen(false)}
+                  >
+                    <button
+                      onClick={() => setIsExploreOpen(o => !o)}
+                      className={`flex items-center gap-1.5 border-b-2 transition-all pb-1 whitespace-nowrap ${
+                        EXPLORE_TABS.includes(activeTab)
+                          ? 'border-natural-primary text-natural-primary'
+                          : 'border-transparent text-natural-dark hover:text-natural-primary hover:border-natural-primary/50'
+                      }`}
+                      aria-haspopup="true"
+                      aria-expanded={isExploreOpen}
+                    >
+                      {item.label}
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isExploreOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    <AnimatePresence>
+                      {isExploreOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 8 }}
+                          transition={{ duration: 0.15 }}
+                          /* top-full + pt-3 keeps the gap hoverable so the menu
+                             doesn't flicker shut when the cursor crosses it. */
+                          className="absolute left-0 top-full pt-3 w-56 z-50"
+                        >
+                          <div className="bg-white rounded-2xl shadow-xl border border-natural-accent p-2 overflow-hidden">
+                            {item.children.map(child => (
+                              <button
+                                key={child.id}
+                                onClick={() => { handleNavClick(child.id); setIsExploreOpen(false); }}
+                                className={`w-full text-left px-4 py-3 rounded-xl transition-all text-[11px] font-bold uppercase tracking-widest ${
+                                  activeTab === child.id
+                                    ? 'bg-natural-cream text-natural-primary'
+                                    : 'text-natural-dark hover:bg-natural-cream hover:text-natural-primary'
+                                }`}
+                              >
+                                {child.label}
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                ) : (
+                  <button
+                    key={item.id}
+                    onClick={() => handleNavClick(item.id)}
+                    className={`border-b-2 transition-all pb-1 whitespace-nowrap ${
+                      activeTab === item.id
+                        ? 'border-natural-primary text-natural-primary'
+                        : 'border-transparent text-natural-dark hover:text-natural-primary hover:border-natural-primary/50'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                )
               ))}
 
               <div className="h-4 w-[1px] bg-natural-accent" />
@@ -248,14 +318,29 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
                 className="md:hidden bg-white w-full overflow-hidden absolute top-full left-0 border-t border-natural-accent shadow-2xl"
               >
                 <div className="flex flex-col p-10 space-y-8 text-xs font-bold uppercase tracking-[0.2em] text-natural-dark">
-                  {navLinks.map(link => (
-                    <button
-                      key={link.id}
-                      onClick={() => handleNavClick(link.id as any)}
-                      className={`text-left font-serif text-3xl italic normal-case tracking-normal transition-colors ${activeTab === link.id ? 'text-natural-primary' : 'text-natural-dark'}`}
-                    >
-                      {link.label}
-                    </button>
+                  {NAV_ITEMS.map(item => (
+                    'children' in item ? (
+                      <div key={item.id} className="space-y-5">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-natural-muted">{item.label}</span>
+                        {item.children.map(child => (
+                          <button
+                            key={child.id}
+                            onClick={() => handleNavClick(child.id)}
+                            className={`block text-left font-serif text-3xl italic normal-case tracking-normal transition-colors ${activeTab === child.id ? 'text-natural-primary' : 'text-natural-dark'}`}
+                          >
+                            {child.label}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <button
+                        key={item.id}
+                        onClick={() => handleNavClick(item.id)}
+                        className={`text-left font-serif text-3xl italic normal-case tracking-normal transition-colors ${activeTab === item.id ? 'text-natural-primary' : 'text-natural-dark'}`}
+                      >
+                        {item.label}
+                      </button>
+                    )
                   ))}
                   {user && (
                     <>

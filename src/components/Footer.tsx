@@ -1,7 +1,6 @@
 import React from 'react';
 import { useTenant, BRAND_DEFAULTS } from '../contexts/TenantContext';
-
-type TabId = 'home' | 'accommodation' | 'weddings-events' | 'about' | 'contact' | 'my-bookings' | 'staff';
+import type { TabId } from '../types';
 
 interface FooterProps {
   onTabChange: (tab: TabId) => void;
@@ -10,6 +9,9 @@ interface FooterProps {
 const navLinks: { id: TabId; label: string }[] = [
   { id: 'home', label: 'Home' },
   { id: 'accommodation', label: 'Accommodation' },
+  { id: 'experiences', label: 'Experiences' },
+  { id: 'gallery', label: 'Gallery' },
+  { id: 'explore-locations', label: 'Explore Locations' },
   { id: 'about', label: 'About Us' },
   { id: 'contact', label: 'Contact Us' },
 ];

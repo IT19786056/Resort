@@ -20,6 +20,13 @@ if (_missingVars.length > 0) {
 const ADMIN_MASTER_PASSWORD = process.env.ADMIN_MASTER_PASSWORD as string;
 
 export const app = express();
+// Railway/Vercel (and most PaaS) sit behind a reverse proxy that forwards the
+// original request via X-Forwarded-* headers. Trusting the proxy makes
+// req.hostname / req.protocol / req.ip reflect the real client-facing values —
+// critical for multi-tenant resolution, which keys off req.hostname (the public
+// domain) to map a request to its hotel. Without this, a proxied Host rewrite
+// could break per-domain isolation.
+app.set('trust proxy', true);
 // Railway (and most PaaS) inject the port to bind via process.env.PORT.
 // Fall back to 3000 for local development.
 const PORT = Number(process.env.PORT) || 3000;
@@ -2173,7 +2180,9 @@ app.post('/api/admin/rate-overrides', requireAdmin, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
       [roomId, effectiveHotel, fromDate, toDate, Number(price), label?.trim() || null]
     );
-    logAdminAction(req, 'CREATE_RATE_OVERRIDE', { id: r.rows[0].id, roomId, fromDate, toDate, price });
+    const adminInfo = getAdminInfo(req);
+    await logAdminAction(query, adminInfo, 'CREATE_RATE_OVERRIDE', r.rows[0].id, label?.trim() || 'Rate Override',
+      `Created rate override of LKR ${Number(price)} for room ${roomId} (${fromDate} → ${toDate})`);
     res.status(201).json(r.rows[0]);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -2202,7 +2211,9 @@ app.patch('/api/admin/rate-overrides/:id', requireAdmin, async (req, res) => {
       `UPDATE rate_overrides SET ${setClauses} WHERE id = $1 RETURNING *`,
       [id, ...entries.map(([, v]) => v)]
     );
-    logAdminAction(req, 'UPDATE_RATE_OVERRIDE', { id, ...Object.fromEntries(entries) });
+    const adminInfo = getAdminInfo(req);
+    await logAdminAction(query, adminInfo, 'UPDATE_RATE_OVERRIDE', id, 'Rate Override',
+      `Updated rate override ${id}: ${entries.map(([k, v]) => `${k}=${v}`).join(', ')}`);
     res.json(r.rows[0]);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -2222,7 +2233,8 @@ app.delete('/api/admin/rate-overrides/:id', requireAdmin, async (req, res) => {
       return res.status(403).json({ error: 'Access denied.' });
 
     await query(`DELETE FROM rate_overrides WHERE id = $1`, [id]);
-    logAdminAction(req, 'DELETE_RATE_OVERRIDE', { id });
+    const adminInfo = getAdminInfo(req);
+    await logAdminAction(query, adminInfo, 'DELETE_RATE_OVERRIDE', id, 'Rate Override', `Deleted rate override ${id}`);
     res.status(204).send();
   } catch (err: any) {
     res.status(500).json({ error: err.message });

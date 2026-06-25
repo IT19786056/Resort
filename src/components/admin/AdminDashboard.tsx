@@ -1432,7 +1432,7 @@ const RoomForm = ({ room, hotels, onClose, onSuccess, onError, onProcessing }: a
     }
   };
   return (
-    <Modal onClose={onClose} title={room ? 'Edit Room Portfolio' : 'Add New Room'}>
+    <Modal onClose={onClose} title={room ? 'Edit Room' : 'Add New Room'}>
       <form onSubmit={handleSubmit} className="space-y-8">
         <div className="space-y-2">
           <SectionLabel label="Select Property" />
