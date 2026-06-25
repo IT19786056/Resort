@@ -14,9 +14,8 @@ export const AboutUs = () => {
             transition={{ duration: 0.9 }}
             className="space-y-8"
           >
-            <span className="text-fluid-eyebrow font-bold uppercase tracking-[0.4em] text-white/50">Our Vision</span>
             <h1 className="font-serif text-fluid-hero italic text-white leading-tight">
-              Where Sri Lanka's Soul<br />Becomes Your Story
+              Our Vision
             </h1>
             <p className="text-white/75 leading-relaxed font-light text-fluid-body max-w-3xl mx-auto">
               There is a particular kind of magic that happens when a place feels both completely foreign and
