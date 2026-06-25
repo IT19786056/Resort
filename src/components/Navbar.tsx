@@ -41,7 +41,6 @@ const EXPLORE_TABS: TabId[] = ['gallery', 'explore-locations'];
 export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: NavbarProps) => {
   const tenant = useTenant();
   const logoUrl = tenant.logoUrl || BRAND_DEFAULTS.logoUrl;
-  const markLogoUrl = tenant.markLogoUrl || BRAND_DEFAULTS.markLogoUrl;
   const brandName = tenant.name || BRAND_DEFAULTS.name;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -147,14 +146,8 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
             ResizeObserver below so the Hero offset tracks the taller header. */}
         <nav className="relative bg-white border-b border-natural-accent shadow-sm py-4 md:py-5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 flex items-center">
-            {/* Logo lockup: blue "A" mark + wordmark */}
-            <div className="cursor-pointer group shrink-0 flex items-center gap-2.5 md:gap-3" onClick={() => handleNavClick('home')}>
-              <img
-                src={markLogoUrl}
-                alt=""
-                aria-hidden="true"
-                className="h-[52px] md:h-16 w-auto object-contain transition-opacity group-hover:opacity-75"
-              />
+            {/* Logo */}
+            <div className="cursor-pointer group shrink-0" onClick={() => handleNavClick('home')}>
               <img
                 src={logoUrl}
                 alt={brandName}

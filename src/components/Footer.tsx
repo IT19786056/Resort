@@ -18,7 +18,7 @@ const navLinks: { id: TabId; label: string }[] = [
 
 export const Footer = ({ onTabChange }: FooterProps) => {
   const tenant = useTenant();
-  const logoUrl = tenant.logoUrl || BRAND_DEFAULTS.logoUrl;
+  const markLogoUrl = tenant.markLogoUrl || BRAND_DEFAULTS.markLogoUrl;
   const brandName = tenant.name || BRAND_DEFAULTS.name;
 
   const handleClick = (tab: TabId) => {
@@ -32,9 +32,9 @@ export const Footer = ({ onTabChange }: FooterProps) => {
         {/* Logo */}
         <div className="shrink-0">
           <img
-            src={logoUrl}
+            src={markLogoUrl}
             alt={brandName}
-            className="h-8 w-auto object-contain"
+            className="h-10 w-auto object-contain"
           />
         </div>
 
