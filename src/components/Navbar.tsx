@@ -41,6 +41,7 @@ const EXPLORE_TABS: TabId[] = ['gallery', 'explore-locations'];
 export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: NavbarProps) => {
   const tenant = useTenant();
   const logoUrl = tenant.logoUrl || BRAND_DEFAULTS.logoUrl;
+  const markLogoUrl = tenant.markLogoUrl || BRAND_DEFAULTS.markLogoUrl;
   const brandName = tenant.name || BRAND_DEFAULTS.name;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -142,20 +143,29 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
           For any inquiries contact us: +1 (800) 123-4567
         </div>
 
-        {/* White navigation bar */}
-        <nav className="relative bg-white border-b border-natural-accent shadow-sm py-3 md:py-4">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 flex justify-between items-center">
-            {/* Logo */}
-            <div className="cursor-pointer group shrink-0" onClick={() => handleNavClick('home')}>
+        {/* White navigation bar — enlarged ~30%; --nav-h is re-measured by the
+            ResizeObserver below so the Hero offset tracks the taller header. */}
+        <nav className="relative bg-white border-b border-natural-accent shadow-sm py-4 md:py-5">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 flex items-center">
+            {/* Logo lockup: blue "A" mark + wordmark */}
+            <div className="cursor-pointer group shrink-0 flex items-center gap-2.5 md:gap-3" onClick={() => handleNavClick('home')}>
+              <img
+                src={markLogoUrl}
+                alt=""
+                aria-hidden="true"
+                className="h-[52px] md:h-16 w-auto object-contain transition-opacity group-hover:opacity-75"
+              />
               <img
                 src={logoUrl}
                 alt={brandName}
-                className="h-10 md:h-12 w-auto object-contain transition-opacity group-hover:opacity-75"
+                className="h-[52px] md:h-16 w-auto object-contain transition-opacity group-hover:opacity-75"
               />
             </div>
 
-            {/* Desktop Menu */}
-            <div className="hidden md:flex items-center space-x-3 lg:space-x-6 xl:space-x-8 text-[11px] lg:text-[13px] font-bold uppercase tracking-[0.15em] lg:tracking-[0.22em] text-natural-dark">
+            {/* Desktop nav links — grouped with the logo at the same gap as the
+                inter-item spacing (ml-* mirrors space-x-*) so logo→Home reads
+                identically to Home→Accommodation. */}
+            <div className="hidden md:flex items-center space-x-3 lg:space-x-6 xl:space-x-8 ml-3 lg:ml-6 xl:ml-8 text-[11px] lg:text-[13px] font-bold uppercase tracking-[0.15em] lg:tracking-[0.22em] text-natural-dark">
               {NAV_ITEMS.map(item => (
                 'children' in item ? (
                   <div
@@ -221,7 +231,11 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
                   </button>
                 )
               ))}
+            </div>
 
+            {/* Desktop actions — pinned to the far right, independent of the
+                logo↔nav grouping on the left. */}
+            <div className="hidden md:flex items-center space-x-3 lg:space-x-6 xl:space-x-8 ml-auto text-[11px] lg:text-[13px] font-bold uppercase tracking-[0.15em] lg:tracking-[0.22em] text-natural-dark">
               <div className="h-4 w-[1px] bg-natural-accent" />
 
               {/* Person icon — auth modal when logged out, profile dropdown when logged in */}
@@ -292,7 +306,7 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
             </div>
 
             {/* Mobile: person icon + hamburger */}
-            <div className="flex md:hidden items-center gap-2">
+            <div className="flex md:hidden items-center gap-2 ml-auto">
               {!user && (
                 <button
                   onClick={() => setIsAuthOpen(true)}
