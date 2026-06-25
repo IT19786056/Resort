@@ -145,7 +145,7 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
         {/* White navigation bar — enlarged ~30%; --nav-h is re-measured by the
             ResizeObserver below so the Hero offset tracks the taller header. */}
         <nav className="relative bg-white border-b border-natural-accent shadow-sm py-4 md:py-5">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 flex items-center">
+          <div className="max-w-[1600px] mx-auto px-4 sm:px-6 md:px-12 flex items-center justify-between">
             {/* Logo */}
             <div className="cursor-pointer group shrink-0" onClick={() => handleNavClick('home')}>
               <img
@@ -155,10 +155,9 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
               />
             </div>
 
-            {/* Desktop nav links — grouped with the logo at the same gap as the
-                inter-item spacing (ml-* mirrors space-x-*) so logo→Home reads
-                identically to Home→Accommodation. */}
-            <div className="hidden md:flex items-center space-x-3 lg:space-x-6 xl:space-x-8 ml-3 lg:ml-6 xl:ml-8 text-[11px] lg:text-[13px] font-bold uppercase tracking-[0.15em] lg:tracking-[0.22em] text-natural-dark">
+            {/* Desktop nav links — sits between the logo and the actions; the
+                parent's justify-between gives equal space on either side. */}
+            <div className="hidden md:flex items-center space-x-3 lg:space-x-6 xl:space-x-8 text-[11px] lg:text-[13px] font-bold uppercase tracking-[0.15em] lg:tracking-[0.22em] text-natural-dark">
               {NAV_ITEMS.map(item => (
                 'children' in item ? (
                   <div
@@ -226,9 +225,9 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
               ))}
             </div>
 
-            {/* Desktop actions — pinned to the far right, independent of the
-                logo↔nav grouping on the left. */}
-            <div className="hidden md:flex items-center space-x-3 lg:space-x-6 xl:space-x-8 ml-auto text-[11px] lg:text-[13px] font-bold uppercase tracking-[0.15em] lg:tracking-[0.22em] text-natural-dark">
+            {/* Desktop actions — the third evenly-spaced group; lands at the
+                right edge via the parent's justify-between. */}
+            <div className="hidden md:flex items-center space-x-3 lg:space-x-6 xl:space-x-8 text-[11px] lg:text-[13px] font-bold uppercase tracking-[0.15em] lg:tracking-[0.22em] text-natural-dark">
               <div className="h-4 w-[1px] bg-natural-accent" />
 
               {/* Person icon — auth modal when logged out, profile dropdown when logged in */}
@@ -299,7 +298,7 @@ export const Navbar = ({ activeTab, onTabChange, cartCount, onOpenCart }: Navbar
             </div>
 
             {/* Mobile: person icon + hamburger */}
-            <div className="flex md:hidden items-center gap-2 ml-auto">
+            <div className="flex md:hidden items-center gap-2">
               {!user && (
                 <button
                   onClick={() => setIsAuthOpen(true)}
