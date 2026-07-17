@@ -150,6 +150,56 @@ const apiLimiter = rateLimit({
   message: { error: 'Too many requests. Please slow down.' },
 });
 
+// ---------------------------------------------------------------------------
+// TEMPORARY diagnostic — safe to delete once client-IP handling is confirmed.
+//
+// Purpose: clientIp() above keys every rate limit and lockout, and it rests on
+// Railway writing the true visitor IP as X-Forwarded-For[0]. Railway's own docs
+// contradict each other on this and don't guarantee their proxy hop count, so this
+// endpoint reports what the running container actually sees. One request from a
+// phone (i.e. off the office network) settles it.
+//
+// Deliberately registered BEFORE the limiters below: if clientIp() were wrong in the
+// way we're worried about, every visitor would collapse into one bucket and the
+// limiter could 429 the very endpoint meant to diagnose that.
+//
+// Disabled unless DIAG_TOKEN is set. Wrong/absent token returns 404, not 403, so the
+// route is indistinguishable from one that doesn't exist. Reveals only the caller's
+// own request metadata — no DB, no secrets, no other user's data.
+if (process.env.DIAG_TOKEN) {
+  const diagToken = process.env.DIAG_TOKEN;
+  app.get('/api/_diag/client-ip', (req, res) => {
+    const provided = req.get('x-diag-token') || '';
+    // Compare digests so timingSafeEqual gets equal-length buffers and the check
+    // can't be walked character by character.
+    const a = crypto.createHash('sha256').update(provided).digest();
+    const b = crypto.createHash('sha256').update(diagToken).digest();
+    if (!crypto.timingSafeEqual(a, b)) return res.status(404).end();
+
+    res.json({
+      // THE ANSWER: this must be your real public IP (check at e.g. ifconfig.me).
+      // If it is instead a Railway-internal address (100.x / 10.x) that stays the
+      // same from a different network, clientIp() is wrong and every visitor is
+      // sharing one rate-limit bucket — revert to req.ip or switch header.
+      clientIp_used_for_limits: clientIp(req),
+
+      // Supporting evidence for choosing a different source if the above is wrong.
+      req_ip: req.ip,
+      req_ips_trusted_chain: req.ips,
+      raw_x_forwarded_for: req.headers['x-forwarded-for'] ?? null,
+      x_real_ip: req.headers['x-real-ip'] ?? null,
+      cf_connecting_ip: req.headers['cf-connecting-ip'] ?? null, // set once Cloudflare fronts this
+      socket_remote_address: req.socket.remoteAddress,
+
+      // Multi-tenant resolution keys off hostname, so confirm the proxy setting
+      // isn't breaking that either.
+      trust_proxy_setting: app.get('trust proxy'),
+      req_hostname: req.hostname,
+      req_protocol: req.protocol,
+    });
+  });
+}
+
 app.use('/api/auth', authLimiter);
 app.use('/api', apiLimiter);
 
