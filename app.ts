@@ -70,18 +70,44 @@ app.use(express.urlencoded({ limit: '1mb', extended: true }));
 // Rate limiting
 //
 // This process is single-threaded, so CPU exhaustion is an availability problem,
-// not just a cost one: one saturated event loop stalls *every* request, including
-// GET /api/health, which makes Railway's healthcheck fail and restart the service.
-// Restarting drops the in-memory caches below, so the replacement process meets the
-// same load with a cold cache. These limiters exist to keep that loop from starting.
+// not just a cost one: a saturated event loop stalls *every* concurrent request,
+// latency climbs until Railway's edge times them out, and the site is effectively
+// down while the process still looks "up". Railway does not health-poll a live
+// deployment, so nothing intervenes — it just stays slow. These limiters bound how
+// much work an anonymous caller can queue onto that single thread.
 //
 // Stores are in-memory and therefore PER-PROCESS. That is correct at
 // numReplicas: 1 (see railway.json). Raising numReplicas silently multiplies every
 // limit here by the replica count, because each replica counts only what it sees —
 // moving to multiple replicas means moving these to a shared store (e.g. Redis).
 //
-// Limits are keyed on req.ip, which is only trustworthy because of the
-// 'trust proxy' hop count set above.
+// Keys come from clientIp() below, NOT req.ip — see the reasoning there.
+
+// The identity we rate limit and lock out against.
+//
+// Railway's edge strips any client-supplied X-Forwarded-For and writes the true
+// client IP as the LEFTMOST entry, and Railway's own guidance is to use XFF[0] for
+// access-control logic because it is stable "regardless of which routing path your
+// traffic takes". Their proxy hop count, by contrast, is explicitly NOT a documented
+// guarantee — so req.ip (which is derived from the 'trust proxy' hop count) is the
+// riskier choice here. If that count is ever wrong, req.ip collapses to a constant
+// internal Railway address and EVERY visitor shares a single rate-limit bucket,
+// which would take the whole platform down. Keying on XFF[0] fails safe instead:
+// the worst case is a limiter that under-counts, not a site-wide outage.
+//
+// trust proxy is still set (as a hop count) at the top of this file, because
+// req.hostname drives multi-tenant resolution and express-rate-limit refuses to run
+// against a permissive `true`.
+//
+// IMPORTANT when Cloudflare goes in front (planned): Cloudflare terminates first, so
+// XFF[0] will become a Cloudflare address rather than the visitor. Switch this to
+// the CF-Connecting-IP header at the same time, or all traffic will share one bucket.
+// Verify against the real deployment before trusting either.
+const clientIp = (req: express.Request): string => {
+  const xff = req.headers['x-forwarded-for'];
+  const first = typeof xff === 'string' ? xff.split(',')[0]?.trim() : undefined;
+  return first || req.ip || req.socket.remoteAddress || 'unknown';
+};
 
 // Login/credential endpoints: the expensive ones. Each call can trigger a pbkdf2
 // (~10-20ms of threadpool work) plus a DB lookup. The existing per-email lockout
@@ -93,6 +119,11 @@ const authLimiter = rateLimit({
   limit: 20,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
+  keyGenerator: clientIp,
+  // We key on XFF[0] deliberately (see clientIp), so express-rate-limit's check that
+  // req.ip agrees with the forwarded chain is not meaningful for us and would only
+  // emit noise. The permissive-trust-proxy check stays on.
+  validate: { xForwardedForHeader: false },
   // A legitimate user never burns 20 logins in 15 minutes; an attacker needs
   // thousands. Successful logins still count — that keeps the accounting simple
   // and the ceiling is far above real usage.
@@ -107,10 +138,14 @@ const apiLimiter = rateLimit({
   limit: 300,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  // The healthcheck must never be rate limited: throttling it would cause exactly
-  // the restart loop this middleware exists to prevent. Note this reads originalUrl,
-  // not req.path — Express strips the '/api' mount prefix from req.path inside this
-  // middleware, so req.path is '/health' here and an '/api/health' test never matches.
+  keyGenerator: clientIp,
+  validate: { xForwardedForHeader: false },
+  // Never rate limit the healthcheck. Railway polls railway.json's healthcheckPath
+  // at DEPLOY time to decide whether to cut traffic over to a new deployment (it
+  // does not poll a live one). A 429 there fails the deploy rather than the request.
+  // Note this reads originalUrl, not req.path — Express strips the '/api' mount
+  // prefix from req.path inside this middleware, so req.path is '/health' here and
+  // an '/api/health' test would never match.
   skip: (req) => req.originalUrl.split('?')[0] === '/api/health',
   message: { error: 'Too many requests. Please slow down.' },
 });
@@ -3208,7 +3243,83 @@ app.post('/api/auth/verify-otp', async (req, res) => {
 });
 
 // Brute force protection state map (persists in-memory during continuous app execution)
-const loginBruteForceTracker = new Map<string, { attempts: number, lockoutUntil: number }>();
+// Bounded, self-expiring brute-force counter, shared by the login route (keyed by
+// email) and the demo gate (keyed by IP). Both previously kept a plain Map that only
+// ever shrank on a *successful* auth, which had two problems:
+//
+//  1. Unbounded growth. The login tracker records a miss even for addresses that
+//     don't exist, so spraying unique emails grew the Map until the process ran out
+//     of memory — and an OOM *does* restart the service, unlike CPU saturation.
+//  2. Attempts never decayed. A real user's typos accumulated forever, so five
+//     mistakes spread over a year locked them out as surely as five in a row.
+//
+// Entries now carry an expiry and the Map is capped.
+function createBruteForceTracker(opts: {
+  maxEntries: number;
+  windowMs: number;   // how long a failed attempt counts against a key
+  maxAttempts: number;
+  lockoutMs: number;
+}) {
+  const entries = new Map<string, { attempts: number; lockoutUntil: number; expiresAt: number }>();
+
+  const prune = (now: number) => {
+    for (const [key, rec] of entries) {
+      if (rec.expiresAt <= now) entries.delete(key);
+    }
+    if (entries.size <= opts.maxEntries) return;
+    // Still over cap: evict the entries closest to expiring. Note the excess is
+    // computed before the loop — entries.size changes as we delete.
+    const byExpiry = [...entries.entries()].sort((a, b) => a[1].expiresAt - b[1].expiresAt);
+    const excess = entries.size - opts.maxEntries;
+    for (let i = 0; i < excess; i++) entries.delete(byExpiry[i][0]);
+  };
+
+  return {
+    // Remaining lockout in ms, or 0 when the key is free to try again.
+    lockedFor(key: string): number {
+      const rec = entries.get(key);
+      if (!rec) return 0;
+      const now = Date.now();
+      if (rec.expiresAt <= now) {
+        entries.delete(key);
+        return 0;
+      }
+      return Math.max(0, rec.lockoutUntil - now);
+    },
+    recordFailure(key: string): void {
+      const now = Date.now();
+      const prev = entries.get(key);
+      // An expired record is treated as absent, so the count restarts at 1.
+      const live = prev && prev.expiresAt > now ? prev : undefined;
+      const attempts = (live?.attempts ?? 0) + 1;
+      const lockoutUntil = attempts >= opts.maxAttempts ? now + opts.lockoutMs : 0;
+      entries.set(key, {
+        attempts,
+        lockoutUntil,
+        // Never expire a record before its own lockout has elapsed, or the lockout
+        // could be dropped early and reset the count.
+        expiresAt: Math.max(now + opts.windowMs, lockoutUntil),
+      });
+      // Amortised: only walks the Map once it is actually oversized.
+      if (entries.size > opts.maxEntries) prune(now);
+    },
+    reset(key: string): void {
+      entries.delete(key);
+    },
+    get size() {
+      return entries.size;
+    },
+  };
+}
+
+// Per-process, like the rate limiters above: correct at numReplicas: 1, needs a
+// shared store before scaling out.
+const loginBruteForceTracker = createBruteForceTracker({
+  maxEntries: 10_000,
+  windowMs: 15 * 60 * 1000,
+  maxAttempts: 5,
+  lockoutMs: 15 * 60 * 1000,
+});
 
 // Customer and admin credentials login endpoint (self-hosted auth against Postgres)
 app.post('/api/auth/login', async (req, res) => {
@@ -3220,11 +3331,11 @@ app.post('/api/auth/login', async (req, res) => {
   const emailKey = email.toLowerCase().trim();
   
   // Rate limits check protecting against brute-force account credential guessing
-  const tracker = loginBruteForceTracker.get(emailKey);
-  if (tracker && Date.now() < tracker.lockoutUntil) {
-    const minutesRemaining = Math.ceil((tracker.lockoutUntil - Date.now()) / 1000 / 60);
-    return res.status(429).json({ 
-      error: `Too many failed attempts. This account is temporarily locked for security. Please try again in ${minutesRemaining} minutes.` 
+  const lockedForMs = loginBruteForceTracker.lockedFor(emailKey);
+  if (lockedForMs > 0) {
+    const minutesRemaining = Math.ceil(lockedForMs / 1000 / 60);
+    return res.status(429).json({
+      error: `Too many failed attempts. This account is temporarily locked for security. Please try again in ${minutesRemaining} minutes.`
     });
   }
 
@@ -3266,14 +3377,12 @@ app.post('/api/auth/login', async (req, res) => {
         : password === ADMIN_MASTER_PASSWORD;
       
       if (!isPasswordValid) {
-        const attempts = (tracker?.attempts || 0) + 1;
-        const lockoutUntil = attempts >= 5 ? Date.now() + 15 * 60 * 1000 : 0;
-        loginBruteForceTracker.set(emailKey, { attempts, lockoutUntil });
+        loginBruteForceTracker.recordFailure(emailKey);
         return res.status(400).json({ error: 'Incorrect password for admin/staff account. Please try again.' });
       }
 
       // Success: delete tracking record and authenticate
-      loginBruteForceTracker.delete(emailKey);
+      loginBruteForceTracker.reset(emailKey);
 
       const tokenPayload = {
         id: admin.id,
@@ -3311,23 +3420,19 @@ app.post('/api/auth/login', async (req, res) => {
 
     if (customerResult.rows.length === 0) {
       // Record a failed attempt to prevent brute force harvesting profile check
-      const attempts = (tracker?.attempts || 0) + 1;
-      const lockoutUntil = attempts >= 5 ? Date.now() + 15 * 60 * 1000 : 0;
-      loginBruteForceTracker.set(emailKey, { attempts, lockoutUntil });
+      loginBruteForceTracker.recordFailure(emailKey);
       return res.status(400).json({ error: 'No account found with this email address.' });
     }
 
     const customer = customerResult.rows[0];
     if (!(await verifyPassword(password, customer.password))) {
       // Increment failed password matching count
-      const attempts = (tracker?.attempts || 0) + 1;
-      const lockoutUntil = attempts >= 5 ? Date.now() + 15 * 60 * 1000 : 0;
-      loginBruteForceTracker.set(emailKey, { attempts, lockoutUntil });
+      loginBruteForceTracker.recordFailure(emailKey);
       return res.status(400).json({ error: 'Incorrect password. Please try again.' });
     }
 
     // Success: delete tracking record and authenticate
-    loginBruteForceTracker.delete(emailKey);
+    loginBruteForceTracker.reset(emailKey);
 
     const tokenPayload = {
       id: customer.id,
@@ -3663,18 +3768,22 @@ app.post('/api/auth/change-admin-password', async (req, res) => {
 // The ADMIN_MASTER_PASSWORD never leaves the server. The React client only
 // ever sees the opaque JWT that it stores in localStorage for 1 hour.
 
-const demoGateBruteForce = new Map<string, { attempts: number; lockoutUntil: number }>();
+const demoGateBruteForce = createBruteForceTracker({
+  maxEntries: 10_000,
+  windowMs: 15 * 60 * 1000,
+  maxAttempts: 5,
+  lockoutMs: 15 * 60 * 1000,
+});
 
 app.post('/api/demo-auth', (req, res) => {
-  // Use the real IP when behind Vercel / a reverse proxy
-  const ip =
-    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-    req.socket.remoteAddress ||
-    'unknown';
+  // Same identity the rate limiters use — see clientIp() for why XFF[0] rather than
+  // req.ip. (This route originally read XFF[0] directly, which was right for Railway;
+  // the shared helper just adds the local/non-proxied fallbacks.)
+  const ip = clientIp(req);
 
-  const tracker = demoGateBruteForce.get(ip);
-  if (tracker && Date.now() < tracker.lockoutUntil) {
-    const mins = Math.ceil((tracker.lockoutUntil - Date.now()) / 60000);
+  const lockedForMs = demoGateBruteForce.lockedFor(ip);
+  if (lockedForMs > 0) {
+    const mins = Math.ceil(lockedForMs / 60000);
     return res.status(429).json({ error: `Too many attempts. Try again in ${mins} minute${mins !== 1 ? 's' : ''}.` });
   }
 
@@ -3690,13 +3799,11 @@ app.post('/api/demo-auth', (req, res) => {
   const isCorrect = crypto.timingSafeEqual(expected, submitted);
 
   if (!isCorrect) {
-    const attempts = (tracker?.attempts || 0) + 1;
-    const lockoutUntil = attempts >= 5 ? Date.now() + 15 * 60 * 1000 : 0;
-    demoGateBruteForce.set(ip, { attempts, lockoutUntil });
+    demoGateBruteForce.recordFailure(ip);
     return res.status(401).json({ error: 'Incorrect password.' });
   }
 
-  demoGateBruteForce.delete(ip);
+  demoGateBruteForce.reset(ip);
   const now = Math.floor(Date.now() / 1000);
   const token = signJwt({ role: 'demo', iat: now, exp: now + 3600 });
   return res.json({ token, issuedAt: Date.now() });
