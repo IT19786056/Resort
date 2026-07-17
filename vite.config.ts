@@ -12,6 +12,14 @@ export default defineConfig(() => {
       },
     },
     build: {
+      // Client assets build into dist/client, NOT dist/, because app.ts serves the
+      // static root with express.static and the esbuild server bundle is emitted to
+      // dist/server.cjs. With both in one directory, dist/server.cjs and (worse)
+      // dist/server.cjs.map were publicly fetchable — the sourcemap embeds
+      // sourcesContent, i.e. the full original TypeScript of app.ts. Nesting the
+      // client output makes the static root contain client files and nothing else,
+      // so server artefacts can't be exposed by forgetting to exclude them.
+      outDir: 'dist/client',
       rollupOptions: {
         output: {
           // Split heavy third-party libs into their own long-cached chunks so

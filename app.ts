@@ -4,8 +4,10 @@ import fs from 'fs';
 import pg from 'pg';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
+import { promisify } from 'util';
 import cors from 'cors';
 import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 import { queueBookingConfirmation, queueBookingAcceptance, queueBookingCancellation, processEmailQueue, sendEmail } from './server/email.js';
 
 if (!process.env.VERCEL) {
@@ -26,7 +28,16 @@ export const app = express();
 // critical for multi-tenant resolution, which keys off req.hostname (the public
 // domain) to map a request to its hotel. Without this, a proxied Host rewrite
 // could break per-domain isolation.
-app.set('trust proxy', true);
+// NOTE: this is a hop *count*, not `true`. `true` trusts the entire X-Forwarded-For
+// chain, which lets any client prepend a forged entry and become an arbitrary req.ip —
+// that would make the IP-keyed rate limiters below trivially bypassable (and
+// express-rate-limit refuses to start against a permissive setting). A count means
+// Express walks back exactly that many entries from the right, landing on the value
+// our own edge wrote, which a client cannot influence.
+// Railway's proxy is a single hop. Putting a CDN (e.g. Cloudflare) in front adds one:
+// set TRUST_PROXY_HOPS=2 at that point, or req.ip becomes the CDN's IP and every
+// visitor shares one rate-limit bucket.
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS) || 1);
 // Railway (and most PaaS) inject the port to bind via process.env.PORT.
 // Fall back to 3000 for local development.
 const PORT = Number(process.env.PORT) || 3000;
@@ -54,6 +65,58 @@ app.use(compression());
 // headroom over the biggest real payload (a few KB of JSON).
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ limit: '1mb', extended: true }));
+
+// ---------------------------------------------------------------------------
+// Rate limiting
+//
+// This process is single-threaded, so CPU exhaustion is an availability problem,
+// not just a cost one: one saturated event loop stalls *every* request, including
+// GET /api/health, which makes Railway's healthcheck fail and restart the service.
+// Restarting drops the in-memory caches below, so the replacement process meets the
+// same load with a cold cache. These limiters exist to keep that loop from starting.
+//
+// Stores are in-memory and therefore PER-PROCESS. That is correct at
+// numReplicas: 1 (see railway.json). Raising numReplicas silently multiplies every
+// limit here by the replica count, because each replica counts only what it sees —
+// moving to multiple replicas means moving these to a shared store (e.g. Redis).
+//
+// Limits are keyed on req.ip, which is only trustworthy because of the
+// 'trust proxy' hop count set above.
+
+// Login/credential endpoints: the expensive ones. Each call can trigger a pbkdf2
+// (~10-20ms of threadpool work) plus a DB lookup. The existing per-email lockout
+// further down only fires after 5 attempts *on a single known account*; it does
+// nothing against one IP spraying many different addresses, and its tracker Map
+// grows per unique email seen. This bounds that by source instead.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  // A legitimate user never burns 20 logins in 15 minutes; an attacker needs
+  // thousands. Successful logins still count — that keeps the accounting simple
+  // and the ceiling is far above real usage.
+  message: { error: 'Too many authentication attempts from this address. Please try again later.' },
+});
+
+// Everything else under /api. Generous enough to be invisible to real traffic
+// (a page load fans out to a handful of these), low enough to stop a scraper
+// from pinning the event loop.
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  // The healthcheck must never be rate limited: throttling it would cause exactly
+  // the restart loop this middleware exists to prevent. Note this reads originalUrl,
+  // not req.path — Express strips the '/api' mount prefix from req.path inside this
+  // middleware, so req.path is '/health' here and an '/api/health' test never matches.
+  skip: (req) => req.originalUrl.split('?')[0] === '/api/health',
+  message: { error: 'Too many requests. Please slow down.' },
+});
+
+app.use('/api/auth', authLimiter);
+app.use('/api', apiLimiter);
 
 // Database configuration
 const dbUrl = process.env.DATABASE_URL;
@@ -2862,22 +2925,28 @@ app.delete('/api/media/:id', requireAdmin, async (req, res) => {
   }
 });
 
-// Custom password cryptographic hashing using PBKDF2 with custom salting to prevent dictionary / brute-force attacks
-function hashPassword(password: string): string {
+// Custom password cryptographic hashing using PBKDF2 with custom salting to prevent dictionary / brute-force attacks.
+// pbkdf2 is deliberately expensive (10k SHA-512 rounds ~= 10-20ms). The async form
+// hands that work to libuv's threadpool; the *Sync form would run it on the event
+// loop, where every concurrent login would serialise and stall every other request
+// on this process — including the Railway healthcheck. Never reintroduce pbkdf2Sync.
+const _pbkdf2 = promisify(crypto.pbkdf2);
+
+async function hashPassword(password: string): Promise<string> {
   const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+  const hash = (await _pbkdf2(password, salt, 10000, 64, 'sha512')).toString('hex');
   return `pbkdf2_10000$${salt}$${hash}`;
 }
 
 // Timing-safe password confirmation protecting against side-channel analysis
-function verifyPassword(password: string, storedHash: string): boolean {
+async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
   if (!storedHash) return false;
   if (storedHash.startsWith('pbkdf2_10000$')) {
     const parts = storedHash.split('$');
     if (parts.length === 3) {
       const salt = parts[1];
       const hash = parts[2];
-      const verifyHash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+      const verifyHash = (await _pbkdf2(password, salt, 10000, 64, 'sha512')).toString('hex');
       const hashBuffer = Buffer.from(hash, 'hex');
       const verifyBuffer = Buffer.from(verifyHash, 'hex');
       if (hashBuffer.length === verifyBuffer.length) {
@@ -2954,7 +3023,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
   // Generate 6 digit OTP
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
-  const hashedPassword = hashPassword(password);
+  const hashedPassword = await hashPassword(password);
 
   console.log(`[OTP DEBUG] Generating OTP ${otp} for ${email}`);
 
@@ -3193,7 +3262,7 @@ app.post('/api/auth/login', async (req, res) => {
       const admin = adminResult.rows[0];
       
       const isPasswordValid = admin.password
-        ? verifyPassword(password, admin.password)
+        ? await verifyPassword(password, admin.password)
         : password === ADMIN_MASTER_PASSWORD;
       
       if (!isPasswordValid) {
@@ -3249,7 +3318,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const customer = customerResult.rows[0];
-    if (!verifyPassword(password, customer.password)) {
+    if (!(await verifyPassword(password, customer.password))) {
       // Increment failed password matching count
       const attempts = (tracker?.attempts || 0) + 1;
       const lockoutUntil = attempts >= 5 ? Date.now() + 15 * 60 * 1000 : 0;
@@ -3304,7 +3373,7 @@ app.post('/api/auth/signup-admin', async (req, res) => {
   try {
     const adminId = 'admin_' + Math.random().toString(36).substring(2, 11);
     const displayName = emailKey.split('@')[0];
-    const hashedPassword = hashPassword(password);
+    const hashedPassword = await hashPassword(password);
 
     if (!pool) {
       // Mock-mode registration
@@ -3508,7 +3577,7 @@ app.post('/api/auth/verify-admin-otp', requireAdmin, async (req, res) => {
   // Generate temporary password
   const randomSuffix = Math.floor(100000 + Math.random() * 900000).toString();
   const tempPassword = `Amadiya@Temp${randomSuffix}`;
-  const hashedPassword = hashPassword(tempPassword);
+  const hashedPassword = await hashPassword(tempPassword);
 
   const adminId = 'admin_' + Math.random().toString(36).substring(2, 11);
   const displayName = emailKey.split('@')[0];
@@ -3568,14 +3637,14 @@ app.post('/api/auth/change-admin-password', async (req, res) => {
 
     const admin = adminResult.rows[0];
     const isPasswordValid = admin.password
-      ? verifyPassword(currentPassword, admin.password)
+      ? await verifyPassword(currentPassword, admin.password)
       : currentPassword === ADMIN_MASTER_PASSWORD;
 
     if (!isPasswordValid) {
       return res.status(400).json({ error: 'The current temporary password you entered is incorrect.' });
     }
 
-    const newHashedPassword = hashPassword(newPassword);
+    const newHashedPassword = await hashPassword(newPassword);
     await query(
       'UPDATE admins SET password = $1, "requiresPasswordChange" = false WHERE LOWER(email) = $2',
       [newHashedPassword, emailKey]
@@ -3855,6 +3924,43 @@ async function renderIndexShell(indexHtmlPath: string): Promise<string> {
   return html;
 }
 
+// Map of URL path -> which precompressed variants exist on disk for it, e.g.
+// '/assets/index-CxGSHxUe.js' -> { br: true, gzip: true }.
+//
+// Built once at startup and held in memory. The alternative — stat()-ing for a
+// '.br' on each request — would swap the gzip CPU we're removing for filesystem
+// I/O on every asset hit, which defeats the point. dist/ is baked into the image
+// and cannot change while the process runs, so a snapshot is safe here.
+function buildVariantIndex(distPath: string): Map<string, { br: boolean; gzip: boolean }> {
+  const index = new Map<string, { br: boolean; gzip: boolean }>();
+  const walk = (dir: string) => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return; // dist/ absent (e.g. tests) — the caller falls back to plain static.
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      const match = /\.(br|gz)$/.exec(entry.name);
+      if (!match) continue;
+      // Map the variant back to the URL path of the file it encodes.
+      const originalPath = full.slice(0, -match[0].length);
+      const urlPath = '/' + path.relative(distPath, originalPath).split(path.sep).join('/');
+      const existing = index.get(urlPath) ?? { br: false, gzip: false };
+      if (match[1] === 'br') existing.br = true;
+      else existing.gzip = true;
+      index.set(urlPath, existing);
+    }
+  };
+  walk(distPath);
+  return index;
+}
+
 // Vite Setup
 async function startServer() {
   await initDb();
@@ -3900,8 +4006,60 @@ async function startServer() {
       }
     });
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    // dist/client, not dist/: the server bundle and its sourcemap live in dist/ and
+    // must never be inside the static root. See build.outDir in vite.config.ts.
+    const distPath = path.join(process.cwd(), 'dist', 'client');
     const indexHtmlPath = path.join(distPath, 'index.html');
+
+    // Serve the .br/.gz variants written by scripts/precompress.mjs at build time,
+    // instead of letting the global compression() middleware re-compress the same
+    // immutable bytes on the event loop for every cache miss.
+    //
+    // This must be mounted BEFORE express.static. It doesn't send anything itself:
+    // it rewrites req.url to point at the variant and lets express.static do the
+    // actual serving, so range requests, ETags, Content-Length and the caching
+    // options below all keep working, computed against the file actually sent.
+    //
+    // compression() further up then leaves the response alone: it skips any
+    // response that already carries a Content-Encoding (compression/index.js:183).
+    const variantIndex = buildVariantIndex(distPath);
+    if (variantIndex.size > 0) {
+      app.use((req, res, next) => {
+        if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+
+        const variants = variantIndex.get(req.path);
+        if (!variants) return next();
+
+        // Let Express negotiate: it honours the client's q-values and ordering.
+        // Listing identity last means a client that refuses both encodings
+        // (or sends br;q=0) correctly falls through to the raw file.
+        const candidates = [
+          ...(variants.br ? ['br'] : []),
+          ...(variants.gzip ? ['gzip'] : []),
+          'identity',
+        ];
+        const chosen = req.acceptsEncodings(candidates);
+        if (chosen !== 'br' && chosen !== 'gzip') return next();
+
+        // Content-Type must be derived from the ORIGINAL extension and set now:
+        // express.static would otherwise infer it from the '.br'/'.gz' suffix and
+        // label our JavaScript as application/octet-stream, which browsers refuse
+        // to execute. send() leaves Content-Type alone once it's already set.
+        res.type(path.extname(req.path));
+        res.setHeader('Content-Encoding', chosen);
+        // Without Vary, a shared cache could hand a brotli body to a client that
+        // never asked for one.
+        res.setHeader('Vary', 'Accept-Encoding');
+
+        const suffix = chosen === 'br' ? '.br' : '.gz';
+        const queryAt = req.url.indexOf('?');
+        req.url = queryAt === -1
+          ? req.url + suffix
+          : req.url.slice(0, queryAt) + suffix + req.url.slice(queryAt);
+        next();
+      });
+    }
+
     // Vite gives every JS/CSS file a content hash in its name, so the bytes for a
     // given URL never change — cache them for a year. index.html is the pointer to
     // those hashed files and is served fresh via the '*' route below, so a new
