@@ -47,8 +47,13 @@ app.use(cors({
 // or pre-compressed payloads automatically.
 app.use(compression());
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// Body parsing runs before any auth middleware, so the limit here bounds what an
+// unauthenticated caller can make this process parse on the event loop. Every
+// upload goes browser -> Cloudinary directly (src/lib/cloudinary.ts); the API only
+// ever receives the returned URL, so no route needs a large body. 1mb leaves ample
+// headroom over the biggest real payload (a few KB of JSON).
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ limit: '1mb', extended: true }));
 
 // Database configuration
 const dbUrl = process.env.DATABASE_URL;
@@ -3829,6 +3834,27 @@ async function injectHeroMedia(html: string): Promise<string> {
   return html.replace('</head>', `${preload}${seed}</head>`);
 }
 
+// index.html is immutable for the life of the deploy, and injectHeroMedia's output
+// varies only with the hero media — so both the disk read and the string assembly
+// are memoized rather than repeated on every page load. The rendered shell is keyed
+// on the hero media object identity, which getHeroMedia keeps stable for its TTL, so
+// this refreshes on exactly the same schedule as before.
+let _rawIndexHtml: string | null = null;
+let _shellCache: { media: any | null; html: string } | null = null;
+
+async function renderIndexShell(indexHtmlPath: string): Promise<string> {
+  const media = await getHeroMedia();
+  if (_shellCache && _shellCache.media === media) {
+    return _shellCache.html;
+  }
+  if (_rawIndexHtml === null) {
+    _rawIndexHtml = await fs.promises.readFile(indexHtmlPath, 'utf-8');
+  }
+  const html = await injectHeroMedia(_rawIndexHtml);
+  _shellCache = { media, html };
+  return html;
+}
+
 // Vite Setup
 async function startServer() {
   await initDb();
@@ -3888,8 +3914,7 @@ async function startServer() {
     }));
     app.get('*', async (req, res) => {
       try {
-        const indexHtml = fs.readFileSync(indexHtmlPath, 'utf-8');
-        const html = await injectHeroMedia(indexHtml);
+        const html = await renderIndexShell(indexHtmlPath);
         // Never cache the HTML shell: it must always reflect the latest asset
         // hashes and the freshly-injected hero media.
         res.status(200).set({
